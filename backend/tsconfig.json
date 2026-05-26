@@ -1,0 +1,16 @@
+{
+  // Visit https://aka.ms/tsconfig to read more about this file
+  "compilerOptions": {
+    "target": "es6",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
