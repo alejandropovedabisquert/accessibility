@@ -13,6 +13,12 @@ COPY package*.json pnpm-lock.yaml ./
 # Install the dependencies using pnpm
 RUN pnpm install
 
+# Install Playwright browsers
+RUN pnpm exec playwright install
+
+# Install additional dependencies required for Playwright to run in a Docker container
+RUN npx playwright install-deps
+
 # Copy the rest of the application code to the working directory
 COPY . .
 

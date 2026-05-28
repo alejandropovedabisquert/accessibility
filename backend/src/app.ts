@@ -1,6 +1,6 @@
 import express from 'express';
 import { errorHandler } from './middlewares/errorHandler';
-import generalRoutes from './routes/generalRoutes';
+import generalRoutes from './routes/general.routes';
 
 const BASE_API_PATH = '/api';
 const app = express();

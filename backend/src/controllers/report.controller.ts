@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import ReportService from '../services/report/reportservice';
 import { AppError } from '../middlewares/errorHandler';
+import reportService from '../services/report/report.service';
 
 export const getReports = async (
     _req: Request,
@@ -8,8 +8,7 @@ export const getReports = async (
     next: NextFunction,
 ) => {
     try {
-        const reportStorageService = new ReportService();
-        const reports = await reportStorageService.getAllReports();
+        const reports = await reportService.getAllReports();
         res.json(reports);
     } catch (error) {
         next(error);
@@ -36,9 +35,7 @@ export const downloadReport = (
             throw err;
         }
 
-        const reportStorageService = new ReportService();
-
-        const { filePath, safeArchiveName } = reportStorageService.getReportFromDirectory(directoryName, type as 'json' | 'pdf');
+        const { filePath, safeArchiveName } = reportService.getReportFromDirectory(directoryName, type as 'json' | 'pdf');
 
         res.download(filePath, safeArchiveName);
     } catch (error) {

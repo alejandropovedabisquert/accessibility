@@ -1,4 +1,4 @@
-export function reportHtmlBuilder(reportData: any) {
+export function reportHtmlBuilder(report: any) {
     const escapeHtml = (value: unknown): string =>
         String(value ?? '')
             .replace(/&/g, '&amp;')
@@ -26,29 +26,37 @@ export function reportHtmlBuilder(reportData: any) {
         </div>
     `;
 
+    const blockSummary = (item: any) => `
+        <ul>
+            <li>Violations: ${escapeHtml(item.violations.length)}</li>
+            <li>Passes: ${escapeHtml(item.passes.length)}</li>
+            <li>Incomplete: ${escapeHtml(item.incomplete.length)}</li>
+            <li>Inapplicable: ${escapeHtml(item.inapplicable.length)}</li>
+        </ul>
+    `;
+
+    const blockAllReport = (item: any) => `
+        <h2>Summary</h2>
+        ${blockSummary(item)}
+        <h2>Violations Details</h2>
+        ${item.violations.map(blockDetails).join('')}
+        <h2>Incomplete Details</h2>
+        ${item.incomplete.map(blockDetails).join('')}
+        <h2>Inapplicable Details</h2>
+        ${item.inapplicable.map(blockDetails).join('')}
+    `;
+
+    // <p><strong>Emulated Device:</strong> ${escapeHtml(report.emulatedDevice)}</p>
+    // <p><strong>Used Browser:</strong> ${escapeHtml(report.usedBrowser)}</p>
     return `
         <html>
             <head>
                 <title>Accessibility Scan Results</title>
             </head>
             <body>
-                <h1>Accessibility Scan Results of ${escapeHtml(reportData.scannedUrl)}</h1>
-                <p><strong>Timestamp:</strong> ${escapeHtml(reportData.timestamp)}</p>
-                <p><strong>Emulated Device:</strong> ${escapeHtml(reportData.emulatedDevice)}</p>
-                <p><strong>Used Browser:</strong> ${escapeHtml(reportData.usedBrowser)}</p>
-                <h2>Summary</h2>
-                <ul>
-                    <li>Violations: ${reportData.summary.violations}</li>
-                    <li>Passes: ${reportData.summary.passes}</li>
-                    <li>Incomplete: ${reportData.summary.incomplete}</li>
-                    <li>Inapplicable: ${reportData.summary.inapplicable}</li>
-                </ul>
-                <h2>Violations Details</h2>
-                ${reportData.scanResult.violations.map(blockDetails).join('')}
-                <h2>Incomplete Details</h2>
-                ${reportData.scanResult.incomplete.map(blockDetails).join('')}
-                <h2>Inapplicable Details</h2>
-                ${reportData.scanResult.inapplicable.map(blockDetails).join('')}
+                <h1>Accessibility Scan Results of ${escapeHtml(report.url)}</h1>
+                <p><strong>Timestamp:</strong> ${escapeHtml(report.timestamp)}</p>
+                ${blockAllReport(report)}
             </body>
         </html>
     `;

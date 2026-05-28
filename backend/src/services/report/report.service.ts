@@ -13,7 +13,7 @@ class ReportService {
         this.filePath = 'scan-results';
     }
 
-    getAllReports() {
+    public getAllReports() {
         const directory = path.join(this.filePath);
         const reports: ReportItem[] = [];
         const directoryFiles = fs.readdirSync(directory);
@@ -32,7 +32,7 @@ class ReportService {
         return reports;
     }
 
-    getReportFromDirectory(directoryName: string, type: 'json' | 'pdf') {
+    public getReportFromDirectory(directoryName: string, type: 'json' | 'pdf') {
         const safeName = path.basename(directoryName);
         const safeArchiveName = fs.readdirSync(path.join('scan-results', safeName)).find((file) => file.endsWith(`.${type}`));
 
@@ -55,4 +55,4 @@ class ReportService {
     }
 }
 
-export default ReportService;
+export default new ReportService();

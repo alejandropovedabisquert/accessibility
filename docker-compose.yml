@@ -4,6 +4,8 @@ services:
       context: ./backend
     ports:
       - "3000:3000"
+    volumes:
+      - ./backend/scan-results:/app/scan-results
     develop:
       watch: 
         - action: sync

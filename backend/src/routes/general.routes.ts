@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { scanner } from '../controllers/scannerController';
-import { getDevices } from '../controllers/devicesController';
-import { getBrowsers } from '../controllers/borwserController';
-import { downloadReport, getReports } from '../controllers/reportController';
+import { scanner } from '../controllers/scanner.controller';
+import { getDevices } from '../controllers/devices.controller';
+import { getBrowsers } from '../controllers/borwser.controller';
+import { downloadReport, getReports } from '../controllers/report.controller';
 
 const router = Router();
 
