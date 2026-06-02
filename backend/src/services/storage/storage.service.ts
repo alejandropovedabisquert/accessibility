@@ -64,7 +64,7 @@ class StorageService {
         const context = await browser.newContext();
         const page = await context.newPage();
         await page.setContent(html);
-        await page.pdf({ path: filePath, format: 'A4' });
+        await page.pdf({ path: filePath, format: 'A4', printBackground: true });
         await browser.close();
         return fileName;
     }
