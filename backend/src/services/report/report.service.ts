@@ -34,7 +34,7 @@ class ReportService {
 
     public getReportFromDirectory(directoryName: string, type: 'json' | 'pdf') {
         const safeName = path.basename(directoryName);
-        const safeArchiveName = fs.readdirSync(path.join('scan-results', safeName)).find((file) => file.endsWith(`.${type}`));
+        const safeArchiveName = fs.readdirSync(path.join(this.filePath, safeName)).find((file) => file.endsWith(`.${type}`));
 
         if (!safeArchiveName) {
             const err = new Error('Directory not found') as AppError;
@@ -42,7 +42,7 @@ class ReportService {
             throw err;
         }
 
-        const filePath = path.join('scan-results', safeName, safeArchiveName);
+        const filePath = path.join(this.filePath, safeName, safeArchiveName);
 
         if (!fs.existsSync(filePath)) {
             const err = new Error('Report not found') as AppError;

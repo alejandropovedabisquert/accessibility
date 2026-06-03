@@ -57,9 +57,11 @@ class ScanService {
                 .analyze();
 
             return results;
+        } catch (error) {
+            const err = new Error(`Failed to scan ${job.url}: ${(error as Error).message}`) as AppError;
+            err.status = 500;
+            throw err;
         } finally {
-            // El bloque 'finally' asegura que el navegador SIEMPRE se cierre,
-            // incluso si la página dio un timeout o error 500.
             await context.close();
             await browser.close();
         }

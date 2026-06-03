@@ -18,10 +18,16 @@ type ScanWorkflowInput = {
     viewport?: ScanViewport;
 };
 
+type ScanWorkflowFailure = {
+    url: string;
+    error: string;
+};
+
 type ScanWorkflowResult = {
     timestamp: string;
     url: string;
     results: ScanResults[];
+    failures: ScanWorkflowFailure[];
 };
 
-export { ScanViewport, ScanWaitUntil, ScanBrowser, ScanWorkflowInput, ScanWorkflowResult };
+export { ScanViewport, ScanWaitUntil, ScanBrowser, ScanWorkflowInput, ScanWorkflowFailure, ScanWorkflowResult };
