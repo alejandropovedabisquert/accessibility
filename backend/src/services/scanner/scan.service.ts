@@ -3,46 +3,54 @@ import { chromium, devices, firefox, webkit } from 'playwright';
 import { ScanResults } from "../../types/scanResult.type";
 import { AppError } from "../../middlewares/errorHandler";
 import { AsyncTaskQueue } from "../shared/AsyncTaskQueue";
+import { ScanBrowser, ScanViewport, ScanWaitUntil } from "../../types/scanWorkflow.type";
 
 type ScanJob = {
     url: string;
-    browserName: string;
+    browserName?: ScanBrowser;
     deviceName?: string;
+    timeoutMs?: number;
+    waitUntil?: ScanWaitUntil;
+    viewport?: ScanViewport;
 };
+
+const DEFAULT_BROWSER: ScanBrowser = 'chromium';
+const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_WAIT_UNTIL: ScanWaitUntil = 'load';
+const DEFAULT_VIEWPORT: ScanViewport = { width: 1366, height: 768 };
 
 class ScanService {
     private readonly scanQueue: AsyncTaskQueue<ScanJob, ScanResults>;
 
     constructor() {
         this.scanQueue = new AsyncTaskQueue<ScanJob, ScanResults>(
-            (job) => this.runScan(job.url, job.browserName, job.deviceName),
+            (job) => this.runScan(job),
             3,
             "scan"
         );
     }
 
-    public enqueueScan(url: string, browserName: string, deviceName?: string): Promise<ScanResults> {
-        return this.scanQueue.enqueue({ url, browserName, deviceName });
+    public enqueueScan(job: ScanJob): Promise<ScanResults> {
+        return this.scanQueue.enqueue(job);
     }
 
     /**
      * El core de ejecución de Playwright (Privado, controlado por la cola)
      */
-    private async runScan(url: string, browserName: string, deviceName?: string): Promise<ScanResults> {
-        const browser = await this.setBrowserOptions(browserName);
+    private async runScan(job: ScanJob): Promise<ScanResults> {
+        const browser = await this.setBrowserOptions(job.browserName);
 
-        // Evitamos romper el código si el dispositivo no existe en el objeto de Playwright
-        const deviceConfig = deviceName && devices[deviceName] ? devices[deviceName] : {};
+        const contextOptions = this.buildContextOptions(job.deviceName, job.viewport);
 
-        const context = await browser.newContext({
-            ...deviceConfig,
-        });
+        const context = await browser.newContext(contextOptions);
 
         const page = await context.newPage();
 
         try {
-            // Establecemos un timeout máximo de 30 segundos para la carga de la página
-            await page.goto(url);
+            await page.goto(job.url, {
+                timeout: job.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+                waitUntil: job.waitUntil ?? DEFAULT_WAIT_UNTIL,
+            });
 
             const results = await new AxeBuilder({ page })
                 .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -57,11 +65,23 @@ class ScanService {
         }
     }
 
+    private buildContextOptions(deviceName?: string, viewport?: ScanViewport) {
+        if (deviceName && devices[deviceName]) {
+            return {
+                ...devices[deviceName],
+            };
+        }
+
+        return {
+            viewport: viewport || DEFAULT_VIEWPORT,
+        };
+    }
+
     /**
      * Configura las opciones del navegador según el nombre proporcionado.
      */
-    private async setBrowserOptions(browserName: string) {
-        switch (browserName.toLowerCase()) {
+    private async setBrowserOptions(browserName?: ScanBrowser) {
+        switch ((browserName || DEFAULT_BROWSER).toLowerCase()) {
             case 'chromium':
                 return await chromium.launch({ headless: true });
             case 'firefox':

@@ -4,7 +4,13 @@ import scanWorkflowService from "../services/scanner/scanWorkflow.service";
 interface ScanBody {
     urls?: string[];
     device?: string;
-    browser?: string;
+    browser?: 'chromium' | 'firefox' | 'webkit';
+    timeout?: number;
+    waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
+    viewport?: {
+        width: number;
+        height: number;
+    };
 }
 
 export const scanner = async (
@@ -17,6 +23,9 @@ export const scanner = async (
             urls: req.body.urls || [],
             browser: req.body.browser,
             device: req.body.device,
+            timeout: req.body.timeout,
+            waitUntil: req.body.waitUntil,
+            viewport: req.body.viewport,
         });
 
         res.status(200).json(result);

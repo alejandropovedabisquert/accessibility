@@ -12,8 +12,6 @@ class ScanWorkflowService {
             throw err;
         }
 
-        const browserName = input.browser || "chromium";
-
         const normalizedUrls = input.urls.map((rawUrl) => {
             const parsed = parseUrl(rawUrl);
 
@@ -28,7 +26,14 @@ class ScanWorkflowService {
 
         const results = await Promise.all(
             normalizedUrls.map((url) =>
-                scanService.enqueueScan(url, browserName, input.device)
+                scanService.enqueueScan({
+                    url,
+                    browserName: input.browser,
+                    deviceName: input.device,
+                    timeoutMs: input.timeout,
+                    waitUntil: input.waitUntil,
+                    viewport: input.viewport,
+                })
             )
         );
 
