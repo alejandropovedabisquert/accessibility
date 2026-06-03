@@ -8,7 +8,7 @@ export const parseUrl = (url: string): URL => {
     try {
         return new URL(url);
     } catch {
-        const err = new Error('url is not valid') as AppError;
+        const err = new Error('Url is not valid') as AppError;
         err.status = 400;
         throw err;
     }

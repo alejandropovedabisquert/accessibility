@@ -34,22 +34,22 @@ export const validateScanBody = (
         const { urls, browser, device } = req.body;
 
         if (urls === undefined) {
-            badRequest('urls is required in request body');
+            badRequest('Urls is required in request body');
         }
 
         if (!Array.isArray(urls)) {
-            badRequest('urls must be an array');
+            badRequest('Urls must be an array');
         }
 
         const urlList = urls as unknown[];
 
         if (urlList.length === 0) {
-            badRequest('urls must not be empty');
+            badRequest('Urls must not be empty');
         }
 
         for (const rawUrl of urlList) {
             if (typeof rawUrl !== 'string' || rawUrl.trim().length === 0) {
-                badRequest('each url must be a non-empty string');
+                badRequest('Each url must be a non-empty string');
             }
 
             const parsedUrlString = rawUrl as string;
@@ -57,29 +57,29 @@ export const validateScanBody = (
             try {
                 parsedUrl = new URL(parsedUrlString);
             } catch {
-                badRequest('all urls must be valid');
+                badRequest('All urls must be valid');
             }
 
             if (!parsedUrl || !ALLOWED_PROTOCOLS.has(parsedUrl.protocol)) {
-                badRequest('only http and https protocols are allowed');
+                badRequest('Only http and https protocols are allowed');
             }
         }
 
         const browserValue = browser;
         if (browserValue !== undefined) {
             if (typeof browserValue !== 'string') {
-                badRequest('browser must be a string');
+                badRequest('Browser must be a string');
             }
 
             const normalizedBrowser = browserValue.toLowerCase();
             if (!ALLOWED_BROWSERS.has(normalizedBrowser)) {
-                badRequest('browser is not allowed');
+                badRequest('Browser is not allowed');
             }
         }
 
         if (device !== undefined) {
             if (typeof device !== 'string' || !(device in devices)) {
-                badRequest('device is not valid');
+                badRequest('Device is not valid');
             }
         }
 

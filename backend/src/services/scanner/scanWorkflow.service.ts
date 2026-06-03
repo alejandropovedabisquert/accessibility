@@ -7,7 +7,7 @@ import { ScanWorkflowInput, ScanWorkflowResult } from "../../types/scanWorkflow.
 class ScanWorkflowService {
     async execute(input: ScanWorkflowInput): Promise<ScanWorkflowResult> {
         if (!input.urls || input.urls.length === 0) {
-            const err = new Error("url is required in request body") as AppError;
+            const err = new Error("Urls is required in request body") as AppError;
             err.status = 400;
             throw err;
         }
@@ -18,7 +18,7 @@ class ScanWorkflowService {
             const parsed = parseUrl(rawUrl);
 
             if (!["http:", "https:"].includes(parsed.protocol)) {
-                const err = new Error("only http and https protocols are allowed") as AppError;
+                const err = new Error("Only http and https protocols are allowed") as AppError;
                 err.status = 400;
                 throw err;
             }

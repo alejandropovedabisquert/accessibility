@@ -69,7 +69,7 @@ class ScanService {
             case 'webkit':
                 return await webkit.launch({ headless: true });
             default:
-                const err = new Error('unsupported browser') as AppError;
+                const err = new Error('Unsupported browser') as AppError;
                 err.status = 400;
                 throw err;
         }

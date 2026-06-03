@@ -16,9 +16,6 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-app.get('/', (req, res) => {
-  res.json({ message: 'Hello, World!' });
-});
 // Global error handler (should be after routes)
 app.use(errorHandler);
 
