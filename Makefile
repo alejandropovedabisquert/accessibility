@@ -17,8 +17,5 @@ rebuild:
 	$(MAKE) build
 	$(MAKE) up
 
-test:
-	docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test
-
 logs:
 	docker compose logs -f
