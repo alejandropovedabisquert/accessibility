@@ -3,10 +3,11 @@ import { scanner } from '../controllers/scanner.controller';
 import { getDevices } from '../controllers/devices.controller';
 import { getBrowsers } from '../controllers/borwser.controller';
 import { downloadReport, getReports } from '../controllers/report.controller';
+import { validateScanBody } from '../middlewares/validateScanBody';
 
 const router = Router();
 
-router.post('/scan', scanner);
+router.post('/scan', validateScanBody, scanner);
 router.get('/devices', getDevices);
 router.get('/browsers', getBrowsers);
 router.get('/reports', getReports);
