@@ -9,6 +9,13 @@ app.use(express.json());
 
 // Routes
 app.use(`${BASE_API_PATH}/accessibility`, generalRoutes);
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
 app.get('/', (req, res) => {
   res.json({ message: 'Hello, World!' });
 });
