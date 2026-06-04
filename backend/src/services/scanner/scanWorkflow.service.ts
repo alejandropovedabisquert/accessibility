@@ -55,22 +55,22 @@ class ScanWorkflowService {
 
         const output: ScanWorkflowResult = {
             timestamp: new Date().toISOString(),
-            url: removeHttpProtocol(normalizeUrl(normalizedUrls[0])),
             results,
             failures,
         };
-
+        const runDirectory = storageService.prepareRunDirectory(output.timestamp);
+        
         if (output.results.length > 0) {
             await Promise.all(
                 output.results.map((res) => storageService.enqueueReport({
                     timestamp: output.timestamp,
-                    url: output.url,
                     results: [res],
                     failures: [],
-                }))
+                }, runDirectory))
             );
         }
-
+        await storageService.saveJsonSummary(output, runDirectory);
+        
         return output;
     }
 }

@@ -17,3 +17,5 @@ build/
 
 # scan-results
 scan-results/
+
+.DS_Store

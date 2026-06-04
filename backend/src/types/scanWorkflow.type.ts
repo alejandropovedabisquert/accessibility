@@ -25,7 +25,6 @@ type ScanWorkflowFailure = {
 
 type ScanWorkflowResult = {
     timestamp: string;
-    url: string;
     results: ScanResults[];
     failures: ScanWorkflowFailure[];
 };
