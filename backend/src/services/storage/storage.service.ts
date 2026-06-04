@@ -32,11 +32,16 @@ class StorageService {
             fs.mkdirSync(this.filePath);
         }
 
-        const directory = this.buildDirectoryReportName(report.url, report.timestamp);
+        this.buildDirectoryReportName(report.timestamp);
+        fs.mkdirSync("urls", { recursive: true });
+        const urlDirectory = path.join("urls", removeHttpProtocol(report.results[0].url));
+        if (!fs.existsSync(urlDirectory)) {
+            fs.mkdirSync(urlDirectory, { recursive: true });
+        }
         const html = reportHtmlBuilder(report.results[0]);
         const pdfFile = await this.savePdfReport(
             html, 
-            directory, 
+            urlDirectory, 
             report.timestamp, 
             removeHttpProtocol(report.results[0].url)
         );
@@ -44,12 +49,12 @@ class StorageService {
         return pdfFile;
     }
 
-    private buildArchiveReportName(timestamp: string, ext: 'pdf') {
+    private buildArchiveReportName(timestamp: string, ext: 'pdf' | 'json'): string {
         return `accessibility-scan-result-${timestamp}.${ext}`;
     }
 
-    private buildDirectoryReportName(name: string, timestamp: string) {
-        const directoryName = `${timestamp}_${name}`;
+    private buildDirectoryReportName(timestamp: string) {
+        const directoryName = `run-${timestamp}`;
         const directory = path.join(this.filePath, directoryName);
         if (!fs.existsSync(directory)) {
             fs.mkdirSync(directory, { recursive: true });
@@ -66,6 +71,13 @@ class StorageService {
         await page.setContent(html);
         await page.pdf({ path: filePath, format: 'A4', printBackground: true });
         await browser.close();
+        return fileName;
+    }
+
+    private async saveJsonReport(report: ScanWorkflowResult, directory: string, timestamp: string) {
+        const fileName = this.buildArchiveReportName(timestamp, 'json');
+        const filePath = path.join(directory, fileName);
+        fs.writeFileSync(filePath, JSON.stringify(report, null, 2), 'utf-8');
         return fileName;
     }
 }
