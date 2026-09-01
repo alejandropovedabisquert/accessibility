@@ -1,34 +1,37 @@
 {
-  "name": "test-accessibility",
-  "version": "1.0.0",
-  "description": "",
+  "name": "accessibility-backend",
+  "version": "2.0.0",
+  "description": "API de escaneo y auditoria de accesibilidad web (Playwright + axe-core)",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
-    "lint": "eslint \"src/**/*.ts\""
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
   },
-  "keywords": [],
   "author": "Alejandro Poveda Bisquert",
   "license": "ISC",
   "type": "commonjs",
-  "packageManager": "pnpm@8.6.0",
-  "publishConfig": {
-    "access": "public"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.60.0",
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.9.1",
+  "packageManager": "pnpm@11.24.0",
+  "dependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "globals": "^17.6.0",
-    "nodemon": "^3.1.14",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "playwright": "^1.62.1",
+    "zod": "^4.5.4"
   },
-  "dependencies": {
-    "@axe-core/playwright": "^4.11.3",
-    "playwright": "^1.60.0"
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
   }
 }

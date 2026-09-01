@@ -1,0 +1,31 @@
+# Imagen de desarrollo: monta el código y recarga con tsx watch.
+FROM mcr.microsoft.com/playwright:v1.62.1-noble
+
+WORKDIR /app
+
+# Herramientas necesarias para módulos nativos como better-sqlite3
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# pnpm
+RUN corepack enable \
+    && corepack prepare pnpm@11.24.0 --activate
+
+# Dependencias
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+RUN pnpm install --frozen-lockfile --prod=false
+
+# Código
+COPY . .
+
+ENV NODE_ENV=development \
+    PORT=3000 \
+    DATA_DIR=/app/data \
+    RESULTS_DIR=/app/scan-results
+
+EXPOSE 3000
+
+CMD ["pnpm", "dev"]

@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+
+/*
+ * Paleta clara. OJO: `@theme` no puede ir dentro de una media query — Tailwind
+ * lo eleva fuera y solo sobrevive la ultima definicion. Las variantes oscuras
+ * se declaran mas abajo redefiniendo las custom properties en :root, que es lo
+ * que leen las utilidades generadas.
+ */
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f7f9;
+  --color-line: #e2e5ea;
+  --color-ink: #16191d;
+  --color-ink-muted: #5b626c;
+  --color-accent: #1f5fbf;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #eaf1fc;
+
+  --color-critical: #a4192b;
+  --color-critical-soft: #fdeaec;
+  --color-serious: #8a4408;
+  --color-serious-soft: #fdf0e3;
+  --color-moderate: #6b5500;
+  --color-moderate-soft: #fbf5df;
+  --color-minor: #33506f;
+  --color-minor-soft: #eef2f7;
+  --color-ok: #1d6340;
+  --color-ok-soft: #e6f4ec;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-surface: #14171b;
+    --color-surface-muted: #1b1f24;
+    --color-line: #2c323a;
+    --color-ink: #eceef1;
+    --color-ink-muted: #a7b0bb;
+    --color-accent: #79aaf5;
+    /* Sobre el azul claro del modo oscuro el texto blanco no llega a 4.5:1. */
+    --color-on-accent: #14171b;
+    --color-accent-soft: #1b2739;
+
+    --color-critical: #ff9fa8;
+    --color-critical-soft: #3a1b20;
+    --color-serious: #f7bd7c;
+    --color-serious-soft: #372614;
+    --color-moderate: #e0cb72;
+    --color-moderate-soft: #2f2a12;
+    --color-minor: #a8c2e0;
+    --color-minor-soft: #1e2733;
+    --color-ok: #7fd3a4;
+    --color-ok-soft: #14291e;
+  }
+}
+
+body {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Foco siempre visible: es una herramienta de accesibilidad, no lo escondemos. */
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

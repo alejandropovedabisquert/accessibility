@@ -1,22 +1,26 @@
 import express from 'express';
-import { errorHandler } from './middlewares/errorHandler';
-import generalRoutes from './routes/general.routes';
+import cors from 'cors';
+import config from './config/config';
+import routes from './routes';
+import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 
-const BASE_API_PATH = '/api';
 const app = express();
 
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(cors({ origin: config.corsOrigin }));
+app.use(express.json({ limit: '256kb' }));
 
-// Routes
-app.use(`${BASE_API_PATH}/accessibility`, generalRoutes);
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
   });
 });
-// Global error handler (should be after routes)
+
+app.use('/api', routes);
+
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 export default app;

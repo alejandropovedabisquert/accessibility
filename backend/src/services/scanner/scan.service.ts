@@ -1,102 +1,94 @@
-import { AxeBuilder } from "@axe-core/playwright";
-import { chromium, devices, firefox, webkit } from 'playwright';
-import { ScanResults } from "../../types/scanResult.type";
-import { AppError } from "../../middlewares/errorHandler";
-import { AsyncTaskQueue } from "../shared/AsyncTaskQueue";
-import { ScanBrowser, ScanViewport, ScanWaitUntil } from "../../types/scanWorkflow.type";
+import { AxeBuilder } from '@axe-core/playwright';
+import { devices } from 'playwright';
+import config from '../../config/config';
+import browserPool from './browserPool';
+import { AsyncTaskQueue } from '../shared/AsyncTaskQueue';
+import { toMessage } from '../../utils/errors';
+import type { AuditConfig, AxeResults, ScanBrowser } from '../../types/audit.types';
 
-type ScanJob = {
-    url: string;
-    browserName?: ScanBrowser;
-    deviceName?: string;
-    timeoutMs?: number;
-    waitUntil?: ScanWaitUntil;
-    viewport?: ScanViewport;
-};
-
-const DEFAULT_BROWSER: ScanBrowser = 'chromium';
-const DEFAULT_TIMEOUT_MS = 30000;
-const DEFAULT_WAIT_UNTIL: ScanWaitUntil = 'load';
-const DEFAULT_VIEWPORT: ScanViewport = { width: 1366, height: 768 };
-
-class ScanService {
-    private readonly scanQueue: AsyncTaskQueue<ScanJob, ScanResults>;
-
-    constructor() {
-        this.scanQueue = new AsyncTaskQueue<ScanJob, ScanResults>(
-            (job) => this.runScan(job),
-            3,
-            "scan"
-        );
-    }
-
-    public enqueueScan(job: ScanJob): Promise<ScanResults> {
-        return this.scanQueue.enqueue(job);
-    }
-
-    /**
-     * El core de ejecución de Playwright (Privado, controlado por la cola)
-     */
-    private async runScan(job: ScanJob): Promise<ScanResults> {
-        const browser = await this.setBrowserOptions(job.browserName);
-
-        const contextOptions = this.buildContextOptions(job.deviceName, job.viewport);
-
-        const context = await browser.newContext(contextOptions);
-
-        const page = await context.newPage();
-
-        try {
-            await page.goto(job.url, {
-                timeout: job.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-                waitUntil: job.waitUntil ?? DEFAULT_WAIT_UNTIL,
-            });
-
-            const results = await new AxeBuilder({ page })
-                .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-                .analyze();
-
-            return results;
-        } catch (error) {
-            const err = new Error(`Failed to scan ${job.url}: ${(error as Error).message}`) as AppError;
-            err.status = 500;
-            throw err;
-        } finally {
-            await context.close();
-            await browser.close();
-        }
-    }
-
-    private buildContextOptions(deviceName?: string, viewport?: ScanViewport) {
-        if (deviceName && devices[deviceName]) {
-            return {
-                ...devices[deviceName],
-            };
-        }
-
-        return {
-            viewport: viewport || DEFAULT_VIEWPORT,
-        };
-    }
-
-    /**
-     * Configura las opciones del navegador según el nombre proporcionado.
-     */
-    private async setBrowserOptions(browserName?: ScanBrowser) {
-        switch ((browserName || DEFAULT_BROWSER).toLowerCase()) {
-            case 'chromium':
-                return await chromium.launch({ headless: true });
-            case 'firefox':
-                return await firefox.launch({ headless: true });
-            case 'webkit':
-                return await webkit.launch({ headless: true });
-            default:
-                const err = new Error('Unsupported browser') as AppError;
-                err.status = 400;
-                throw err;
-        }
-    }
+export interface ScanJob {
+  url: string;
+  config: AuditConfig;
 }
 
-// Exportamos una única instancia del servicio (Singleton) para compartir la misma cola en toda la API
+export const DEFAULT_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+export const AVAILABLE_TAGS = [
+  { id: 'wcag2a', label: 'WCAG 2.0 A' },
+  { id: 'wcag2aa', label: 'WCAG 2.0 AA' },
+  { id: 'wcag2aaa', label: 'WCAG 2.0 AAA' },
+  { id: 'wcag21a', label: 'WCAG 2.1 A' },
+  { id: 'wcag21aa', label: 'WCAG 2.1 AA' },
+  { id: 'wcag22aa', label: 'WCAG 2.2 AA' },
+  { id: 'best-practice', label: 'Buenas practicas' },
+];
+
+const DEFAULT_VIEWPORT = { width: 1366, height: 768 };
+
+class ScanService {
+  private readonly queue = new AsyncTaskQueue<ScanJob, AxeResults>(
+    (job) => this.runScan(job),
+    config.scanConcurrency,
+    'scan'
+  );
+
+  public enqueue(job: ScanJob): Promise<AxeResults> {
+    return this.queue.enqueue(job);
+  }
+
+  public getStats() {
+    return { queue: this.queue.getStats(), browsers: browserPool.getStats() };
+  }
+
+  private async runScan(job: ScanJob): Promise<AxeResults> {
+    const browserName = job.config.browser;
+    const browser = await browserPool.acquire(browserName);
+
+    try {
+      const context = await browser.newContext(this.contextOptions(job.config));
+      context.setDefaultTimeout(job.config.timeoutMs);
+
+      try {
+        const page = await context.newPage();
+        await page.goto(job.url, {
+          timeout: job.config.timeoutMs,
+          waitUntil: job.config.waitUntil,
+        });
+
+        return await new AxeBuilder({ page }).withTags(job.config.tags).analyze();
+      } finally {
+        await context.close().catch(() => undefined);
+      }
+    } catch (error) {
+      throw new Error(this.describeFailure(browserName, toMessage(error)));
+    } finally {
+      browserPool.release(browserName);
+    }
+  }
+
+  private contextOptions(auditConfig: AuditConfig) {
+    if (auditConfig.device) {
+      const preset = devices[auditConfig.device];
+      if (preset) return { ...preset };
+    }
+    return { viewport: auditConfig.viewport ?? DEFAULT_VIEWPORT };
+  }
+
+  /** Traduce los errores mas comunes de Playwright a algo legible en la UI. */
+  private describeFailure(browser: ScanBrowser, message: string): string {
+    if (message.includes('ERR_NAME_NOT_RESOLVED') || message.includes('NS_ERROR_UNKNOWN_HOST')) {
+      return 'No se pudo resolver el dominio';
+    }
+    if (message.includes('ERR_CONNECTION_REFUSED')) {
+      return 'Conexion rechazada por el servidor';
+    }
+    if (message.toLowerCase().includes('timeout')) {
+      return `Tiempo de espera agotado al cargar la pagina (${browser})`;
+    }
+    if (message.includes('ERR_CERT') || message.includes('SSL_ERROR')) {
+      return 'Certificado TLS no valido';
+    }
+    return message.split('\n')[0]?.trim() || 'Error desconocido durante el escaneo';
+  }
+}
+
 export default new ScanService();

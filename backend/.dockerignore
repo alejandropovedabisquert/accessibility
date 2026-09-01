@@ -1,19 +1,6 @@
-
-# Playwright
-node_modules/
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
-
-
-# ENV
+node_modules
+dist
+data
+scan-results
 .env
-
-# Build output
-dist/
-build/
-
-# scan-results
-scan-results/
+*.log

@@ -2,16 +2,31 @@ services:
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
+    # Playwright lanza procesos hijos: sin un init los navegadores dejan zombies.
+    init: true
     ports:
       - "3000:3000"
+    environment:
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:3001
+      SCAN_CONCURRENCY: "3"
+      MAX_URLS_PER_AUDIT: "25"
     volumes:
+      - ./backend/data:/app/data
       - ./backend/scan-results:/app/scan-results
-    develop:
-      watch: 
-        - action: sync
-          path: "./backend"
-          target: "/app"
-          ignore:
-            - "node_modules"
-        - action: rebuild
-          path: "./backend/package.json"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      # Nombre del servicio: el front habla con la API por la red interna.
+      API_URL: http://backend:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

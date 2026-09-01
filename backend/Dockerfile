@@ -1,30 +1,44 @@
-#  Use Node.js 24 as the base image
-FROM node:24
+# Imagen oficial de Playwright:
+# trae Node, navegadores y dependencias de sistema de Playwright.
+FROM mcr.microsoft.com/playwright:v1.62.1-noble
 
-# Set the working directory in the container to /app
 WORKDIR /app
 
-# Install pnpm globally
-RUN npm install -g pnpm
+# Herramientas necesarias para compilar módulos nativos,
+# especialmente better-sqlite3.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the package.json and pnpm-lock.yaml files to the working directory
-COPY package*.json pnpm-lock.yaml ./
+# pnpm
+RUN corepack enable \
+    && corepack prepare pnpm@11.24.0 --activate
 
-# Install the dependencies using pnpm
-RUN pnpm install
+# Dependencias
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Install Playwright browsers
-RUN pnpm exec playwright install
+RUN pnpm install --frozen-lockfile --prod=false
 
-# Install additional dependencies required for Playwright to run in a Docker container
-RUN npx playwright install-deps
+# Código necesario para compilar
+COPY tsconfig.json ./
+COPY src ./src
 
-# Copy the rest of the application code to the working directory
-COPY . .
+RUN pnpm build
 
-# Expose port 3000 for the application
+# Eliminar devDependencies después del build
+RUN pnpm install --frozen-lockfile --prod
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    DATA_DIR=/app/data \
+    RESULTS_DIR=/app/scan-results
+
+RUN mkdir -p /app/data /app/scan-results
+
 EXPOSE 3000
 
-# Build the application using pnpm and then start it
-RUN pnpm build
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["node", "dist/server.js"]

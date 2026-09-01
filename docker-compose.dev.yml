@@ -1,0 +1,25 @@
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --watch
+services:
+  backend:
+    build:
+      dockerfile: Dockerfile.dev
+    environment:
+      NODE_ENV: development
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/src
+          target: /app/src
+        - action: rebuild
+          path: ./backend/package.json
+
+  frontend:
+    build:
+      dockerfile: Dockerfile.dev
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: rebuild
+          path: ./frontend/package.json
