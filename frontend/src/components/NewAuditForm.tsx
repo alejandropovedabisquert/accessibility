@@ -74,7 +74,55 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
       </Card>
 
       <Card className="space-y-5 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">Normas a comprobar</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            Normas a comprobar
+          </h2>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const form = document.forms[0];
+                meta.tags.forEach((tag) => {
+                  const input = form.elements.namedItem(
+                    "tags",
+                  ) as RadioNodeList;
+                  if (input) {
+                    const checkbox = Array.from(input).find(
+                      (el) =>
+                        el instanceof HTMLInputElement && el.value === tag.id,
+                    ) as HTMLInputElement | undefined;
+                    if (checkbox) checkbox.checked = true;
+                  }
+                });
+              }}
+              className={buttonStyles.secondary}
+            >
+              Marcar todas
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const form = document.forms[0];
+                meta.tags.forEach((tag) => {
+                  const input = form.elements.namedItem(
+                    "tags",
+                  ) as RadioNodeList;
+                  if (input) {
+                    const checkbox = Array.from(input).find(
+                      (el) =>
+                        el instanceof HTMLInputElement && el.value === tag.id,
+                    ) as HTMLInputElement | undefined;
+                    if (checkbox) checkbox.checked = false;
+                  }
+                });
+              }}
+              className={buttonStyles.secondary}
+            >
+              Desmarcar todas
+            </button>
+          </div>
+        </div>
         <fieldset>
           <legend className="sr-only">Conjuntos de reglas WCAG</legend>
           <div className="grid gap-2 sm:grid-cols-2">
