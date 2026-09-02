@@ -12,6 +12,9 @@ export interface ReportMeta {
     config: AuditConfig;
     score: number | null;
     label?: string | null;
+    /** Seccion analizada. null = pagina entera. */
+    include?: string | null;
+    exclude?: string | null;
 }
 
 /**
@@ -429,7 +432,10 @@ export function reportHtmlBuilder(report: ReportData, meta: ReportMeta): string 
                             <li><strong>Navegador:</strong> ${escapeHtml(meta.config.browser)}</li>
                             <li><strong>Dispositivo:</strong> ${escapeHtml(meta.config.device ?? (meta.config.viewport ? `${meta.config.viewport.width}x${meta.config.viewport.height}` : 'por defecto'))}</li>
                             <li><strong>Normas:</strong> ${escapeHtml(meta.config.tags.join(', '))}</li>
+                            <li><strong>Ambito:</strong> ${meta.include ? `seccion <code>${escapeHtml(meta.include)}</code>` : 'pagina completa'}</li>
+                            ${meta.exclude ? `<li><strong>Excluido:</strong> <code>${escapeHtml(meta.exclude)}</code></li>` : ''}
                         </ul>
+                        ${meta.include ? '<p class="timestamp">Al analizar solo una seccion, axe omite las reglas de ambito de pagina (idioma del documento, landmarks, titulo).</p>' : ''}
                     </header>
 
                     <h2 id="summary" class="section-title">Resumen</h2>

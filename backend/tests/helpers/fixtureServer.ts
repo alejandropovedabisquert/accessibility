@@ -23,6 +23,28 @@ export const CLEAN_PAGE = `<!doctype html>
   </body>
 </html>`;
 
+/**
+ * Cabecera con fallos y contenido principal limpio, para comprobar que acotar
+ * el escaneo a una seccion cambia el resultado.
+ */
+export const SECTIONED_PAGE = `<!doctype html>
+<html lang="es">
+  <head><meta charset="utf-8"><title>Pagina por secciones</title></head>
+  <body style="background:#ffffff">
+    <header>
+      <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+      <p style="color:#eeeeee">Cabecera con contraste insuficiente</p>
+    </header>
+    <main>
+      <h1 style="color:#111111">Titulo</h1>
+      <p style="color:#111111">Contenido accesible.</p>
+    </main>
+    <footer>
+      <input type="text">
+    </footer>
+  </body>
+</html>`;
+
 export interface FixtureServer {
   url(path?: string): string;
   close(): Promise<void>;

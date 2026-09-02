@@ -1,4 +1,4 @@
-import type { AuditStatus, Impact, PageStatus } from './types';
+import type { AuditStatus, Impact, Meta, PageStatus } from './types';
 
 export const formatDateTime = (iso: string | null): string => {
   if (!iso) return '—';
@@ -66,3 +66,19 @@ export const IMPACT_LABEL: Record<Impact, string> = {
 
 export const isInProgress = (status: AuditStatus): boolean =>
   status === 'queued' || status === 'running';
+
+/** Valor del desplegable de sección que abre el campo de selector libre. */
+export const CUSTOM_SECTION = '__custom__';
+
+/**
+ * Nombre legible de una sección. En la BD se guarda el selector CSS resuelto y
+ * no el id del atajo, así que se busca al revés contra la lista que sirve
+ * `/api/meta`. Si no es un atajo conocido, se enseña el CSS tal cual.
+ */
+export const sectionLabel = (
+  include: string | null,
+  sections: Meta['sections'] = []
+): string | null => {
+  if (!include) return null;
+  return sections.find((section) => section.selector === include)?.label ?? include;
+};

@@ -58,8 +58,9 @@ export const getPagePdf = asyncHandler(async (req: Request<PageParams>, res: Res
 });
 
 export const getHistory = asyncHandler(async (req: Request, res: Response) => {
-  const { url, limit } = historySchema.parse(req.query);
-  res.json({ url, points: auditService.history(url, limit) });
+  const { url, include, limit } = historySchema.parse(req.query);
+  const scope = include ?? null;
+  res.json({ url, include: scope, points: auditService.history(url, scope, limit) });
 });
 
 export const getScannedUrls = asyncHandler(async (_req: Request, res: Response) => {

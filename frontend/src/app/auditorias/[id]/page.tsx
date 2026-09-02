@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getAudit } from '@/lib/api';
+import { getAudit, getMeta } from '@/lib/api';
 import { ApiError } from '@/lib/api';
 import { deleteAuditAction, rerunAuditAction } from '@/app/actions';
 import { displayUrl, formatDateTime, formatDuration, isInProgress } from '@/lib/format';
@@ -10,6 +10,7 @@ import {
   Card,
   ImpactBreakdown,
   PageHeader,
+  ScopeBadge,
   ScoreDial,
   Stat,
   StatusBadge,
@@ -40,6 +41,9 @@ export default async function AuditDetailPage({ params }: Props) {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   }
+
+  // Solo sirve para poner nombre bonito a los selectores de sección: si falla, se enseña el CSS.
+  const meta = await getMeta().catch(() => null);
 
   const inProgress = isInProgress(audit.status);
   const done = audit.completedPages + audit.failedPages;
@@ -151,6 +155,7 @@ export default async function AuditDetailPage({ params }: Props) {
                   ) : (
                     <span className="break-all">{displayUrl(page.url)}</span>
                   )}
+                  <ScopeBadge scope={page} sections={meta?.sections} />
                   {page.error ? <p className="mt-0.5 text-xs text-critical">{page.error}</p> : null}
                 </th>
                 <td className="px-4 py-3">

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { AuditStatus, Counters, Impact, PageStatus } from '@/lib/types';
-import { AUDIT_STATUS_LABEL, IMPACT_LABEL, PAGE_STATUS_LABEL } from '@/lib/format';
+import type { AuditStatus, Counters, Impact, Meta, PageStatus, ScanScope } from '@/lib/types';
+import { AUDIT_STATUS_LABEL, IMPACT_LABEL, PAGE_STATUS_LABEL, sectionLabel } from '@/lib/format';
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -60,6 +60,38 @@ export function StatusBadge({ status, kind = 'audit' }: { status: AuditStatus | 
     >
       {live ? <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-current" /> : null}
       {label}
+    </span>
+  );
+}
+
+/**
+ * Ámbito del escaneo de una página. No pinta nada en el caso normal (página
+ * completa y sin exclusiones) para no meter ruido en la tabla.
+ */
+export function ScopeBadge({
+  scope,
+  sections = [],
+}: {
+  scope: ScanScope;
+  sections?: Meta['sections'];
+}) {
+  if (!scope.include && !scope.exclude) return null;
+
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+      {scope.include ? (
+        <span
+          title={scope.include}
+          className="rounded-full border border-accent/30 bg-accent-soft px-2 py-0.5 font-medium text-accent"
+        >
+          {sectionLabel(scope.include, sections)}
+        </span>
+      ) : null}
+      {scope.exclude ? (
+        <span className="text-ink-muted">
+          excluye <code>{scope.exclude}</code>
+        </span>
+      ) : null}
     </span>
   );
 }

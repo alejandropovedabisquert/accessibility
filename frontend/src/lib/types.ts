@@ -25,7 +25,13 @@ export interface AuditConfig {
   tags: string[];
 }
 
-export interface AuditPage extends Counters {
+/** Seccion analizada de una pagina. `include` a null = la pagina entera. */
+export interface ScanScope {
+  include: string | null;
+  exclude: string | null;
+}
+
+export interface AuditPage extends Counters, ScanScope {
   id: string;
   auditId: string;
   url: string;
@@ -79,6 +85,7 @@ export interface HistoryPoint extends Counters {
   pageId: string;
   finishedAt: string | null;
   score: number | null;
+  include: string | null;
 }
 
 export interface Paginated<T> {
@@ -93,6 +100,7 @@ export interface Meta {
   browsers: Array<{ id: string; name: string }>;
   devices: Array<{ name: string; viewport: { width: number; height: number } | null; isMobile?: boolean }>;
   tags: Array<{ id: string; label: string }>;
+  sections: Array<{ id: string; label: string; selector: string }>;
   defaults: {
     browser: string;
     waitUntil: string;
@@ -100,12 +108,13 @@ export interface Meta {
     timeout: number;
     viewport: { width: number; height: number };
   };
-  limits: { maxUrlsPerAudit: number; scanConcurrency: number };
+  limits: { maxUrlsPerAudit: number; scanConcurrency: number; maxSelectorLength: number };
 }
 
 export interface ScannedUrl {
   url: string;
   host: string;
+  include: string | null;
   runs: number;
   lastScan: string | null;
 }

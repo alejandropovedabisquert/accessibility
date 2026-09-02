@@ -68,6 +68,8 @@ class PdfService {
       config: audit.config,
       score: page.score,
       label: audit.label,
+      include: page.include,
+      exclude: page.exclude,
     });
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });

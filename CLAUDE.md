@@ -21,14 +21,18 @@ Primera vez en local: `cd backend && pnpm exec playwright install chromium`.
 
 ## Arquitectura
 
-Una **auditoría** tiene N **páginas** (una por URL). Cada página produce contadores en SQLite y un
-JSON crudo de axe en disco.
+Una **auditoría** tiene N **páginas** (una por URL, o por URL + sección). Cada página produce
+contadores en SQLite y un JSON crudo de axe en disco.
+
+El **ámbito** (`include`/`exclude`, selectores CSS) vive en la página, no en `AuditConfig`: una misma
+auditoría puede mirar la cabecera de una URL y el pie de otra. `include` a null = página completa.
 
 ```
 POST /api/audits → 202 {id}          El escaneo corre en segundo plano
   audit.service.create()             Inserta filas y lanza run() sin await
   audit.service.run()                Encola todas las páginas
   scan.service.enqueue()             Cola con límite de concurrencia
+                                     AxeBuilder.include()/.exclude() si hay sección
   browserPool.acquire()              Navegador reutilizado, contexto nuevo por escaneo
   summarize()                        Contadores + score + issues aplanados
   repository.completePage()          Persiste; rawStore guarda el JSON
@@ -69,6 +73,22 @@ routes/ → controllers/ → services/ → db/audit.repository.ts
 
 ## Gotchas (cosas que ya han mordido)
 
+**Al acotar el escaneo a una sección, axe deja de ejecutar las reglas de ámbito de página**
+(`html-has-lang`, `document-title`, `landmark-one-main`, `region`…). No es un fallo: es que con
+`include` el contexto ya no es el documento. Si alguien reporta que "la sección pasa todo", casi
+siempre es esto. La UI y el PDF lo avisan explícitamente; no quites ese aviso.
+
+**El histórico y el diff se llavean por URL + `include`, no solo por URL.** Sin eso, comparar un
+escaneo de la cabecera con el anterior de la página entera marcaba media web como "resuelta".
+`findPreviousPage` y `history` usan `IS` en vez de `=` porque NULL (página completa) tiene que casar
+con NULL. **`exclude` queda deliberadamente fuera de la clave**: filtra ruido puntual (banners de
+cookies) y partir la serie por él daría series de un solo punto.
+
+**Un selector que no casa con nada aborta el escaneo entero de esa página.** axe lanza "No elements
+found for include in Context", que no dice nada al usuario. `scan.service.assertSelector()` lo
+comprueba antes con `document.querySelectorAll` (lo mismo que usa axe por dentro) y lanza un
+`ScopeError`, cuyo mensaje sí está escrito para la UI y se salta `describeFailure`.
+
 **Tailwind 4: `@theme` no puede ir dentro de `@media`.** Tailwind lo eleva fuera y solo sobrevive la
 última definición, así que la app se renderiza siempre con la paleta equivocada. La paleta clara va
 en `@theme`; la oscura redefine las custom properties en `:root` dentro del media query. Ver
@@ -91,8 +111,10 @@ descargaba.
 **No lances un navegador por escaneo.** Usa `browserPool.acquire()/release()`. Arrancar uno por URL
 costaba ~175 ms extra por URL.
 
-**El esquema de SQLite no tiene migraciones.** Se aplica con `CREATE TABLE IF NOT EXISTS` al arrancar.
-Si cambias `src/db/client.ts` con datos existentes, usa la skill `db-change`.
+**El esquema de SQLite no tiene migraciones.** Se aplica con `CREATE TABLE IF NOT EXISTS` al arrancar,
+que **no toca una tabla que ya existe**. Todo cambio posterior sobre una tabla creada va en
+`migrate()` (`src/db/client.ts`), y tiene que ser idempotente: se ejecuta en cada arranque. Ese es el
+único sitio donde poner un `ALTER TABLE`.
 
 **Un fallo de una URL no debe tumbar la auditoría.** `runPage` captura el error y marca esa página
 como `failed`; el resto sigue.

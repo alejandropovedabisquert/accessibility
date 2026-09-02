@@ -1,15 +1,28 @@
 import { AxeBuilder } from '@axe-core/playwright';
-import { devices } from 'playwright';
+import { devices, type Page } from 'playwright';
 import config from '../../config/config';
 import browserPool from './browserPool';
 import { AsyncTaskQueue } from '../shared/AsyncTaskQueue';
 import { toMessage } from '../../utils/errors';
-import type { AuditConfig, AxeResults, ScanBrowser } from '../../types/audit.types';
+import type { AuditConfig, AxeResults, ScanBrowser, ScanScope } from '../../types/audit.types';
 
 export interface ScanJob {
   url: string;
+  scope: ScanScope;
   config: AuditConfig;
 }
+
+/** Selector de seccion invalido o que no casa con nada. Su mensaje ya es para el usuario. */
+class ScopeError extends Error {}
+
+/**
+ * Lo minimo del DOM que se usa dentro de `page.evaluate`.
+ *
+ * El tsconfig del backend no carga la lib "dom" a proposito (es codigo de Node
+ * y tener `document` global seria un pie de banco), pero el callback de
+ * `evaluate` si corre en el navegador.
+ */
+type BrowserGlobal = { document: { querySelectorAll(selector: string): { length: number } } };
 
 export const DEFAULT_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 export const AVAILABLE_TAGS = [
@@ -21,6 +34,21 @@ export const AVAILABLE_TAGS = [
   { id: 'wcag22aa', label: 'WCAG 2.2 AA' },
   { id: 'best-practice', label: 'Buenas practicas' },
 ];
+
+/**
+ * Atajos para las secciones habituales. El valor es CSS puro: se guarda el
+ * selector resuelto, no el id del preset, para que el resultado siga siendo
+ * verificable a mano contra el JSON crudo aunque esta lista cambie.
+ */
+export const SECTION_PRESETS = [
+  { id: 'header', label: 'Cabecera', selector: 'header' },
+  { id: 'main', label: 'Contenido principal', selector: 'main' },
+  { id: 'footer', label: 'Pie', selector: 'footer' },
+  { id: 'form', label: 'Formularios', selector: 'form' },
+];
+
+/** Longitud maxima de un selector, compartida con el esquema de validacion. */
+export const MAX_SELECTOR_LENGTH = 200;
 
 const DEFAULT_VIEWPORT = { width: 1366, height: 768 };
 
@@ -54,14 +82,50 @@ class ScanService {
           waitUntil: job.config.waitUntil,
         });
 
-        return await new AxeBuilder({ page }).withTags(job.config.tags).analyze();
+        const builder = new AxeBuilder({ page }).withTags(job.config.tags);
+
+        if (job.scope.include) {
+          await this.assertSelector(page, job.scope.include, true);
+          builder.include(job.scope.include);
+        }
+        if (job.scope.exclude) {
+          await this.assertSelector(page, job.scope.exclude, false);
+          builder.exclude(job.scope.exclude);
+        }
+
+        return await builder.analyze();
       } finally {
         await context.close().catch(() => undefined);
       }
     } catch (error) {
+      // El mensaje de un ScopeError ya esta escrito para la UI.
+      if (error instanceof ScopeError) throw error;
       throw new Error(this.describeFailure(browserName, toMessage(error)));
     } finally {
       browserPool.release(browserName);
+    }
+  }
+
+  /**
+   * axe resuelve el contexto con `document.querySelectorAll`, asi que se
+   * comprueba igual antes de lanzarlo: un selector con sintaxis mala revienta
+   * dentro de axe con un mensaje ilegible, y uno que no casa con nada aborta el
+   * escaneo entero con "No elements found for include in Context".
+   */
+  private async assertSelector(page: Page, selector: string, mustMatch: boolean): Promise<void> {
+    const count = await page.evaluate((value) => {
+      try {
+        return (globalThis as unknown as BrowserGlobal).document.querySelectorAll(value).length;
+      } catch {
+        return -1;
+      }
+    }, selector);
+
+    if (count === -1) {
+      throw new ScopeError(`"${selector}" no es un selector CSS valido`);
+    }
+    if (mustMatch && count === 0) {
+      throw new ScopeError(`El selector "${selector}" no encontro ningun elemento en la pagina`);
     }
   }
 
@@ -86,6 +150,10 @@ class ScanService {
     }
     if (message.includes('ERR_CERT') || message.includes('SSL_ERROR')) {
       return 'Certificado TLS no valido';
+    }
+    // Pasa cuando el selector de exclusion se come todo lo que incluia el de seccion.
+    if (message.includes('No elements found for include in Context')) {
+      return 'La seccion quedo vacia: el selector de exclusion abarca todo lo incluido';
     }
     return message.split('\n')[0]?.trim() || 'Error desconocido durante el escaneo';
   }

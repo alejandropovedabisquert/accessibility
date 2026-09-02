@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { ApiError, getAudit, getHistory, getPageDiff, getPageResults } from '@/lib/api';
-import { displayUrl, formatDateTime, formatDuration } from '@/lib/format';
+import { ApiError, getAudit, getHistory, getMeta, getPageDiff, getPageResults } from '@/lib/api';
+import { displayUrl, formatDateTime, formatDuration, sectionLabel } from '@/lib/format';
 import { ViolationList } from '@/components/ViolationList';
 import { DiffPanel } from '@/components/DiffPanel';
 import { HistoryChart } from '@/components/HistoryChart';
@@ -36,11 +36,15 @@ export default async function PageDetail({ params }: Props) {
   const { page, results } = data;
 
   // Diff e historico son informativos: si fallan, la pagina principal sigue sirviendo.
-  const [audit, diff, history] = await Promise.all([
+  const [audit, diff, history, meta] = await Promise.all([
     getAudit(id).catch(() => null),
     getPageDiff(id, pageId).catch(() => null),
-    getHistory(page.url).catch(() => null),
+    // La serie es por URL + seccion: comparar la cabecera contra la pagina entera no diria nada.
+    getHistory(page.url, page.include).catch(() => null),
+    getMeta().catch(() => null),
   ]);
+
+  const scope = sectionLabel(page.include, meta?.sections);
 
   const pdfHref = `/api/backend/audits/${id}/pages/${pageId}/report.pdf`;
   const jsonHref = `/api/backend/audits/${id}/pages/${pageId}/results?download=1`;
@@ -61,7 +65,10 @@ export default async function PageDetail({ params }: Props) {
             </Link>
           </li>
           <li aria-hidden="true">/</li>
-          <li aria-current="page">{displayUrl(page.url)}</li>
+          <li aria-current="page">
+            {displayUrl(page.url)}
+            {scope ? ` · ${scope}` : ''}
+          </li>
         </ol>
       </nav>
 
@@ -69,6 +76,7 @@ export default async function PageDetail({ params }: Props) {
         title={displayUrl(page.url)}
         description={
           <>
+            {scope ? <>Sección <strong>{scope}</strong> · </> : null}
             Escaneada el {formatDateTime(page.finishedAt)} en {formatDuration(page.durationMs)} ·{' '}
             <a href={page.url} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2">
               Abrir la página <span className="sr-only">(se abre en una pestaña nueva)</span>
@@ -86,6 +94,20 @@ export default async function PageDetail({ params }: Props) {
           </>
         }
       />
+
+      {page.include ? (
+        <div className="mb-6 rounded-md border border-line bg-surface-muted px-4 py-3 text-sm">
+          <p>
+            Solo se ha analizado <code>{page.include}</code>
+            {page.exclude ? <> excluyendo <code>{page.exclude}</code></> : null}.
+          </p>
+          <p className="mt-1 text-ink-muted">
+            axe omite las reglas de ámbito de página (idioma del documento, landmarks, título) cuando
+            el análisis se acota a una sección, así que no aparecerán aquí aunque la página falle en
+            ellas.
+          </p>
+        </div>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap items-center gap-6">
         <div className="flex items-center gap-3">
@@ -131,7 +153,7 @@ export default async function PageDetail({ params }: Props) {
 
       <section className="mb-10" aria-labelledby="h-evolucion">
         <h2 id="h-evolucion" className="mb-3 text-lg font-semibold">
-          Evolución de esta URL
+          Evolución de {scope ? `esta sección` : 'esta URL'}
         </h2>
         {history ? (
           <Card className="p-5">

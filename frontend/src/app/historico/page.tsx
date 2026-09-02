@@ -1,19 +1,28 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getHistory, getScannedUrls } from '@/lib/api';
-import { displayUrl, formatRelative } from '@/lib/format';
+import { getHistory, getMeta, getScannedUrls } from '@/lib/api';
+import { displayUrl, formatRelative, sectionLabel } from '@/lib/format';
 import { HistoryChart } from '@/components/HistoryChart';
 import { Card, EmptyState, PageHeader } from '@/components/ui';
 
 export const metadata: Metadata = { title: 'Histórico' };
 
 interface Props {
-  searchParams: Promise<{ url?: string }>;
+  searchParams: Promise<{ url?: string; include?: string }>;
 }
 
+/** Una serie es URL + seccion, asi que hace falta la pareja para identificarla. */
+const seriesKey = (url: string, include: string | null) => `${url}\n${include ?? ''}`;
+
+const seriesHref = (url: string, include: string | null) => {
+  const query = new URLSearchParams({ url });
+  if (include) query.set('include', include);
+  return `/historico?${query.toString()}`;
+};
+
 export default async function HistoryPage({ searchParams }: Props) {
-  const { url } = await searchParams;
-  const urls = await getScannedUrls();
+  const { url, include } = await searchParams;
+  const [urls, meta] = await Promise.all([getScannedUrls(), getMeta().catch(() => null)]);
 
   if (urls.length === 0) {
     return (
@@ -28,8 +37,12 @@ export default async function HistoryPage({ searchParams }: Props) {
     );
   }
 
-  const selected = url && urls.some((item) => item.url === url) ? url : urls[0]?.url;
-  const history = selected ? await getHistory(selected, 50).catch(() => null) : null;
+  const requested = url ? seriesKey(url, include ?? null) : null;
+  const selected =
+    urls.find((item) => seriesKey(item.url, item.include) === requested) ?? urls[0] ?? null;
+  const history = selected
+    ? await getHistory(selected.url, selected.include, 50).catch(() => null)
+    : null;
 
   return (
     <>
@@ -39,17 +52,20 @@ export default async function HistoryPage({ searchParams }: Props) {
       />
 
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-        <nav aria-label="URLs auditadas">
+        <nav aria-label="Series auditadas">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            URLs auditadas ({urls.length})
+            Series auditadas ({urls.length})
           </h2>
           <Card className="divide-y divide-line">
             {urls.map((item) => {
-              const active = item.url === selected;
+              const key = seriesKey(item.url, item.include);
+              const active = selected !== null && key === seriesKey(selected.url, selected.include);
+              const scope = sectionLabel(item.include, meta?.sections);
+
               return (
                 <Link
-                  key={item.url}
-                  href={`/historico?url=${encodeURIComponent(item.url)}`}
+                  key={key}
+                  href={seriesHref(item.url, item.include)}
                   aria-current={active ? 'true' : undefined}
                   className={`block px-4 py-3 text-sm transition-colors hover:bg-surface-muted ${
                     active ? 'bg-accent-soft' : ''
@@ -57,6 +73,7 @@ export default async function HistoryPage({ searchParams }: Props) {
                 >
                   <span className="block break-all font-medium">{displayUrl(item.url)}</span>
                   <span className="mt-0.5 block text-xs text-ink-muted">
+                    {scope ? `${scope} · ` : ''}
                     {item.runs} escaneo(s) · {formatRelative(item.lastScan)}
                   </span>
                 </Link>
@@ -68,7 +85,12 @@ export default async function HistoryPage({ searchParams }: Props) {
         <div>
           {history && selected ? (
             <Card className="p-5">
-              <h2 className="mb-4 break-all text-base font-semibold">{displayUrl(selected)}</h2>
+              <h2 className="mb-4 break-all text-base font-semibold">
+                {displayUrl(selected.url)}
+                {sectionLabel(selected.include, meta?.sections)
+                  ? ` · ${sectionLabel(selected.include, meta?.sections)}`
+                  : ''}
+              </h2>
               <HistoryChart points={history.points} label="Incumplimientos por escaneo" />
               {history.points.length > 0 ? (
                 <p className="mt-4 text-sm">

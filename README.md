@@ -11,6 +11,9 @@ compararla con escaneos anteriores y descargar el informe.
 
 - Lanza auditorías sobre varias URLs a la vez, eligiendo navegador, dispositivo o resolución, y qué
   normas WCAG comprobar (2.0 / 2.1 / 2.2 AA, buenas prácticas).
+- **Analiza la página entera o solo una sección**: cabecera, navegación, contenido principal, pie,
+  formularios o cualquier selector CSS. Se puede pedir una sección distinta por URL, y excluir del
+  análisis lo que no controlas (el banner de cookies, por ejemplo).
 - Ejecuta el escaneo **en segundo plano**: la petición responde al instante con un identificador y la
   interfaz muestra el progreso. Puedes cerrar la pestaña y volver más tarde.
 - Guarda el histórico completo en SQLite y permite filtrar, buscar y paginar el listado.
@@ -66,8 +69,9 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --watch
 
 1. Entra en http://localhost:3001 y pulsa **Nueva auditoría**.
 2. Pega las URLs (una por línea; si omites el protocolo se asume `https://`).
-3. Elige normas y entorno de escaneo, y lanza.
-4. El detalle se va actualizando solo mientras el escaneo corre.
+3. Elige si quieres la página entera o solo una sección (cabecera, pie, un selector CSS…).
+4. Elige normas y entorno de escaneo, y lanza.
+5. El detalle se va actualizando solo mientras el escaneo corre.
 
 ## API
 
@@ -75,7 +79,7 @@ Base: `http://localhost:3000/api`
 
 | Método | Ruta | Descripción |
 | --- | --- | --- |
-| `GET` | `/meta` | Navegadores, dispositivos, normas y límites disponibles |
+| `GET` | `/meta` | Navegadores, dispositivos, normas, atajos de sección y límites disponibles |
 | `GET` | `/stats` | Estado de las colas y del pool de navegadores |
 | `POST` | `/audits` | Crea una auditoría. Responde `202` con el id, sin esperar al escaneo |
 | `GET` | `/audits` | Listado paginado (`page`, `pageSize`, `status`, `search`) |
@@ -86,27 +90,39 @@ Base: `http://localhost:3000/api`
 | `GET` | `/audits/:id/pages/:pageId/results` | JSON completo de axe (`?download=1` para descargar) |
 | `GET` | `/audits/:id/pages/:pageId/diff` | Comparación con el escaneo anterior de esa URL |
 | `GET` | `/audits/:id/pages/:pageId/report.pdf` | Informe PDF (se genera la primera vez y se cachea) |
-| `GET` | `/history?url=` | Serie temporal de una URL |
-| `GET` | `/history/urls` | URLs auditadas con su número de ejecuciones |
+| `GET` | `/history?url=&include=` | Serie temporal de una URL y sección |
+| `GET` | `/history/urls` | Series auditadas (URL + sección) con su número de ejecuciones |
 | `GET` | `/health` | Estado del servicio |
 
 ### Ejemplo
+
+Cada entrada de `urls` puede ser la URL sola (página completa) o un objeto con la sección a
+analizar. La misma URL puede repetirse si cada vez se mira una parte distinta.
 
 ```bash
 # Lanzar
 curl -X POST http://localhost:3000/api/audits \
   -H 'Content-Type: application/json' \
   -d '{
-    "urls": ["https://www.avantio.com", "https://www.avantio.com/es/precios"],
+    "urls": [
+      "https://www.avantio.com",
+      { "url": "https://www.avantio.com", "include": "header, [role=\"banner\"]" },
+      { "url": "https://www.avantio.com/es/precios", "include": "footer", "exclude": "#onetrust-banner" }
+    ],
     "label": "Home y precios",
     "browser": "chromium",
     "tags": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
   }'
-# -> 202 {"id":"a1b2...","status":"queued","totalPages":2, ...}
+# -> 202 {"id":"a1b2...","status":"queued","totalPages":3, ...}
 
 # Consultar progreso
 curl http://localhost:3000/api/audits/a1b2...
 ```
+
+`include` y `exclude` son selectores CSS (máximo 200 caracteres). `GET /api/meta` devuelve en
+`sections` los atajos con su selector ya resuelto (`header`, `nav`, `main`, `footer`, `aside`,
+`form`). Si el selector de `include` no casa con ningún elemento, esa página queda como `failed` con
+el motivo, y el resto de la auditoría sigue.
 
 Errores de validación devuelven `400` con el detalle campo a campo:
 
@@ -136,6 +152,25 @@ En el frontend, `API_URL` (por defecto `http://localhost:3000`) es la URL intern
 navegador nunca la llama directamente: todo pasa por el proxy `/api/backend/*` de Next, así que el
 front siempre es mismo-origen.
 
+## Analizar solo una sección
+
+En la interfaz, el desplegable **Sección a analizar** aplica a todas las URLs. Para pedir una
+sección concreta en una línea suelta, se añade `| selector-css` al final:
+
+```
+https://www.avantio.com
+https://www.avantio.com/es/precios | footer
+```
+
+Dos cosas que conviene saber:
+
+- **axe omite las reglas de ámbito de página** (`html-has-lang`, `document-title`, `landmark-one-main`,
+  `region`…) cuando el análisis se acota a una sección. No es que la página las cumpla: es que no se
+  han comprobado. Para esas reglas hace falta un escaneo de página completa.
+- **El histórico y la comparación van por URL + sección.** La cabecera de la home solo se compara con
+  escaneos anteriores de la cabecera de la home, nunca con los de la página entera. El selector de
+  exclusión **no** parte la serie: se considera filtrado de ruido, no una sección distinta.
+
 ## Sobre la métrica "reglas superadas"
 
 No es un score ponderado inventado: es `reglas superadas / (superadas + incumplidas) × 100`. Las
@@ -145,7 +180,7 @@ decidir y necesitan revisión manual). Es un dato verificable contra el JSON cru
 ## Tests
 
 ```bash
-make test        # 28 tests: validación de la API y flujo completo con navegador real
+make test        # 41 tests: validación de la API y flujo completo con navegador real
 make typecheck
 ```
 
@@ -161,6 +196,8 @@ Chromium, así que no dependen de la red.
   30 % y un 40 % de los problemas de accesibilidad. La sección "requieren revisión manual" es
   justamente lo que hay que mirar a mano.
 - Solo se escanean las URLs que se indican; no hay descubrimiento automático de páginas.
+- La sección se elige escribiendo o eligiendo un selector CSS: no hay selector visual sobre una
+  captura de la página.
 
 ## Posibles siguientes pasos
 

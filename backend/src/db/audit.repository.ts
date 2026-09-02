@@ -13,6 +13,7 @@ import type {
   PageStatus,
   Paginated,
   ScanBrowser,
+  ScanTarget,
   ScanWaitUntil,
 } from '../types/audit.types';
 
@@ -51,6 +52,8 @@ interface PageRow {
   audit_id: string;
   url: string;
   host: string;
+  include_selector: string | null;
+  exclude_selector: string | null;
   status: string;
   started_at: string | null;
   finished_at: string | null;
@@ -132,6 +135,8 @@ const toPage = (row: PageRow): AuditPage => ({
   auditId: row.audit_id,
   url: row.url,
   host: row.host,
+  include: row.include_selector,
+  exclude: row.exclude_selector,
   status: row.status as PageStatus,
   startedAt: row.started_at,
   finishedAt: row.finished_at,
@@ -156,7 +161,7 @@ class AuditRepository {
     label: string | null;
     createdAt: string;
     config: AuditConfig;
-    urls: Array<{ id: string; url: string; host: string }>;
+    urls: Array<ScanTarget & { id: string; host: string }>;
   }): void {
     const db = getDb();
     const insertAudit = db.prepare(`
@@ -166,8 +171,9 @@ class AuditRepository {
               @viewportHeight, @waitUntil, @timeoutMs, @tags, @totalPages)
     `);
     const insertPage = db.prepare(`
-      INSERT INTO audit_pages (id, audit_id, position, url, host, status)
-      VALUES (@id, @auditId, @position, @url, @host, 'pending')
+      INSERT INTO audit_pages (id, audit_id, position, url, host, include_selector,
+                               exclude_selector, status)
+      VALUES (@id, @auditId, @position, @url, @host, @include, @exclude, 'pending')
     `);
 
     db.transaction(() => {
@@ -186,7 +192,15 @@ class AuditRepository {
       });
 
       audit.urls.forEach((page, position) => {
-        insertPage.run({ id: page.id, auditId: audit.id, position, url: page.url, host: page.host });
+        insertPage.run({
+          id: page.id,
+          auditId: audit.id,
+          position,
+          url: page.url,
+          host: page.host,
+          include: page.include,
+          exclude: page.exclude,
+        });
       });
     })();
   }
@@ -384,31 +398,38 @@ class AuditRepository {
     return rows.map(toIssue);
   }
 
-  /** Escaneo completado inmediatamente anterior de la misma URL. */
-  findPreviousPage(url: string, before: string): AuditPage | null {
+  /**
+   * Escaneo completado inmediatamente anterior de la misma URL y la misma seccion.
+   *
+   * `IS` en vez de `=` porque NULL (pagina entera) tiene que casar con NULL.
+   * Solo se compara `include_selector`: el de exclusion filtra ruido puntual
+   * (banners de cookies) y partir la serie por el daria comparaciones inutiles.
+   */
+  findPreviousPage(url: string, include: string | null, before: string): AuditPage | null {
     const row = getDb()
       .prepare(`
         SELECT p.* FROM audit_pages p
         JOIN audits a ON a.id = p.audit_id
-        WHERE p.url = @url AND p.status = 'completed' AND a.created_at < @before
+        WHERE p.url = @url AND p.include_selector IS @include
+          AND p.status = 'completed' AND a.created_at < @before
         ORDER BY a.created_at DESC
         LIMIT 1
       `)
-      .get({ url, before }) as PageRow | undefined;
+      .get({ url, include, before }) as PageRow | undefined;
     return row ? toPage(row) : null;
   }
 
-  /** Serie temporal de una URL, de mas antiguo a mas reciente. */
-  history(url: string, limit: number): HistoryPoint[] {
+  /** Serie temporal de una URL y seccion, de mas antiguo a mas reciente. */
+  history(url: string, include: string | null, limit: number): HistoryPoint[] {
     const rows = getDb()
       .prepare(`
         SELECT p.*, a.created_at AS audit_created_at FROM audit_pages p
         JOIN audits a ON a.id = p.audit_id
-        WHERE p.url = @url AND p.status = 'completed'
+        WHERE p.url = @url AND p.include_selector IS @include AND p.status = 'completed'
         ORDER BY a.created_at DESC
         LIMIT @limit
       `)
-      .all({ url, limit }) as PageRow[];
+      .all({ url, include, limit }) as PageRow[];
 
     return rows
       .map((row) => ({
@@ -416,21 +437,35 @@ class AuditRepository {
         pageId: row.id,
         finishedAt: row.finished_at,
         score: row.score,
+        include: row.include_selector,
         ...rowCounters(row),
       }))
       .reverse();
   }
 
-  /** URLs distintas auditadas, para el selector de historico. */
-  scannedUrls(): Array<{ url: string; host: string; runs: number; lastScan: string | null }> {
+  /** Series distintas auditadas (URL + seccion), para el selector de historico. */
+  scannedUrls(): Array<{
+    url: string;
+    host: string;
+    include: string | null;
+    runs: number;
+    lastScan: string | null;
+  }> {
     return getDb()
       .prepare(`
-        SELECT url, host, COUNT(*) AS runs, MAX(finished_at) AS lastScan
+        SELECT url, host, include_selector AS "include", COUNT(*) AS runs,
+               MAX(finished_at) AS lastScan
         FROM audit_pages WHERE status = 'completed'
-        GROUP BY url, host
+        GROUP BY url, host, include_selector
         ORDER BY lastScan DESC
       `)
-      .all() as Array<{ url: string; host: string; runs: number; lastScan: string | null }>;
+      .all() as Array<{
+      url: string;
+      host: string;
+      include: string | null;
+      runs: number;
+      lastScan: string | null;
+    }>;
   }
 
   deleteAudit(id: string): boolean {

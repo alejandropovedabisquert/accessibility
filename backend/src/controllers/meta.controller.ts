@@ -1,6 +1,11 @@
 import type { Request, Response } from 'express';
 import { chromium, devices, firefox, webkit } from 'playwright';
-import { AVAILABLE_TAGS, DEFAULT_TAGS } from '../services/scanner/scan.service';
+import {
+  AVAILABLE_TAGS,
+  DEFAULT_TAGS,
+  MAX_SELECTOR_LENGTH,
+  SECTION_PRESETS,
+} from '../services/scanner/scan.service';
 import auditService from '../services/audit/audit.service';
 import config from '../config/config';
 
@@ -23,6 +28,7 @@ export const getMeta = (_req: Request, res: Response) => {
     browsers: BROWSERS,
     devices: DEVICES,
     tags: AVAILABLE_TAGS,
+    sections: SECTION_PRESETS,
     defaults: {
       browser: 'chromium',
       waitUntil: 'load',
@@ -33,6 +39,7 @@ export const getMeta = (_req: Request, res: Response) => {
     limits: {
       maxUrlsPerAudit: config.maxUrlsPerAudit,
       scanConcurrency: config.scanConcurrency,
+      maxSelectorLength: MAX_SELECTOR_LENGTH,
     },
   });
 };

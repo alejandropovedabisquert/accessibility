@@ -9,6 +9,7 @@ import { AppError, badRequest, notFound, toMessage } from '../../utils/errors';
 import type {
   Audit,
   AuditConfig,
+  AuditPage,
   AuditWithPages,
   CreateAuditInput,
   HistoryPoint,
@@ -16,6 +17,7 @@ import type {
   PageDiff,
   PageIssue,
   Paginated,
+  ScanTarget,
 } from '../../types/audit.types';
 
 class AuditService {
@@ -24,7 +26,7 @@ class AuditService {
 
   /** Crea la auditoria, la deja encolada y devuelve sin esperar a que termine. */
   public create(input: CreateAuditInput): Audit {
-    const urls = this.resolveUrls(input.urls);
+    const targets = this.resolveTargets(input.urls);
     const auditConfig = this.resolveConfig(input);
     const id = randomUUID();
 
@@ -33,7 +35,7 @@ class AuditService {
       label: input.label?.trim() || null,
       createdAt: new Date().toISOString(),
       config: auditConfig,
-      urls: urls.map((url) => ({ id: randomUUID(), url, host: hostOf(url) })),
+      urls: targets.map((target) => ({ ...target, id: randomUUID(), host: hostOf(target.url) })),
     });
 
     const audit = repository.findAudit(id);
@@ -76,7 +78,9 @@ class AuditService {
     if (!page) throw notFound('Pagina no encontrada en esta auditoria');
 
     const audit = repository.findAudit(auditId);
-    const previous = audit ? repository.findPreviousPage(page.url, audit.createdAt) : null;
+    const previous = audit
+      ? repository.findPreviousPage(page.url, page.include, audit.createdAt)
+      : null;
 
     if (!previous) {
       return { previous: null, added: [], resolved: [], changed: [], unchanged: 0 };
@@ -107,8 +111,8 @@ class AuditService {
     };
   }
 
-  public history(url: string, limit = 30): HistoryPoint[] {
-    return repository.history(normalizeUrl(url), Math.min(Math.max(limit, 1), 200));
+  public history(url: string, include: string | null = null, limit = 30): HistoryPoint[] {
+    return repository.history(normalizeUrl(url), include, Math.min(Math.max(limit, 1), 200));
   }
 
   public scannedUrls() {
@@ -130,7 +134,11 @@ class AuditService {
     if (!previous) throw notFound('Auditoria no encontrada');
 
     return this.create({
-      urls: previous.pages.map((page) => page.url),
+      urls: previous.pages.map((page) => ({
+        url: page.url,
+        include: page.include ?? undefined,
+        exclude: page.exclude ?? undefined,
+      })),
       label: previous.label ?? undefined,
       browser: previous.config.browser,
       device: previous.config.device ?? undefined,
@@ -152,15 +160,30 @@ class AuditService {
 
   // ---------------------------------------------------------------- interno
 
-  private resolveUrls(rawUrls: string[]): string[] {
-    const normalized = rawUrls.map(normalizeUrl);
-    const unique = [...new Set(normalized)];
+  /**
+   * Normaliza las entradas de `urls` y descarta duplicados.
+   *
+   * La clave del duplicado es URL + seccion: la misma URL puede aparecer varias
+   * veces si cada vez se mira una parte distinta de la pagina.
+   */
+  private resolveTargets(rawTargets: CreateAuditInput['urls']): ScanTarget[] {
+    const unique = new Map<string, ScanTarget>();
 
-    if (unique.length === 0) throw badRequest('Hay que indicar al menos una URL');
-    if (unique.length > config.maxUrlsPerAudit) {
+    for (const raw of rawTargets) {
+      const entry = typeof raw === 'string' ? { url: raw } : raw;
+      const target: ScanTarget = {
+        url: normalizeUrl(entry.url),
+        include: entry.include?.trim() || null,
+        exclude: entry.exclude?.trim() || null,
+      };
+      unique.set(`${target.url}\n${target.include}\n${target.exclude}`, target);
+    }
+
+    if (unique.size === 0) throw badRequest('Hay que indicar al menos una URL');
+    if (unique.size > config.maxUrlsPerAudit) {
       throw badRequest(`Maximo ${config.maxUrlsPerAudit} URLs por auditoria`);
     }
-    return unique;
+    return [...unique.values()];
   }
 
   private resolveConfig(input: CreateAuditInput): AuditConfig {
@@ -181,7 +204,7 @@ class AuditService {
 
       // Las paginas se encolan todas a la vez; la concurrencia real la limita
       // la cola de scanService, no este bucle.
-      await Promise.all(pages.map((page) => this.runPage(auditId, page.id, page.url, auditConfig)));
+      await Promise.all(pages.map((page) => this.runPage(auditId, page, auditConfig)));
 
       repository.finalizeAudit(auditId, new Date().toISOString());
     } catch (error) {
@@ -189,17 +212,17 @@ class AuditService {
     }
   }
 
-  private async runPage(
-    auditId: string,
-    pageId: string,
-    url: string,
-    auditConfig: AuditConfig
-  ): Promise<void> {
+  private async runPage(auditId: string, page: AuditPage, auditConfig: AuditConfig): Promise<void> {
+    const pageId = page.id;
     const startedAt = Date.now();
     repository.markPageRunning(pageId, new Date().toISOString());
 
     try {
-      const results = await scanService.enqueue({ url, config: auditConfig });
+      const results = await scanService.enqueue({
+        url: page.url,
+        scope: { include: page.include, exclude: page.exclude },
+        config: auditConfig,
+      });
       const { counters, score, issues } = summarize(results);
 
       await rawStore.saveRaw(auditId, pageId, results);

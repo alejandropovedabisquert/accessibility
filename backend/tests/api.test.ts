@@ -29,6 +29,14 @@ describe('GET /api/meta', () => {
     expect(res.body.tags.some((t: { id: string }) => t.id === 'wcag21aa')).toBe(true);
     expect(res.body.limits.maxUrlsPerAudit).toBeGreaterThan(0);
   });
+
+  it('publica los atajos de seccion y el limite de selector', async () => {
+    const res = await request(app).get('/api/meta').expect(200);
+
+    const header = res.body.sections.find((s: { id: string }) => s.id === 'header');
+    expect(header.selector).toContain('header');
+    expect(res.body.limits.maxSelectorLength).toBeGreaterThan(0);
+  });
 });
 
 describe('POST /api/audits (validacion)', () => {
@@ -43,6 +51,10 @@ describe('POST /api/audits (validacion)', () => {
     ['waitUntil invalido', { urls: ['https://example.com'], waitUntil: 'siempre' }, 'waitUntil'],
     ['timeout fuera de rango', { urls: ['https://example.com'], timeout: 10 }, 'timeout'],
     ['campo desconocido', { urls: ['https://example.com'], foo: 1 }, ''],
+    ['objetivo sin url', { urls: [{ include: 'header' }] }, 'urls'],
+    ['selector vacio', { urls: [{ url: 'https://example.com', include: '' }] }, 'urls'],
+    ['selector kilometrico', { urls: [{ url: 'https://example.com', include: 'a'.repeat(201) }] }, 'urls'],
+    ['clave extra en el objetivo', { urls: [{ url: 'https://example.com', scope: 'header' }] }, 'urls'],
   ];
 
   it.each(cases)('rechaza %s con 400', async (_name, body, field) => {

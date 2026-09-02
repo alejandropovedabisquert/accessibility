@@ -18,6 +18,23 @@ export interface Viewport {
   height: number;
 }
 
+/**
+ * Seccion concreta de una pagina a analizar.
+ *
+ * `include` a null significa la pagina entera. Va por pagina y no en
+ * `AuditConfig` a proposito: una misma auditoria puede mirar la cabecera de una
+ * URL y el pie de otra.
+ */
+export interface ScanScope {
+  include: string | null;
+  exclude: string | null;
+}
+
+/** Una URL con la seccion que se quiere analizar de ella. */
+export interface ScanTarget extends ScanScope {
+  url: string;
+}
+
 /** Configuracion con la que se lanza una auditoria. */
 export interface AuditConfig {
   browser: ScanBrowser;
@@ -41,7 +58,7 @@ export interface Counters {
   inapplicable: number;
 }
 
-export interface AuditPage extends Counters {
+export interface AuditPage extends Counters, ScanScope {
   id: string;
   auditId: string;
   url: string;
@@ -83,8 +100,11 @@ export interface PageIssue {
   description: string;
 }
 
+/** Lo que acepta la API por cada entrada de `urls`: la URL sola o con seccion. */
+export type CreateAuditTarget = string | { url: string; include?: string; exclude?: string };
+
 export interface CreateAuditInput {
-  urls: string[];
+  urls: CreateAuditTarget[];
   label?: string;
   browser?: ScanBrowser;
   device?: string;
@@ -123,4 +143,5 @@ export interface HistoryPoint extends Counters {
   pageId: string;
   finishedAt: string | null;
   score: number | null;
+  include: string | null;
 }

@@ -66,9 +66,12 @@ export const getPageResults = (auditId: string, pageId: string) =>
 export const getPageDiff = (auditId: string, pageId: string) =>
   apiFetch<PageDiff>(`/audits/${auditId}/pages/${pageId}/diff`);
 
-export const getHistory = (url: string, limit = 30) =>
-  apiFetch<{ url: string; points: HistoryPoint[] }>(
-    `/history?url=${encodeURIComponent(url)}&limit=${limit}`
+export const getHistory = (url: string, include: string | null = null, limit = 30) => {
+  const query = new URLSearchParams({ url, limit: String(limit) });
+  if (include) query.set('include', include);
+  return apiFetch<{ url: string; include: string | null; points: HistoryPoint[] }>(
+    `/history?${query.toString()}`
   );
+};
 
 export const getScannedUrls = () => apiFetch<ScannedUrl[]>('/history/urls');

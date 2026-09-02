@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { devices } from 'playwright';
 import config from '../config/config';
-import { AVAILABLE_TAGS } from '../services/scanner/scan.service';
+import { AVAILABLE_TAGS, MAX_SELECTOR_LENGTH } from '../services/scanner/scan.service';
 
 const TAG_IDS = AVAILABLE_TAGS.map((tag) => tag.id);
 
@@ -18,9 +18,30 @@ const urlSchema = z
     }
   }, 'Debe ser una URL http o https valida');
 
+const selectorSchema = z
+  .string()
+  .trim()
+  .min(1, 'El selector no puede estar vacio')
+  .max(MAX_SELECTOR_LENGTH, `El selector no puede pasar de ${MAX_SELECTOR_LENGTH} caracteres`);
+
+/**
+ * Una entrada de `urls` es la URL sola (pagina entera) o un objeto con la
+ * seccion a analizar. La forma corta se mantiene por compatibilidad.
+ */
+const targetSchema = z.union([
+  urlSchema,
+  z
+    .object({
+      url: urlSchema,
+      include: selectorSchema.optional(),
+      exclude: selectorSchema.optional(),
+    })
+    .strict(),
+]);
+
 export const createAuditSchema = z
   .object({
-    urls: z.array(urlSchema).min(1, 'Hay que indicar al menos una URL').max(config.maxUrlsPerAudit),
+    urls: z.array(targetSchema).min(1, 'Hay que indicar al menos una URL').max(config.maxUrlsPerAudit),
     label: z.string().trim().max(120).optional(),
     browser: z.enum(['chromium', 'firefox', 'webkit']).optional(),
     device: z
@@ -52,6 +73,8 @@ export const listAuditsSchema = z.object({
 
 export const historySchema = z.object({
   url: urlSchema,
+  // La serie es por URL + seccion: sin `include` es la de la pagina entera.
+  include: selectorSchema.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(30),
 });
 

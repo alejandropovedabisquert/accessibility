@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { CUSTOM_SECTION } from '@/lib/format';
 import type { Audit } from '@/lib/types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:3000';
@@ -23,16 +24,54 @@ export interface FormState {
   error: string | null;
 }
 
-export async function createAuditAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const urls = String(formData.get('urls') ?? '')
+interface ScanTargetPayload {
+  url: string;
+  include?: string;
+  exclude?: string;
+}
+
+// Un despiste habitual: pegar "avantio.com" sin protocolo.
+const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+
+/**
+ * Convierte el textarea en objetivos de escaneo.
+ *
+ * Cada línea es una URL, con un selector CSS propio opcional tras `|`. El
+ * selector de línea gana al del desplegable, que actúa como valor por defecto:
+ * `https://web.com | .booking-widget`.
+ */
+const parseTargets = (raw: string, include: string, exclude: string): ScanTargetPayload[] =>
+  raw
     .split(/[\n,]+/)
-    .map((url) => url.trim())
+    .map((line) => line.trim())
     .filter(Boolean)
-    // Un despiste habitual: pegar "avantio.com" sin protocolo.
-    .map((url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`));
+    .map((line) => {
+      const pipe = line.indexOf('|');
+      const url = pipe === -1 ? line : line.slice(0, pipe).trim();
+      const own = pipe === -1 ? '' : line.slice(pipe + 1).trim();
+      const scope = own || include;
+
+      return {
+        url: withProtocol(url),
+        ...(scope ? { include: scope } : {}),
+        ...(exclude ? { exclude } : {}),
+      };
+    });
+
+export async function createAuditAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const section = String(formData.get('section') ?? '').trim();
+  const include = (
+    section === CUSTOM_SECTION ? String(formData.get('includeCustom') ?? '') : section
+  ).trim();
+  const exclude = String(formData.get('exclude') ?? '').trim();
+
+  const urls = parseTargets(String(formData.get('urls') ?? ''), include, exclude);
 
   if (urls.length === 0) {
     return { error: 'Indica al menos una URL.' };
+  }
+  if (section === CUSTOM_SECTION && !include) {
+    return { error: 'Has elegido un selector CSS personalizado pero lo has dejado vacío.' };
   }
 
   const label = String(formData.get('label') ?? '').trim();

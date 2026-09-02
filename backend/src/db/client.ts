@@ -61,7 +61,6 @@ CREATE TABLE IF NOT EXISTS audit_pages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pages_audit ON audit_pages (audit_id, position);
-CREATE INDEX IF NOT EXISTS idx_pages_url ON audit_pages (url, finished_at DESC);
 CREATE INDEX IF NOT EXISTS idx_pages_host ON audit_pages (host);
 
 CREATE TABLE IF NOT EXISTS page_issues (
@@ -78,6 +77,33 @@ CREATE TABLE IF NOT EXISTS page_issues (
 CREATE INDEX IF NOT EXISTS idx_issues_rule ON page_issues (rule_id);
 `;
 
+/**
+ * Cambios de esquema sobre bases ya creadas.
+ *
+ * No hay sistema de migraciones: el esquema se aplica con CREATE TABLE IF NOT
+ * EXISTS, que no toca una tabla que ya existe. Todo lo que se anada despues
+ * tiene que pasar por aqui, y ser idempotente.
+ */
+const migrate = (instance: Db): void => {
+  const columns = instance.prepare('PRAGMA table_info(audit_pages)').all() as Array<{ name: string }>;
+  const has = (name: string) => columns.some((column) => column.name === name);
+
+  // Seccion analizada de la pagina. NULL en las filas antiguas = pagina entera.
+  if (!has('include_selector')) {
+    instance.exec('ALTER TABLE audit_pages ADD COLUMN include_selector TEXT');
+  }
+  if (!has('exclude_selector')) {
+    instance.exec('ALTER TABLE audit_pages ADD COLUMN exclude_selector TEXT');
+  }
+
+  // El historico y el diff van por URL + seccion, no solo por URL.
+  instance.exec(`
+    DROP INDEX IF EXISTS idx_pages_url;
+    CREATE INDEX IF NOT EXISTS idx_pages_url_scope
+      ON audit_pages (url, include_selector, finished_at DESC);
+  `);
+};
+
 export type Db = Database.Database;
 
 let db: Db | null = null;
@@ -93,6 +119,7 @@ export const getDb = (): Db => {
   instance.pragma('foreign_keys = ON');
   instance.pragma('busy_timeout = 5000');
   instance.exec(SCHEMA);
+  migrate(instance);
 
   db = instance;
   return instance;
