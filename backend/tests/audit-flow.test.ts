@@ -14,6 +14,7 @@ import {
   type FixtureServer,
 } from './helpers/fixtureServer';
 import { waitForAudit } from './helpers/waitFor';
+import { SCAN_LOCALE as esLocale } from '../src/services/scanner/locale';
 
 let fixture: FixtureServer;
 
@@ -81,6 +82,10 @@ describe('ciclo completo de una auditoria', () => {
     const rules = res.body.issues.map((i: { ruleId: string }) => i.ruleId);
     expect(rules).toContain('image-alt');
     expect(rules).toContain('html-has-lang');
+
+    // Los textos salen de la traduccion `es` de axe, no del ingles por defecto.
+    const imageAlt = res.body.issues.find((i: { ruleId: string }) => i.ruleId === 'image-alt');
+    expect(imageAlt.help).toBe((esLocale.rules?.['image-alt'] as { help?: string } | undefined)?.help);
 
     // Ordenados por impacto: lo critico primero.
     const impacts = res.body.issues.map((i: { impact: string }) => i.impact);

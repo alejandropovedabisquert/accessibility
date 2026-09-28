@@ -2,6 +2,7 @@ import { AxeBuilder } from '@axe-core/playwright';
 import { devices, type Page } from 'playwright';
 import config from '../../config/config';
 import browserPool from './browserPool';
+import { LOCALIZED_AXE_SOURCE } from './locale';
 import { AsyncTaskQueue } from '../shared/AsyncTaskQueue';
 import { toMessage } from '../../utils/errors';
 import type { AuditConfig, AxeResults, ScanBrowser, ScanScope } from '../../types/audit.types';
@@ -82,7 +83,9 @@ class ScanService {
           waitUntil: job.config.waitUntil,
         });
 
-        const builder = new AxeBuilder({ page }).withTags(job.config.tags);
+        const builder = new AxeBuilder({ page, axeSource: LOCALIZED_AXE_SOURCE }).withTags(
+          job.config.tags,
+        );
 
         if (job.scope.include) {
           await this.assertSelector(page, job.scope.include, true);

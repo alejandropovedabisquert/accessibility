@@ -116,6 +116,11 @@ que **no toca una tabla que ya existe**. Todo cambio posterior sobre una tabla c
 `migrate()` (`src/db/client.ts`), y tiene que ser idempotente: se ejecuta en cada arranque. Ese es el
 único sitio donde poner un `ALTER TABLE`.
 
+**Los textos de axe salen en castellano vía `axeSource`, no vía `.configure()`.** `@axe-core/playwright`
+4.13 no expone `configure`; `scanner/locale.ts` añade `axe.configure({ locale })` al final del fuente de
+axe. La traducción `es` de axe está incompleta y lo que falta sale en inglés: se completa en
+`scanner/locales/es.overrides.json`, nunca editando `node_modules`. `ruleId` y `helpUrl` no se traducen.
+
 **Un fallo de una URL no debe tumbar la auditoría.** `runPage` captura el error y marca esa página
 como `failed`; el resto sigue.
 
