@@ -197,3 +197,153 @@ export interface SeriesKey extends ScanScreen {
   url: string;
   include: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Revision manual (capas 2 y 3) y firma. El vocabulario de resultados es el de
+// EARL (W3C) para poder exportarlo sin traducciones: ver `services/review/`.
+// ---------------------------------------------------------------------------
+
+/** Nivel de un criterio WCAG del catalogo. El catalogo cerrado solo tiene A y AA. */
+export type WcagLevel = 'A' | 'AA';
+
+/** Version de WCAG que introdujo el criterio. Los de 2.2 aun no estan en EN 301 549 v3.2.1. */
+export type WcagVersion = '2.0' | '2.1' | '2.2';
+
+/** `site` = se evalua comparando varias paginas del sitio (navegacion coherente, multiples vias...). */
+export type CheckScope = 'page' | 'site';
+
+/**
+ * Evidencia que se recoge antes de juzgar un criterio. `interaction` no tiene
+ * recolector automatico: significa que hay que manejar la pagina (MCP de
+ * Playwright o una persona).
+ */
+export type EvidenceKind =
+  | 'screenshot'
+  | 'orientation'
+  | 'focus-sequence'
+  | 'reflow-320'
+  | 'zoom-200'
+  | 'text-spacing'
+  | 'images'
+  | 'media'
+  | 'forms'
+  | 'controls'
+  | 'headings'
+  | 'landmarks'
+  | 'text-content'
+  | 'interaction';
+
+/**
+ * `partial`: axe comprueba parte del criterio; una violacion basta para darlo
+ * por fallado, pero sus `passes` nunca lo cierran. `manual`: axe no mira nada.
+ * Se calcula con la version de axe instalada, no se escribe en el catalogo.
+ */
+export type CheckCoverage = 'partial' | 'manual';
+
+/** Un criterio del catalogo de revision, ya enriquecido con lo que sale de axe. */
+export interface Check {
+  /** Ancla de la especificacion del W3C (`non-text-content`); estable entre versiones. */
+  id: string;
+  criterion: string;
+  level: WcagLevel;
+  introducedIn: WcagVersion;
+  name: string;
+  scope: CheckScope;
+  evidence: EvidenceKind[];
+  /** La capa 3 tiene que probarlo con un lector de pantalla real. */
+  requiresAssistiveTech: boolean;
+  /** Si no casa con nada en la pagina, el criterio se propone como no aplicable. */
+  appliesWhen: string | null;
+  instructions: string;
+  /** Apartado de EN 301 549 (`9.1.1.1`); null en los criterios nuevos de WCAG 2.2. */
+  en301549: string | null;
+  axeRules: string[];
+  coverage: CheckCoverage;
+}
+
+export interface CheckCatalog {
+  id: string;
+  version: number;
+  wcagVersion: WcagVersion;
+  checks: Check[];
+}
+
+/** Resultados de EARL. `untested` no se guarda: es la ausencia de hallazgo. */
+export type EarlOutcome = 'passed' | 'failed' | 'cantTell' | 'inapplicable' | 'untested';
+export type FindingOutcome = Exclude<EarlOutcome, 'untested'>;
+
+/** Modo de EARL; sale de quien evalua (axe, IA o persona), no se guarda aparte. */
+export type EarlMode = 'automatic' | 'semiAuto' | 'manual';
+
+/** Estado de la validacion de la capa 3, independiente del resultado. */
+export type ReviewStatus = 'proposed' | 'validated' | 'rejected' | 'amended';
+
+/** Una web: puede servirse desde varios origenes (www, subdominios por idioma...). */
+export interface Site {
+  id: string;
+  name: string;
+  origins: string[];
+  createdAt: string;
+}
+
+export type FindingSubject = { kind: 'page'; pageId: string } | { kind: 'site'; siteId: string };
+
+export type FindingSource =
+  | { kind: 'check'; checkId: string; catalogVersion: number }
+  | { kind: 'axe-needs-review'; ruleId: string; checkId: string };
+
+export interface FindingTarget {
+  selector: string;
+  html: string;
+}
+
+export interface Assertor {
+  type: 'ai' | 'human';
+  name: string;
+  /** Modelo de IA que hizo la evaluacion, si la hizo una IA. */
+  model: string | null;
+  /** Producto de apoyo con el que se probo (`NVDA 2025.1 + Firefox`), si se uso. */
+  assistiveTech: string | null;
+}
+
+export interface FindingReview {
+  status: ReviewStatus;
+  by: string | null;
+  at: string | null;
+  note: string | null;
+}
+
+export interface ManualFinding {
+  id: string;
+  subject: FindingSubject;
+  source: FindingSource;
+  outcome: FindingOutcome;
+  targets: FindingTarget[];
+  description: string;
+  recommendation: string | null;
+  evidenceRefs: string[];
+  assertedBy: Assertor;
+  review: FindingReview;
+  createdAt: string;
+  /** Hallazgo de la linea base del que se hereda, y huella de region con la que se heredo. */
+  inheritedFrom: { findingId: string; fingerprint: string } | null;
+}
+
+/** Estado de conformidad de la declaracion de accesibilidad (RD 1112/2018). */
+export type ConformanceStatus = 'full' | 'partial' | 'non-conformant';
+
+/** Firma de una web. Inmutable: `findingsHash` es la huella de lo firmado. */
+export interface SignOff {
+  id: string;
+  siteId: string;
+  /** Muestra de paginas (WCAG-EM) que elige quien firma. */
+  pageIds: string[];
+  catalogId: string;
+  catalogVersion: number;
+  signer: string;
+  credential: string | null;
+  signedAt: string;
+  conformance: ConformanceStatus;
+  findingsHash: string;
+  statement: string;
+}
