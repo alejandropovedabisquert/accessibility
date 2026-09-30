@@ -26,6 +26,21 @@ export const hostOf = (raw: string): string => {
   }
 };
 
+/**
+ * Host de un sitio tal y como se guarda en `audit_pages.host` (`hostOf`), para
+ * que case: acepta el host solo (`www.x.com`) o una URL pegada entera.
+ */
+export const normalizeHost = (raw: string): string => {
+  const value = raw.trim();
+  try {
+    const parsed = new URL(value.includes('://') ? value : `http://${value}`);
+    if (parsed.host.length > 0) return parsed.host;
+  } catch {
+    // Cae al error de abajo.
+  }
+  throw new AppError(`Host no valido: ${raw}`, 400);
+};
+
 /** Version corta y legible de una URL, sin protocolo ni barra final. */
 export const displayUrl = (raw: string): string =>
   raw.replace(/^https?:\/\//, '').replace(/\/$/, '');

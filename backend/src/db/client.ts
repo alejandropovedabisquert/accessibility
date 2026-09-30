@@ -77,6 +77,55 @@ CREATE TABLE IF NOT EXISTS page_issues (
 );
 
 CREATE INDEX IF NOT EXISTS idx_issues_rule ON page_issues (rule_id);
+
+CREATE TABLE IF NOT EXISTS sites (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+
+-- Una pagina es del sitio cuyo host coincide con audit_pages.host. Se casa al
+-- leer, sin columna en audit_pages, para que las auditorias anteriores a crear
+-- el sitio entren solas. PRIMARY KEY: un host no puede ser de dos sitios.
+CREATE TABLE IF NOT EXISTS site_hosts (
+  host     TEXT PRIMARY KEY,
+  site_id  TEXT NOT NULL REFERENCES sites (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_site_hosts_site ON site_hosts (site_id);
+
+CREATE TABLE IF NOT EXISTS manual_findings (
+  id                     TEXT PRIMARY KEY,
+  page_id                TEXT REFERENCES audit_pages (id) ON DELETE CASCADE,
+  site_id                TEXT REFERENCES sites (id) ON DELETE CASCADE,
+  check_id               TEXT NOT NULL,
+  catalog_version        INTEGER NOT NULL,
+  source_kind            TEXT NOT NULL,
+  axe_rule_id            TEXT,
+  outcome                TEXT NOT NULL,
+  targets                TEXT NOT NULL,
+  target_count           INTEGER NOT NULL,
+  description            TEXT NOT NULL,
+  recommendation         TEXT,
+  evidence_refs          TEXT NOT NULL,
+  asserted_by            TEXT NOT NULL,
+  review_status          TEXT NOT NULL,
+  reviewed_by            TEXT,
+  reviewed_at            TEXT,
+  review_note            TEXT,
+  inherited_from         TEXT,
+  inherited_fingerprint  TEXT,
+  created_at             TEXT NOT NULL,
+  -- De una pagina o de un sitio, nunca de los dos ni de ninguno.
+  CHECK ((page_id IS NULL) <> (site_id IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_findings_page ON manual_findings (page_id);
+CREATE INDEX IF NOT EXISTS idx_findings_site ON manual_findings (site_id);
+-- Las propuestas de axe se crean al abrir la revision, que puede pedirse dos
+-- veces a la vez: el indice hace que la segunda no duplique.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_axe
+  ON manual_findings (page_id, axe_rule_id, check_id) WHERE source_kind = 'axe-needs-review';
 `;
 
 /**

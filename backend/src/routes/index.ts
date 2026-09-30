@@ -14,6 +14,19 @@ import {
   rerunAudit,
 } from '../controllers/audit.controller';
 import { getMeta, getStats } from '../controllers/meta.controller';
+import {
+  createPageFinding,
+  createSite,
+  createSiteFinding,
+  deleteSite,
+  getChecks,
+  getFinding,
+  getPageReview,
+  getSite,
+  listSites,
+  reviewFinding,
+  updateFinding,
+} from '../controllers/review.controller';
 
 const router = Router();
 
@@ -34,5 +47,19 @@ router.get('/audits/:id/pages/:pageId', getPage);
 router.get('/audits/:id/pages/:pageId/results', getPageResults);
 router.get('/audits/:id/pages/:pageId/diff', getPageDiff);
 router.get('/audits/:id/pages/:pageId/report.pdf', getPagePdf);
+router.get('/audits/:id/pages/:pageId/review', getPageReview);
+router.post('/audits/:id/pages/:pageId/findings', createPageFinding);
+
+router.get('/checks', getChecks);
+
+router.get('/sites', listSites);
+router.post('/sites', createSite);
+router.get('/sites/:id', getSite);
+router.delete('/sites/:id', deleteSite);
+router.post('/sites/:id/findings', createSiteFinding);
+
+router.get('/findings/:id', getFinding);
+router.patch('/findings/:id', updateFinding);
+router.patch('/findings/:id/review', reviewFinding);
 
 export default router;

@@ -565,6 +565,28 @@ class AuditRepository {
     }));
   }
 
+  /** Paginas completadas de los hosts de un sitio (`site_hosts`), de la mas reciente a la mas antigua. */
+  findSitePages(siteId: string, limit: number): AuditPage[] {
+    const rows = getDb()
+      .prepare(`
+        SELECT p.* FROM audit_pages p
+        JOIN site_hosts h ON h.host = p.host
+        WHERE h.site_id = @siteId AND p.status = 'completed'
+        ORDER BY p.finished_at DESC
+        LIMIT @limit
+      `)
+      .all({ siteId, limit }) as PageRow[];
+    return rows.map(toPage);
+  }
+
+  /** Pagina por id sin saber su auditoria: los hallazgos solo guardan el id de pagina. */
+  findPageById(pageId: string): AuditPage | null {
+    const row = getDb().prepare('SELECT * FROM audit_pages WHERE id = @pageId').get({ pageId }) as
+      | PageRow
+      | undefined;
+    return row ? toPage(row) : null;
+  }
+
   deleteAudit(id: string): boolean {
     return getDb().prepare('DELETE FROM audits WHERE id = @id').run({ id }).changes > 0;
   }

@@ -288,8 +288,9 @@ export interface FindingTarget {
   html: string;
 }
 
+/** `tool` solo lo pone el sistema: las propuestas que salen de las `needs-review` de axe. */
 export interface Assertor {
-  type: 'ai' | 'human';
+  type: 'tool' | 'ai' | 'human';
   name: string;
   /** Modelo de IA que hizo la evaluacion, si la hizo una IA. */
   model: string | null;
@@ -310,6 +311,8 @@ export interface ManualFinding {
   source: FindingSource;
   outcome: FindingOutcome;
   targets: FindingTarget[];
+  /** Nodos afectados en total, aunque en `targets` vayan menos (la revision los recorta). */
+  targetCount: number;
   description: string;
   recommendation: string | null;
   evidenceRefs: string[];
@@ -318,6 +321,37 @@ export interface ManualFinding {
   createdAt: string;
   /** Hallazgo de la linea base del que se hereda, y huella de region con la que se heredo. */
   inheritedFrom: { findingId: string; fingerprint: string } | null;
+}
+
+/**
+ * Estado de un criterio en una pagina. Una violacion de axe lo da por fallado;
+ * si no, manda lo peor de los hallazgos no rechazados: failed > cantTell >
+ * passed > inapplicable. Sin hallazgos ni violaciones es `untested`.
+ */
+export interface CheckReview {
+  checkId: string;
+  criterion: string;
+  name: string;
+  outcome: EarlOutcome;
+  axe: { violations: string[]; needsReview: string[] };
+  /** Hallazgos sin validar todavia por la capa 3. */
+  pendingReview: number;
+  findings: ManualFinding[];
+}
+
+/** Revision de una pagina: los criterios de ambito `page` del catalogo, en orden de la especificacion. */
+export interface PageReview {
+  page: AuditPage;
+  site: Site | null;
+  catalog: { id: string; version: number };
+  summary: Record<EarlOutcome, number>;
+  checks: CheckReview[];
+}
+
+export interface SiteDetail extends Site {
+  /** Paginas completadas de los hosts del sitio, de la mas reciente a la mas antigua. */
+  pages: AuditPage[];
+  findings: ManualFinding[];
 }
 
 /** Estado de conformidad de la declaracion de accesibilidad (RD 1112/2018). */
