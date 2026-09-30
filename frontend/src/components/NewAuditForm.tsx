@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createAuditAction, type FormState } from '@/app/actions';
 import { CUSTOM_SECTION } from '@/lib/format';
-import { buttonStyles, Card } from '@/components/ui';
+import { buttonStyles, Card, ExcludeNotice } from '@/components/ui';
 import type { Meta } from '@/lib/types';
 
 const FIELD = 'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm';
@@ -24,6 +24,7 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
   const [state, formAction] = useActionState<FormState, FormData>(createAuditAction, { error: null });
   const [useDevice, setUseDevice] = useState(false);
   const [section, setSection] = useState('');
+  const [exclude, setExclude] = useState('');
 
   return (
     <form action={formAction} className="space-y-5">
@@ -139,13 +140,18 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
             type="text"
             maxLength={meta.limits.maxSelectorLength}
             placeholder="#onetrust-banner"
+            value={exclude}
+            onChange={(event) => setExclude(event.target.value)}
             aria-describedby="exclude-hint"
             className={`${FIELD} max-w-md font-mono`}
           />
           <p id="exclude-hint" className={HINT}>
-            Opcional. Útil para quitar ruido que no controlas, como el banner de cookies. No parte la
-            serie del histórico.
+            Opcional. Solo para contenido de terceros que no controlas, como un banner de cookies de
+            OneTrust o Cookiebot. No parte la serie del histórico.
           </p>
+          <div aria-live="polite">
+            {exclude.trim() ? <ExcludeNotice selectors={[exclude.trim()]} className="mt-3 max-w-2xl" /> : null}
+          </div>
         </div>
       </Card>
 
@@ -267,40 +273,50 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
               onChange={() => setUseDevice(false)}
               className="size-4"
             />
-            Resolución concreta
+            Una o varias resoluciones
           </label>
 
           {!useDevice ? (
-            <div className="ml-6 flex flex-wrap items-end gap-3">
-              <div>
-                <label htmlFor="viewportWidth" className="mb-1 block text-xs text-ink-muted">
-                  Ancho (px)
-                </label>
-                <input
-                  id="viewportWidth"
-                  name="viewportWidth"
-                  type="number"
-                  min={240}
-                  max={4096}
-                  defaultValue={meta.defaults.viewport.width}
-                  className="w-28 rounded-md border border-line bg-surface px-3 py-2 text-sm"
-                />
+            <fieldset className="ml-6 space-y-3" aria-describedby="viewports-hint">
+              <legend className="sr-only">Resoluciones</legend>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {meta.viewports.map((preset) => {
+                  const value = `${preset.viewport.width}x${preset.viewport.height}`;
+                  const isDefault =
+                    preset.viewport.width === meta.defaults.viewport.width &&
+                    preset.viewport.height === meta.defaults.viewport.height;
+                  return (
+                    <label key={preset.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="viewportPreset"
+                        value={value}
+                        defaultChecked={isDefault}
+                        className="size-4"
+                      />
+                      {preset.label} ({preset.viewport.width}×{preset.viewport.height})
+                    </label>
+                  );
+                })}
               </div>
               <div>
-                <label htmlFor="viewportHeight" className="mb-1 block text-xs text-ink-muted">
-                  Alto (px)
+                <label htmlFor="viewportsCustom" className="mb-1 block text-xs text-ink-muted">
+                  Otras resoluciones
                 </label>
                 <input
-                  id="viewportHeight"
-                  name="viewportHeight"
-                  type="number"
-                  min={240}
-                  max={4096}
-                  defaultValue={meta.defaults.viewport.height}
-                  className="w-28 rounded-md border border-line bg-surface px-3 py-2 text-sm"
+                  id="viewportsCustom"
+                  name="viewportsCustom"
+                  type="text"
+                  placeholder="1920x1080, 360x800"
+                  className={`${FIELD} max-w-xs font-mono`}
                 />
               </div>
-            </div>
+              <p id="viewports-hint" className={HINT}>
+                Cada URL se escanea en todas las resoluciones marcadas (máximo {meta.limits.maxViewports}).
+                Cuentan para el límite de {meta.limits.maxUrlsPerAudit} escaneos por auditoría. El
+                histórico y la comparación van por resolución: el móvil no se compara con el escritorio.
+              </p>
+            </fieldset>
           ) : null}
 
           <label className="flex items-center gap-2 text-sm">

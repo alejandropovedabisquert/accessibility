@@ -4,10 +4,19 @@ import type { Metadata } from 'next';
 import { getAudit, getMeta } from '@/lib/api';
 import { ApiError } from '@/lib/api';
 import { deleteAuditAction, rerunAuditAction } from '@/app/actions';
-import { displayUrl, formatDateTime, formatDuration, isInProgress } from '@/lib/format';
+import {
+  displayUrl,
+  formatDateTime,
+  formatDuration,
+  formatViewport,
+  isInProgress,
+  screenLabel,
+} from '@/lib/format';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import {
   Card,
+  ComplianceSummary,
+  ExcludeNotice,
   ImpactBreakdown,
   PageHeader,
   ScopeBadge,
@@ -45,6 +54,11 @@ export default async function AuditDetailPage({ params }: Props) {
   // Solo sirve para poner nombre bonito a los selectores de sección: si falla, se enseña el CSS.
   const meta = await getMeta().catch(() => null);
 
+  const screensLabel =
+    audit.config.device ?? (audit.config.viewports.map(formatViewport).join(', ') || 'Por defecto');
+  // Con una sola pantalla la columna repetiria lo mismo en todas las filas.
+  const multiScreen = new Set(audit.pages.map((page) => screenLabel(page))).size > 1;
+
   const inProgress = isInProgress(audit.status);
   const done = audit.completedPages + audit.failedPages;
   const progress = audit.totalPages > 0 ? Math.round((done / audit.totalPages) * 100) : 0;
@@ -62,14 +76,29 @@ export default async function AuditDetailPage({ params }: Props) {
         description={
           <>
             Lanzada el {formatDateTime(audit.createdAt)} · {audit.config.browser}
-            {audit.config.device ? ` · ${audit.config.device}` : ''}
-            {audit.config.viewport
-              ? ` · ${audit.config.viewport.width}×${audit.config.viewport.height}`
-              : ''}
+            {` · ${screensLabel}`}
           </>
         }
         actions={
           <>
+            {audit.completedPages > 0 ? (
+              <>
+                <a
+                  href={`/api/backend/audits/${audit.id}/export?format=compact&detail=legal&download=1`}
+                  className={buttonStyles.secondary}
+                  title="Todas las páginas en un JSON, fallos repetidos agrupados. Detalle de WCAG A/AA; AAA y buenas prácticas, resumidas por regla"
+                >
+                  Descargar JSON para IA
+                </a>
+                <a
+                  href={`/api/backend/audits/${audit.id}/export?format=compact&detail=full&download=1`}
+                  className={buttonStyles.secondary}
+                  title="Igual, pero con el detalle de todos los niveles, incluidas AAA y buenas prácticas"
+                >
+                  JSON para IA completo
+                </a>
+              </>
+            ) : null}
             <form action={rerunAuditAction}>
               <input type="hidden" name="id" value={audit.id} />
               <button type="submit" className={buttonStyles.secondary}>
@@ -116,16 +145,18 @@ export default async function AuditDetailPage({ params }: Props) {
         </div>
       ) : null}
 
+      {audit.completedPages > 0 ? <ComplianceSummary compliance={audit.compliance} averaged /> : null}
+
       <dl className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat
-          label="Reglas superadas"
-          value={audit.score === null ? '—' : `${audit.score}%`}
-          hint="Media de las páginas escaneadas"
-        />
-        <Stat label="Incumplimientos" value={audit.violations} hint={`${audit.violationNodes} elementos afectados`} />
+        <Stat label="Incumplimientos" value={audit.violations} hint={`${audit.violationNodes} elementos afectados, legales y mejoras`} />
         <Stat label="Revisión manual" value={audit.incomplete} hint="axe no pudo decidir" />
         <Stat label="Páginas" value={`${audit.completedPages}/${audit.totalPages}`} hint={audit.failedPages > 0 ? `${audit.failedPages} fallida(s)` : 'Todas correctas'} />
       </dl>
+
+      <ExcludeNotice
+        selectors={[...new Set(audit.pages.flatMap((page) => (page.exclude ? [page.exclude] : [])))]}
+        className="mb-6"
+      />
 
       <h2 className="mb-3 text-lg font-semibold">Páginas escaneadas</h2>
 
@@ -135,9 +166,10 @@ export default async function AuditDetailPage({ params }: Props) {
           <thead>
             <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
               <th scope="col" className="px-4 py-3 font-medium">URL</th>
+              {multiScreen ? <th scope="col" className="px-4 py-3 font-medium">Pantalla</th> : null}
               <th scope="col" className="px-4 py-3 font-medium">Estado</th>
               <th scope="col" className="px-4 py-3 font-medium">Incumplimientos</th>
-              <th scope="col" className="px-4 py-3 text-center font-medium">Superadas</th>
+              <th scope="col" className="px-4 py-3 text-center font-medium">Cumplimiento legal</th>
               <th scope="col" className="px-4 py-3 font-medium">Duración</th>
             </tr>
           </thead>
@@ -158,6 +190,9 @@ export default async function AuditDetailPage({ params }: Props) {
                   <ScopeBadge scope={page} sections={meta?.sections} />
                   {page.error ? <p className="mt-0.5 text-xs text-critical">{page.error}</p> : null}
                 </th>
+                {multiScreen ? (
+                  <td className="whitespace-nowrap px-4 py-3 tabular-nums">{screenLabel(page)}</td>
+                ) : null}
                 <td className="px-4 py-3">
                   <StatusBadge status={page.status} kind="page" />
                 </td>
@@ -165,7 +200,10 @@ export default async function AuditDetailPage({ params }: Props) {
                   {page.status === 'completed' ? <ImpactBreakdown counters={page} /> : <span className="text-ink-muted">—</span>}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <ScoreDial score={page.status === 'completed' ? page.score : null} size={44} />
+                  <ScoreDial
+                    score={page.status === 'completed' ? (page.compliance?.legal.score ?? null) : null}
+                    size={44}
+                  />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-ink-muted tabular-nums">
                   {formatDuration(page.durationMs)}
@@ -192,13 +230,8 @@ export default async function AuditDetailPage({ params }: Props) {
             <dd>{audit.config.timeoutMs} ms</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-ink-muted">Dispositivo:</dt>
-            <dd>
-              {audit.config.device ??
-                (audit.config.viewport
-                  ? `${audit.config.viewport.width}×${audit.config.viewport.height}`
-                  : 'Por defecto')}
-            </dd>
+            <dt className="text-ink-muted">Pantallas:</dt>
+            <dd>{screensLabel}</dd>
           </div>
           <div className="flex gap-2 sm:col-span-2">
             <dt className="text-ink-muted">Normas:</dt>

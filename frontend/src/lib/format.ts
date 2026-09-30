@@ -1,4 +1,13 @@
-import type { AuditStatus, Impact, Meta, PageStatus } from './types';
+import type {
+  AuditStatus,
+  ComplianceGroupKey,
+  Impact,
+  Meta,
+  PageStatus,
+  RuleLevel,
+  ScanScreen,
+  Viewport,
+} from './types';
 
 export const formatDateTime = (iso: string | null): string => {
   if (!iso) return '—';
@@ -67,6 +76,21 @@ export const IMPACT_LABEL: Record<Impact, string> = {
 export const isInProgress = (status: AuditStatus): boolean =>
   status === 'queued' || status === 'running';
 
+export const formatViewport = (viewport: Viewport): string => `${viewport.width}×${viewport.height}`;
+
+/** "iPhone 15 (393×659)", "390×844" o "—" en filas antiguas sin pantalla conocida. */
+export const screenLabel = ({ viewport, device }: ScanScreen): string => {
+  const size = viewport ? formatViewport(viewport) : null;
+  if (device) return size ? `${device} (${size})` : device;
+  return size ?? '—';
+};
+
+/** Parámetros de consulta de `/api/history` que identifican la pantalla de una serie. */
+export const screenQuery = ({ viewport, device }: ScanScreen): Record<string, string> => ({
+  ...(viewport ? { viewport: `${viewport.width}x${viewport.height}` } : {}),
+  ...(device ? { device } : {}),
+});
+
 /** Valor del desplegable de sección que abre el campo de selector libre. */
 export const CUSTOM_SECTION = '__custom__';
 
@@ -81,4 +105,36 @@ export const sectionLabel = (
 ): string | null => {
   if (!include) return null;
   return sections.find((section) => section.selector === include)?.label ?? include;
+};
+
+export const LEVEL_LABEL: Record<RuleLevel, string> = {
+  A: 'WCAG A',
+  AA: 'WCAG AA',
+  AAA: 'WCAG AAA',
+  'best-practice': 'Buena práctica',
+};
+
+/**
+ * Copia de `ruleLevel` del backend (no hay paquete compartido): AAA gana a
+ * todo, luego AA, luego A; sin tag de nivel es buena práctica.
+ */
+export const ruleLevel = (tags: readonly string[]): RuleLevel => {
+  if (tags.some((tag) => /^wcag2\d?aaa$/.test(tag))) return 'AAA';
+  if (tags.some((tag) => /^wcag2\d?aa$/.test(tag))) return 'AA';
+  if (tags.some((tag) => /^wcag2\d?a$/.test(tag))) return 'A';
+  return 'best-practice';
+};
+
+export const complianceGroup = (level: RuleLevel): ComplianceGroupKey =>
+  level === 'A' || level === 'AA' ? 'legal' : 'improvements';
+
+export const COMPLIANCE_LABEL: Record<ComplianceGroupKey, { title: string; hint: string }> = {
+  legal: {
+    title: 'Cumplimiento legal',
+    hint: 'WCAG A y AA: lo que exigen la Ley 11/2023 y EN 301 549',
+  },
+  improvements: {
+    title: 'Mejoras',
+    hint: 'WCAG AAA y buenas prácticas: no exigibles legalmente',
+  },
 };

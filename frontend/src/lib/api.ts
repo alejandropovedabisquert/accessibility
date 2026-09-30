@@ -9,7 +9,9 @@ import type {
   PageIssue,
   Paginated,
   ScannedUrl,
+  ScanScreen,
 } from './types';
+import { screenQuery } from './format';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:3000';
 
@@ -66,8 +68,9 @@ export const getPageResults = (auditId: string, pageId: string) =>
 export const getPageDiff = (auditId: string, pageId: string) =>
   apiFetch<PageDiff>(`/audits/${auditId}/pages/${pageId}/diff`);
 
-export const getHistory = (url: string, include: string | null = null, limit = 30) => {
-  const query = new URLSearchParams({ url, limit: String(limit) });
+/** Serie de URL + sección + pantalla. Sin `screen`, la API mezcla todas las pantallas. */
+export const getHistory = (url: string, include: string | null, screen: ScanScreen, limit = 30) => {
+  const query = new URLSearchParams({ url, limit: String(limit), ...screenQuery(screen) });
   if (include) query.set('include', include);
   return apiFetch<{ url: string; include: string | null; points: HistoryPoint[] }>(
     `/history?${query.toString()}`

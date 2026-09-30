@@ -1,7 +1,23 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { AuditStatus, Counters, Impact, Meta, PageStatus, ScanScope } from '@/lib/types';
-import { AUDIT_STATUS_LABEL, IMPACT_LABEL, PAGE_STATUS_LABEL, sectionLabel } from '@/lib/format';
+import type {
+  AuditStatus,
+  Compliance,
+  Counters,
+  Impact,
+  Meta,
+  PageStatus,
+  RuleLevel,
+  ScanScope,
+} from '@/lib/types';
+import {
+  AUDIT_STATUS_LABEL,
+  COMPLIANCE_LABEL,
+  IMPACT_LABEL,
+  LEVEL_LABEL,
+  PAGE_STATUS_LABEL,
+  sectionLabel,
+} from '@/lib/format';
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -119,7 +135,13 @@ export function ImpactBadge({ impact }: { impact: Impact | null }) {
 }
 
 /** Desglose de incumplimientos por severidad. Oculta los ceros para no meter ruido. */
-export function ImpactBreakdown({ counters, size = 'sm' }: { counters: Counters; size?: 'sm' | 'md' }) {
+export function ImpactBreakdown({
+  counters,
+  size = 'sm',
+}: {
+  counters: Pick<Counters, Impact>;
+  size?: 'sm' | 'md';
+}) {
   const entries = (['critical', 'serious', 'moderate', 'minor'] as Impact[])
     .map((impact) => ({ impact, count: counters[impact] }))
     .filter((entry) => entry.count > 0);
@@ -219,6 +241,111 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
         <span className="block text-2xl font-semibold tabular-nums">{value}</span>
         {hint ? <span className="mt-0.5 block text-xs font-normal text-ink-muted">{hint}</span> : null}
       </dd>
+    </div>
+  );
+}
+
+const LEVEL_STYLE: Record<RuleLevel, string> = {
+  A: 'border-accent/30 bg-accent-soft text-accent',
+  AA: 'border-accent/30 bg-accent-soft text-accent',
+  AAA: 'border-line bg-surface-muted text-ink-muted',
+  'best-practice': 'border-line bg-surface-muted text-ink-muted',
+};
+
+export function LevelBadge({ level }: { level: RuleLevel }) {
+  return (
+    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${LEVEL_STYLE[level]}`}>
+      {LEVEL_LABEL[level]}
+    </span>
+  );
+}
+
+/**
+ * Cumplimiento legal (A/AA) y mejoras (AAA, buenas prácticas) por separado, el
+ * legal siempre primero: mezclarlos daba una imagen equivocada de lo exigible.
+ */
+export function ComplianceSummary({
+  compliance,
+  averaged = false,
+}: {
+  compliance: Compliance | null;
+  /** En la auditoría el porcentaje es la media de sus páginas. */
+  averaged?: boolean;
+}) {
+  if (!compliance) {
+    return (
+      <Card className="mb-6 px-5 py-4 text-sm text-ink-muted">
+        Desglose legal / mejoras no disponible: no se conserva el resultado crudo de este escaneo.
+      </Card>
+    );
+  }
+
+  return (
+    <div className="mb-6 grid gap-3 md:grid-cols-2">
+      {(['legal', 'improvements'] as const).map((key) => {
+        const group = compliance[key];
+        const { title, hint } = COMPLIANCE_LABEL[key];
+        return (
+          <Card key={key} className="p-4">
+            <div className="flex items-start gap-4">
+              <ScoreDial score={group.score} size={64} />
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold">{title}</h2>
+                <p className="text-xs text-ink-muted">{hint}</p>
+                {group.score === null ? (
+                  <p className="mt-2 text-sm text-ink-muted">
+                    No evaluado: las normas elegidas no incluyen reglas de este grupo.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm">
+                      {averaged ? 'Media de reglas superadas por página · ' : ''}
+                      {group.passes} de {group.passes + group.violations} reglas superadas
+                    </p>
+                    <p className="mt-1 text-sm">
+                      {group.violations} incumplimiento(s) en {group.violationNodes} elemento(s)
+                      {group.incomplete > 0 ? ` · ${group.incomplete} a revisar a mano` : ''}
+                    </p>
+                    <div className="mt-2">
+                      <ImpactBreakdown counters={group} />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Lo excluido no se audita. Solo tiene sentido excluir contenido de terceros
+ * (un banner de cookies de OneTrust, un widget externo): si es propio, forma
+ * parte del sitio y cuenta legalmente, así que hay que revisarlo por separado.
+ */
+export function ExcludeNotice({ selectors, className = '' }: { selectors: string[]; className?: string }) {
+  if (selectors.length === 0) return null;
+  return (
+    <div
+      role="note"
+      className={`rounded-md border border-moderate/30 bg-moderate-soft px-4 py-3 text-sm text-moderate ${className}`}
+    >
+      <p>
+        <strong>Contenido excluido:</strong>{' '}
+        {selectors.map((selector, index) => (
+          <span key={selector}>
+            {index > 0 ? ', ' : ''}
+            <code>{selector}</code>
+          </span>
+        ))}
+        . Lo excluido no se audita y no aparece en los resultados.
+      </p>
+      <p className="mt-1">
+        Si es contenido propio y no de un tercero, forma parte del sitio, cuenta para el cumplimiento
+        legal y debe revisarse por separado.
+      </p>
     </div>
   );
 }

@@ -10,17 +10,22 @@ compararla con escaneos anteriores y descargar el informe.
 ## Qué hace
 
 - Lanza auditorías sobre varias URLs a la vez, eligiendo navegador, dispositivo o resolución, y qué
-  normas WCAG comprobar (2.0 / 2.1 / 2.2 AA, buenas prácticas).
+  normas WCAG comprobar (2.0 / 2.1 / 2.2 A y AA, 2.0 AAA, buenas prácticas).
+- **Escanea cada URL en varias resoluciones** a la vez (por ejemplo escritorio 1366×768 y móvil
+  390×844). Cada resolución es una serie propia en el histórico y en la comparación.
+- **Separa el cumplimiento legal de las mejoras**: las reglas WCAG A/AA (lo que exigen la Ley 11/2023
+  y EN 301 549) tienen su propia métrica y contadores, aparte de las AAA y buenas prácticas.
 - **Analiza la página entera o solo una sección**: cabecera, navegación, contenido principal, pie,
   formularios o cualquier selector CSS. Se puede pedir una sección distinta por URL, y excluir del
-  análisis lo que no controlas (el banner de cookies, por ejemplo).
+  análisis contenido de terceros que no controlas (un banner de cookies de OneTrust, por ejemplo;
+  ver [Excluir contenido](#excluir-contenido-del-análisis)).
 - Ejecuta el escaneo **en segundo plano**: la petición responde al instante con un identificador y la
   interfaz muestra el progreso. Puedes cerrar la pestaña y volver más tarde.
 - Guarda el histórico completo en SQLite y permite filtrar, buscar y paginar el listado.
 - Muestra por página los incumplimientos con su severidad, los elementos del DOM afectados, el
   selector y el enlace a la documentación de Deque.
-- **Compara cada escaneo con el anterior de la misma URL**: qué se ha resuelto, qué es nuevo y qué ha
-  cambiado de volumen.
+- **Compara cada escaneo con el anterior de la misma URL, sección y resolución**: qué se ha resuelto,
+  qué es nuevo y qué ha cambiado de volumen.
 - Genera el informe **PDF bajo demanda** y lo cachea; también se puede descargar el JSON de axe.
 
 ## Arquitectura
@@ -85,13 +90,15 @@ Base: `http://localhost:3000/api`
 | `GET` | `/audits` | Listado paginado (`page`, `pageSize`, `status`, `search`) |
 | `GET` | `/audits/:id` | Auditoría con el estado de cada página |
 | `POST` | `/audits/:id/rerun` | Relanza con la misma configuración |
+| `GET` | `/audits/:id/export?format=compact` | Informe agregado de toda la auditoría para IA, con deduplicación entre URLs (`detail=full\|legal`) |
 | `DELETE` | `/audits/:id` | Borra la auditoría y sus ficheros |
 | `GET` | `/audits/:id/pages/:pageId` | Resumen e incumplimientos de una página |
 | `GET` | `/audits/:id/pages/:pageId/results` | JSON completo de axe (`?download=1` para descargar) |
-| `GET` | `/audits/:id/pages/:pageId/diff` | Comparación con el escaneo anterior de esa URL |
+| `GET` | `/audits/:id/pages/:pageId/results?format=compact` | JSON compacto para análisis con IA (`maxNodes`, `download=1`) |
+| `GET` | `/audits/:id/pages/:pageId/diff` | Comparación con el escaneo anterior de esa URL, sección y pantalla |
 | `GET` | `/audits/:id/pages/:pageId/report.pdf` | Informe PDF (se genera la primera vez y se cachea) |
-| `GET` | `/history?url=&include=` | Serie temporal de una URL y sección |
-| `GET` | `/history/urls` | Series auditadas (URL + sección) con su número de ejecuciones |
+| `GET` | `/history?url=&include=&viewport=&device=` | Serie temporal de una URL, sección y pantalla |
+| `GET` | `/history/urls` | Series auditadas (URL + sección + pantalla) con su número de ejecuciones |
 | `GET` | `/health` | Estado del servicio |
 
 ### Ejemplo
@@ -111,9 +118,10 @@ curl -X POST http://localhost:3000/api/audits \
     ],
     "label": "Home y precios",
     "browser": "chromium",
+    "viewports": [{ "width": 1366, "height": 768 }, { "width": 390, "height": 844 }],
     "tags": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
   }'
-# -> 202 {"id":"a1b2...","status":"queued","totalPages":3, ...}
+# -> 202 {"id":"a1b2...","status":"queued","totalPages":6, ...}   (3 objetivos × 2 resoluciones)
 
 # Consultar progreso
 curl http://localhost:3000/api/audits/a1b2...
@@ -133,6 +141,196 @@ Errores de validación devuelven `400` con el detalle campo a campo:
 }
 ```
 
+## Exportación compacta para IA
+
+El JSON completo de axe pesa cerca de 1 MB por página real, y el 91 % es el array `passes`, que no
+sirve para decidir qué arreglar. `GET /api/audits/:id/pages/:pageId/results?format=compact` (botón
+**Descargar JSON para IA** en el detalle de la página) devuelve solo lo accionable, serializado sin
+espacios:
+
+```jsonc
+{
+  "schemaVersion": "1.0",
+  "tool": { "axe": "4.13.0", "tags": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+  "page": { "url": "…", "include": null, "exclude": null,
+            "viewport": { "width": 1366, "height": 768 }, "scannedAt": "…" },
+  "warnings": [],                  // lo excluido y las reglas omitidas por la sección
+  "summary": { "legal": { "score": 88.9, "violations": 3, … },
+               "improvements": { "score": null, … },   // null = no evaluado
+               "passes": 24, "inapplicable": 57 },     // solo recuentos
+  "findings": [
+    {
+      "rule": "label",
+      "status": "fail",              // "fail" (violations) o "needs-review" (incomplete)
+      "level": "A",                  // "A" | "AA" | "AAA" | "best-practice"
+      "wcag": ["4.1.2"],             // de los tags tipo wcag412
+      "en301549": ["9.4.1.2"],       // de los tags tipo EN-9.4.1.2
+      "impact": "critical",
+      "help": "…", "helpUrl": "…",
+      "count": 19,                   // nodos afectados en total
+      "nodes": [                     // como mucho maxNodes (5 por defecto, máximo 50)
+        { "selector": "#email",      // último elemento de target
+          "html": "<input id=…",     // recortado a 150 caracteres
+          "message": "…" }           // mensajes de los checks que fallan, recortados a 200
+      ]
+    }
+  ]
+}
+```
+
+- `findings` va ordenado así: primero los `fail`, luego por nivel (A, AA, AAA, best-practice) y
+  luego por impacto.
+- Parámetros: `maxNodes` (1–50, por defecto 5) y `download=1` para descargarlo como fichero.
+- Sin `format`, el endpoint devuelve el JSON crudo de siempre.
+- Tamaño en las fixtures de los tests: 598 KB → 1,7 KB (0,3 %) en una página con 300 elementos
+  correctos y dos fallos, y 47 KB → 4,5 KB en una página mínima en la que casi todo falla.
+
+### Informe agregado de toda la auditoría
+
+Los componentes comunes (cabecera, menú, pie, banner de cookies) generan los mismos errores en todas
+las URLs. `GET /api/audits/:id/export?format=compact` junta todas las páginas en un solo informe,
+agrupando los fallos repetidos. En el detalle de la auditoría hay dos botones: **Descargar JSON para
+IA** (`detail=legal`) y **JSON para IA completo** (`detail=full`).
+
+Parámetros: `format=compact` (obligatorio), `detail=full|legal` (por defecto `full`), `maxNodes`
+(1–50, por defecto 5) y `download=1`.
+
+```jsonc
+{
+  "schemaVersion": "1.1",
+  "detail": "legal",
+  "tool": { "axe": "4.13.0", "tags": ["wcag2a", "wcag2aa", "best-practice"] },
+  "audit": { "id": "…", "label": "…", "createdAt": "…", "status": "completed" },
+  "pages": [                                    // los findings apuntan aquí por índice
+    { "url": "…/", "include": null, "exclude": null, "viewport": { "width": 1366, "height": 768 }, "scannedAt": "…" },
+    { "url": "…/", "include": null, "exclude": null, "viewport": { "width": 390, "height": 844 }, "scannedAt": "…" }
+  ],
+  "failedPages": [], "excluded": [], "warnings": [],
+  "summary": { … },                             // ver "Qué cuenta cada contador"
+  "findings": [
+    {
+      "rule": "label", "status": "fail", "level": "A", "wcag": ["4.1.2"], "en301549": ["9.4.1.2"],
+      "impact": "critical", "help": "…", "helpUrl": "…",
+      "fingerprint": "3f2a9c01b7e4",            // id corto y estable del grupo
+      "count": 36,                              // nodos del grupo, en todas las páginas
+      "nodes": [{ "selector": "…", "html": "…", "message": "…" }],
+      "pages": [[0, 2], [1, 2]]                 // [índice en pages, nodos en esa página]
+    }
+  ],
+  "improvements": [                             // solo con detail=legal
+    {
+      "rule": "region", "status": "fail", "level": "best-practice", "impact": "moderate",
+      "help": "…", "helpUrl": "…",
+      "groups": 14,                             // findings que tendría con detail=full
+      "count": 212,                             // nodos, sumando esos grupos
+      "pages": [0, 1, 5],                       // índices únicos en pages
+      "nodes": [ … ]                            // como mucho 3 ejemplos, uno por grupo
+    }
+  ]
+}
+```
+
+- **Cada finding es una regla + estado + huella del elemento.** Un mismo fallo del pie sale una sola
+  vez con sus 20 URLs, en vez de 20 veces. Una regla que falla en tres elementos distintos da tres
+  findings.
+- **`findings[].pages`** son pares `[índice, nodos]` que apuntan al array `pages` de la raíz. De ahí
+  salen la URL, la sección y la resolución de cada página afectada. Las resoluciones en las que
+  aparece un grupo son los `viewport` de esas páginas.
+- **`nodes`** trae ejemplos distintos del grupo (como mucho `maxNodes`), con el HTML real: el selector
+  y el contenido cambian entre páginas aunque el componente sea el mismo.
+- **Orden:** el mismo que en la exportación por página (estado, nivel, impacto). A igualdad, va
+  primero lo que afecta a más páginas: suele ser un componente común, y arreglarlo una vez lo arregla
+  en todas. `improvements` sigue el mismo orden.
+- **`detail=legal`**: `findings` solo trae los grupos de nivel A y AA, exactamente los mismos que con
+  `full`. Las reglas AAA y de buenas prácticas van resumidas en `improvements`, una entrada por regla
+  y estado. `summary` es el mismo en los dos modos: describe siempre la auditoría entera.
+- **`failedPages`** son las páginas que no se pudieron escanear, con el motivo; los findings no las
+  cubren. **`excluded`** indica qué selectores se excluyeron y en cuántas páginas, y **`warnings`**
+  reúne los avisos de todas las páginas, sin repetir.
+
+**Cambios de la 1.0 a la 1.1** (solo en la agregada; la exportación por página sigue en 1.0):
+
+- `findings[].pages` pasa de objetos `{url, include, viewport, count}` a pares `[índice, nodos]`.
+- Desaparece `findings[].viewports`.
+- `summary.legal` y `summary.improvements` añaden `ruleOccurrences`; `violations` se mantiene como
+  alias con el mismo valor.
+- Aparecen `detail` y el bloque `improvements`.
+- La huella pasa a ser estructural (ver abajo), así que hay menos grupos.
+
+#### Qué cuenta cada contador
+
+Todo se cuenta **por página escaneada**: una regla que falla en las 18 páginas de una auditoría
+suma 18. Una página es una URL + sección + resolución.
+
+| Campo | Qué cuenta |
+| --- | --- |
+| `summary.legal` / `summary.improvements` | Lo mismo que el desglose de la auditoría, para las reglas A/AA y para las AAA y buenas prácticas, respectivamente |
+| `…score` | Media, entre páginas, del porcentaje de reglas superadas del grupo. `null` si no se evaluó ninguna regla del grupo |
+| `…passes` | Reglas superadas, sumadas página a página |
+| `…ruleOccurrences` | Reglas incumplidas, sumadas página a página: una regla que falla en 18 páginas cuenta 18. No son reglas distintas: para eso, cuenta los `rule` de `findings` |
+| `…violations` | Alias de `ruleOccurrences`, con el mismo valor. Se mantiene por compatibilidad con la 1.0 |
+| `…violationNodes` | Elementos que incumplen alguna regla del grupo, sumados página a página, antes de agrupar. El mismo pie en 18 páginas cuenta 18 veces |
+| `…critical`, `serious`, `moderate`, `minor` | `ruleOccurrences` desglosado por impacto |
+| `…incomplete` | Reglas que axe no pudo decidir (revisión manual), sumadas página a página |
+| `summary.passes`, `summary.inapplicable` | Reglas superadas y no aplicables de todos los niveles, sumadas página a página |
+| `summary.nodes` | Nodos con algún hallazgo, incumplimientos y revisiones manuales de todos los niveles, antes de agrupar |
+| `summary.groups` | Grupos después de agrupar: los `findings` que habría con `detail=full`, se pida el detalle que se pida |
+| `findings[].count` | Nodos de ese grupo en todas las páginas; es la suma de los `nodos` de sus `pages` |
+| `improvements[].groups` | Grupos (elementos distintos) de esa regla y estado |
+| `improvements[].count` | Nodos de esa regla y estado en todas las páginas |
+
+#### Huella del elemento
+
+La huella es la **estructura** del HTML del nodo: etiquetas, clases estables y atributos, sin lo que
+cambia de una instancia a otra del mismo componente. Así, doce tarjetas de la misma plantilla con
+distinto enlace, foto y título quedan en un solo grupo. En concreto:
+
+- Se quita el texto interno del elemento y de sus hijos.
+- `href`, `src`, `srcset`, `alt`, `title` y `aria-label` se conservan sin valor. Que el atributo
+  exista sigue contando, porque `<img alt>` no es lo mismo que `<img>`.
+- Se quitan los identificadores que genera el CMS (tabla de abajo).
+- Se ordenan las clases y los atributos y se normalizan los espacios.
+
+La otra cara es que dos elementos distintos con la misma estructura y las mismas clases también se
+juntan. Los ejemplos de `nodes` traen el HTML real para distinguirlos.
+
+Los patrones están en `backend/src/services/export/fingerprint.ts`, cada uno con su motivo:
+
+| Tipo | Patrón | Ejemplo |
+| --- | --- | --- |
+| sin valor | `href`, `src`, `srcset`, `alt`, `title`, `aria-label` | `href="/villa-rosa"` → `href` |
+| clase | `e-xxxxxxx-xxxxxxx` | `e-7abb8a1-8bff8d3` (Elementor) |
+| clase | `elementor-element-xxxxxxx` | `elementor-element-4332f88` |
+| clase | `elementor-<número>` | `elementor-1234` (id del post o plantilla) |
+| atributo | `data-id`, `data-interaction-id`, `data-elementor-id` | se quitan enteros |
+| valor | `e-form-input-xxxxxxx`, `e-form-field-xxxxxxx` | `id`, `for` y `aria-*` pasan a `e-form-input-*` |
+
+Si en otra web un mismo error sale partido en varios grupos, compara el `html` de esos grupos y añade
+el patrón que falte.
+
+## Varias resoluciones por URL
+
+`viewports` es una lista de `{ width, height }` (máximo 4); cada URL, con su sección, se escanea en
+todas. `GET /api/meta` devuelve en `viewports` los atajos del formulario (escritorio 1366×768, tablet
+768×1024, móvil 390×844).
+
+- **Compatibilidad**: `viewport` (una sola resolución) sigue funcionando y equivale a
+  `viewports: [viewport]`. No se pueden mandar los dos, ni combinar ninguno de ellos con `device`. El
+  dispositivo de Playwright sigue siendo único por auditoría: además del tamaño cambia el user-agent y
+  activa el modo táctil.
+- **Cada página guarda su pantalla** en `viewport` y `device`. `config.viewports` es la lista
+  pedida, y `config.viewport` es el primero de ella (o `null` si no se pidió ninguna, como antes).
+- **Límite**: `MAX_URLS_PER_AUDIT` cuenta escaneos totales, no URLs. 13 URLs en 2 resoluciones son
+  26 escaneos, y eso ya supera el límite de 25.
+- **El histórico y la comparación van por URL + sección + pantalla**, así que el móvil nunca se
+  compara con el escritorio. En `/history`, `viewport=390x844` (y `device`, si se escaneó con uno)
+  eligen la serie. Si no se pasan, se devuelven todas las pantallas mezcladas, como antes.
+- **Auditorías antiguas**: al arrancar, cada página sin pantalla guardada recibe la de su auditoría,
+  que entonces era única. Si no tenía ni resolución ni dispositivo, recibe 1366×768, que es con la que
+  se escaneaba siempre por defecto. Así sus series continúan con los escaneos nuevos de esa misma
+  resolución.
+- El viewport aparece en el detalle, en el PDF y en `page.viewport` de la exportación compacta.
+
 ## Configuración
 
 Copia `backend/.env.example` a `backend/.env`:
@@ -145,7 +343,7 @@ Copia `backend/.env.example` a `backend/.env`:
 | `RESULTS_DIR` | `./scan-results` | Dónde se guardan JSON y PDFs |
 | `SCAN_CONCURRENCY` | `3` | Páginas escaneadas a la vez |
 | `BROWSER_IDLE_TIMEOUT_MS` | `60000` | Cuánto sigue vivo un navegador sin trabajo |
-| `MAX_URLS_PER_AUDIT` | `25` | Límite de URLs por auditoría |
+| `MAX_URLS_PER_AUDIT` | `25` | Límite de escaneos por auditoría: URLs × secciones × resoluciones |
 | `DEFAULT_TIMEOUT_MS` | `30000` | Tiempo máximo de carga por página |
 
 En el frontend, `API_URL` (por defecto `http://localhost:3000`) es la URL interna de la API. El
@@ -167,20 +365,80 @@ Dos cosas que conviene saber:
 - **axe omite las reglas de ámbito de página** (`html-has-lang`, `document-title`, `landmark-one-main`,
   `region`…) cuando el análisis se acota a una sección. No es que la página las cumpla: es que no se
   han comprobado. Para esas reglas hace falta un escaneo de página completa.
-- **El histórico y la comparación van por URL + sección.** La cabecera de la home solo se compara con
-  escaneos anteriores de la cabecera de la home, nunca con los de la página entera. El selector de
+- **Excluir no es lo mismo que acotar**: ver [Excluir contenido](#excluir-contenido-del-análisis).
+- **El histórico y la comparación van por URL + sección** (y resolución). La cabecera de la home solo
+  se compara con escaneos anteriores de la cabecera de la home, nunca con los de la página entera. El selector de
   exclusión **no** parte la serie: se considera filtrado de ruido, no una sección distinta.
 
-## Sobre la métrica "reglas superadas"
+## Normas que se pueden comprobar
+
+`GET /api/meta` devuelve en `tags` las opciones, que son tags de axe-core. Por defecto se usan
+`wcag2a`, `wcag2aa`, `wcag21a` y `wcag21aa`.
+
+| Tag | Qué añade |
+| --- | --- |
+| `wcag2a`, `wcag2aa` | WCAG 2.0 A y AA |
+| `wcag21a`, `wcag21aa` | Criterios nuevos de WCAG 2.1 A y AA (EN 301 549 exige WCAG 2.1 AA) |
+| `wcag22aa` | Criterios nuevos de WCAG 2.2 AA (objetivo interno) |
+| `wcag2aaa` | WCAG AAA. En axe 4.13 son solo 3 reglas: `color-contrast-enhanced`, `identical-links-same-purpose` y `meta-refresh-no-exceptions` |
+| `best-practice` | Buenas prácticas de Deque que no son criterios WCAG (landmarks, orden de encabezados…) |
+
+`wcag2aaa` y `best-practice` están disponibles en el formulario pero no van marcados por defecto; el
+botón "Marcar todas" sí los activa. Sus reglas nunca cuentan para el cumplimiento legal (ver abajo).
+
+## Excluir contenido del análisis
+
+`exclude` (campo **Excluir del análisis** en el formulario) quita del escaneo lo que casa con el
+selector. **Lo excluido no se audita**: no aparece en los resultados ni en las métricas.
+
+Solo tiene sentido para contenido de **terceros** que no controlas, como un banner de cookies de
+OneTrust o Cookiebot o un widget externo. **Si el banner de cookies es propio** (hecho a medida, o un
+plugin que controlas y puedes corregir), forma parte del sitio y cuenta para el cumplimiento legal
+igual que el resto: no lo excluyas, o revísalo por separado.
+
+Por eso:
+
+- El formulario muestra un aviso en cuanto se escribe un selector de exclusión, y el detalle de la
+  página y el de la auditoría indican qué se excluyó.
+- El PDF lo recoge en la cabecera, con la advertencia de revisarlo aparte.
+- La exportación compacta por página lleva `page.exclude` y un aviso en `warnings`. La agregada lleva
+  `excluded: [{ selector, pages }]` y los mismos avisos. Un modelo que lea el JSON no puede tomar lo
+  excluido por "sin fallos".
+
+`warnings` también avisa cuando se ha acotado a una sección (`include`), porque en ese caso axe no
+comprueba las reglas de ámbito de página.
+
+## Sobre las métricas "reglas superadas"
 
 No es un score ponderado inventado: es `reglas superadas / (superadas + incumplidas) × 100`. Las
 reglas `inapplicable` no cuentan (no había nada que evaluar) y las `incomplete` tampoco (axe no pudo
 decidir y necesitan revisión manual). Es un dato verificable contra el JSON crudo.
 
+Se calcula tres veces con la misma fórmula:
+
+- **Cumplimiento legal** (`compliance.legal`): solo reglas de nivel A y AA. Es la que importa para la
+  Ley 11/2023 / EN 301 549 (WCAG 2.1 AA; el objetivo interno es 2.2 AA).
+- **Mejoras** (`compliance.improvements`): reglas AAA y buenas prácticas.
+- **Global** (`score`): todas mezcladas. Se mantiene por compatibilidad, pero la interfaz y el PDF ya
+  enseñan las dos anteriores por separado.
+
+El nivel de cada regla sale de sus tags de axe (`services/audit/levels.ts`): si tiene `wcag2aaa` es
+AAA; si no, si tiene un tag de nivel AA (`wcag2aa`, `wcag21aa`, `wcag22aa`) es AA; si tiene uno de
+nivel A, es A; y si no tiene ninguno, buena práctica. Cada incumplimiento de
+`GET /audits/:id/pages/:pageId` lleva su `level`.
+
+Cada grupo trae `score`, `passes`, `violations`, `violationNodes`, `critical`, `serious`,
+`moderate`, `minor` e `incomplete`. En la auditoría, `score` es la media de sus páginas y el resto
+son sumas. Si en un grupo no se evaluó ninguna regla (con las normas por defecto no se ejecuta
+ninguna mejora), su `score` es `null` y la interfaz lo muestra como "No evaluado", no como 100 %.
+
+Las auditorías anteriores a este desglose se recalculan solas al arrancar el backend, a partir del
+JSON crudo guardado en disco. Si ese JSON ya no existe, `compliance` queda a `null`.
+
 ## Tests
 
 ```bash
-make test        # 41 tests: validación de la API y flujo completo con navegador real
+make test        # validación de la API, funciones puras y flujo completo con navegador real
 make typecheck
 ```
 
@@ -204,6 +462,5 @@ Chromium, así que no dependen de la red.
 - Crawler opcional para descubrir páginas de un dominio (el modelo de datos ya soporta N páginas por
   auditoría).
 - Autenticación por token si deja de ser solo local.
-- Exportar el informe agregado de toda la auditoría, no solo por página.
 - Integración en CI que falle el build si aparecen incumplimientos nuevos (el endpoint `/diff` ya da
   exactamente ese dato).

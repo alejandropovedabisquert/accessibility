@@ -78,11 +78,12 @@ routes/ → controllers/ → services/ → db/audit.repository.ts
 `include` el contexto ya no es el documento. Si alguien reporta que "la sección pasa todo", casi
 siempre es esto. La UI y el PDF lo avisan explícitamente; no quites ese aviso.
 
-**El histórico y el diff se llavean por URL + `include`, no solo por URL.** Sin eso, comparar un
-escaneo de la cabecera con el anterior de la página entera marcaba media web como "resuelta".
-`findPreviousPage` y `history` usan `IS` en vez de `=` porque NULL (página completa) tiene que casar
-con NULL. **`exclude` queda deliberadamente fuera de la clave**: filtra ruido puntual (banners de
-cookies) y partir la serie por él daría series de un solo punto.
+**El histórico y el diff se llavean por URL + `include` + pantalla (viewport y `device`), no solo por
+URL.** Sin eso, comparar un escaneo de la cabecera con el anterior de la página entera marcaba media
+web como "resuelta", y lo mismo pasa comparando móvil con escritorio. `findPreviousPage` y `history`
+usan `IS` en vez de `=` porque NULL (página completa, sin dispositivo) tiene que casar con NULL.
+**`exclude` queda deliberadamente fuera de la clave**: filtra ruido puntual (banners de cookies) y
+partir la serie por él daría series de un solo punto.
 
 **Un selector que no casa con nada aborta el escaneo entero de esa página.** axe lanza "No elements
 found for include in Context", que no dice nada al usuario. `scan.service.assertSelector()` lo

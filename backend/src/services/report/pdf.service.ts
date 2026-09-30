@@ -6,6 +6,8 @@ import repository from '../../db/audit.repository';
 import { AsyncTaskQueue } from '../shared/AsyncTaskQueue';
 import { reportHtmlBuilder } from './reportHtmlBuilder';
 import { slugifyUrl } from '../../utils/url';
+import { computeCompliance } from '../audit/summary';
+import { resolveViewport } from '../scanner/scan.service';
 import { notFound } from '../../utils/errors';
 
 interface PdfJob {
@@ -67,9 +69,13 @@ class PdfService {
     const html = reportHtmlBuilder(results, {
       config: audit.config,
       score: page.score,
+      // Del JSON crudo, no de la BD: asi tambien sale en paginas antiguas sin desglose guardado.
+      compliance: computeCompliance(results),
       label: audit.label,
       include: page.include,
       exclude: page.exclude,
+      viewport: page.viewport ?? resolveViewport(audit.config),
+      device: page.device ?? audit.config.device,
     });
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });

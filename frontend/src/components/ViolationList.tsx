@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import type { AxeRule, Impact } from '@/lib/types';
-import { IMPACT_LABEL } from '@/lib/format';
-import { Card, ImpactBadge } from '@/components/ui';
+import { IMPACT_LABEL, ruleLevel } from '@/lib/format';
+import { Card, ImpactBadge, LevelBadge } from '@/components/ui';
 
 const ORDER: Record<string, number> = { critical: 0, serious: 1, moderate: 2, minor: 3 };
 const FILTERS: Array<Impact | 'all'> = ['all', 'critical', 'serious', 'moderate', 'minor'];
@@ -77,6 +77,7 @@ export function ViolationList({ rules, emptyMessage }: { rules: AxeRule[]; empty
               <details className="group">
                 <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3">
                   <ImpactBadge impact={rule.impact} />
+                  <LevelBadge level={ruleLevel(rule.tags)} />
                   <span className="font-medium">{rule.help}</span>
                   <span className="ml-auto whitespace-nowrap text-xs text-ink-muted">
                     {rule.nodes.length} {rule.nodes.length === 1 ? 'elemento' : 'elementos'}

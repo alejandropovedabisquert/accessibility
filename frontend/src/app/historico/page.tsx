@@ -1,27 +1,33 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getHistory, getMeta, getScannedUrls } from '@/lib/api';
-import { displayUrl, formatRelative, sectionLabel } from '@/lib/format';
+import { displayUrl, formatRelative, screenLabel, screenQuery, sectionLabel } from '@/lib/format';
+import type { ScannedUrl } from '@/lib/types';
 import { HistoryChart } from '@/components/HistoryChart';
 import { Card, EmptyState, PageHeader } from '@/components/ui';
 
 export const metadata: Metadata = { title: 'Histórico' };
 
 interface Props {
-  searchParams: Promise<{ url?: string; include?: string }>;
+  searchParams: Promise<{ url?: string; include?: string; viewport?: string; device?: string }>;
 }
 
-/** Una serie es URL + seccion, asi que hace falta la pareja para identificarla. */
-const seriesKey = (url: string, include: string | null) => `${url}\n${include ?? ''}`;
+type Series = Pick<ScannedUrl, 'url' | 'include' | 'viewport' | 'device'>;
 
-const seriesHref = (url: string, include: string | null) => {
-  const query = new URLSearchParams({ url });
-  if (include) query.set('include', include);
+/** Una serie es URL + seccion + pantalla, asi que hace falta todo para identificarla. */
+const seriesKey = (series: Series) => {
+  const { viewport = '', device = '' } = screenQuery(series);
+  return [series.url, series.include ?? '', viewport, device].join('\n');
+};
+
+const seriesHref = (series: Series) => {
+  const query = new URLSearchParams({ url: series.url, ...screenQuery(series) });
+  if (series.include) query.set('include', series.include);
   return `/historico?${query.toString()}`;
 };
 
 export default async function HistoryPage({ searchParams }: Props) {
-  const { url, include } = await searchParams;
+  const { url, include, viewport, device } = await searchParams;
   const [urls, meta] = await Promise.all([getScannedUrls(), getMeta().catch(() => null)]);
 
   if (urls.length === 0) {
@@ -37,11 +43,18 @@ export default async function HistoryPage({ searchParams }: Props) {
     );
   }
 
-  const requested = url ? seriesKey(url, include ?? null) : null;
+  const requested = url
+    ? [url, include ?? '', viewport ?? '', device ?? ''].join('\n')
+    : null;
+  // Los enlaces de antes de los viewports multiples no llevan pantalla: se
+  // cae en la primera serie de esa URL y seccion.
   const selected =
-    urls.find((item) => seriesKey(item.url, item.include) === requested) ?? urls[0] ?? null;
+    urls.find((item) => seriesKey(item) === requested) ??
+    urls.find((item) => item.url === url && (item.include ?? '') === (include ?? '')) ??
+    urls[0] ??
+    null;
   const history = selected
-    ? await getHistory(selected.url, selected.include, 50).catch(() => null)
+    ? await getHistory(selected.url, selected.include, selected, 50).catch(() => null)
     : null;
 
   return (
@@ -58,14 +71,14 @@ export default async function HistoryPage({ searchParams }: Props) {
           </h2>
           <Card className="divide-y divide-line">
             {urls.map((item) => {
-              const key = seriesKey(item.url, item.include);
-              const active = selected !== null && key === seriesKey(selected.url, selected.include);
+              const key = seriesKey(item);
+              const active = selected !== null && key === seriesKey(selected);
               const scope = sectionLabel(item.include, meta?.sections);
 
               return (
                 <Link
                   key={key}
-                  href={seriesHref(item.url, item.include)}
+                  href={seriesHref(item)}
                   aria-current={active ? 'true' : undefined}
                   className={`block px-4 py-3 text-sm transition-colors hover:bg-surface-muted ${
                     active ? 'bg-accent-soft' : ''
@@ -74,7 +87,7 @@ export default async function HistoryPage({ searchParams }: Props) {
                   <span className="block break-all font-medium">{displayUrl(item.url)}</span>
                   <span className="mt-0.5 block text-xs text-ink-muted">
                     {scope ? `${scope} · ` : ''}
-                    {item.runs} escaneo(s) · {formatRelative(item.lastScan)}
+                    {screenLabel(item)} · {item.runs} escaneo(s) · {formatRelative(item.lastScan)}
                   </span>
                 </Link>
               );
@@ -90,6 +103,7 @@ export default async function HistoryPage({ searchParams }: Props) {
                 {sectionLabel(selected.include, meta?.sections)
                   ? ` · ${sectionLabel(selected.include, meta?.sections)}`
                   : ''}
+                {` · ${screenLabel(selected)}`}
               </h2>
               <HistoryChart points={history.points} label="Incumplimientos por escaneo" />
               {history.points.length > 0 ? (

@@ -1,10 +1,13 @@
 import { getDb } from './client';
+import { levelOfRule } from '../services/audit/levels';
+import { DEFAULT_VIEWPORT } from '../types/audit.types';
 import type {
   Audit,
   AuditConfig,
   AuditPage,
   AuditStatus,
   AuditWithPages,
+  Compliance,
   Counters,
   HistoryPoint,
   Impact,
@@ -12,9 +15,13 @@ import type {
   PageIssue,
   PageStatus,
   Paginated,
+  RuleLevel,
   ScanBrowser,
+  ScanScreen,
   ScanTarget,
   ScanWaitUntil,
+  SeriesKey,
+  Viewport,
 } from '../types/audit.types';
 
 interface AuditRow {
@@ -31,6 +38,7 @@ interface AuditRow {
   wait_until: string;
   timeout_ms: number;
   tags: string;
+  viewports: string | null;
   total_pages: number;
   completed_pages: number;
   failed_pages: number;
@@ -44,6 +52,7 @@ interface AuditRow {
   incomplete: number;
   inapplicable: number;
   score: number | null;
+  compliance: string | null;
   error: string | null;
 }
 
@@ -54,6 +63,9 @@ interface PageRow {
   host: string;
   include_selector: string | null;
   exclude_selector: string | null;
+  viewport_width: number | null;
+  viewport_height: number | null;
+  device: string | null;
   status: string;
   started_at: string | null;
   finished_at: string | null;
@@ -68,12 +80,14 @@ interface PageRow {
   incomplete: number;
   inapplicable: number;
   score: number | null;
+  compliance: string | null;
   error: string | null;
 }
 
 interface IssueRow {
   rule_id: string;
   impact: string | null;
+  level: string | null;
   node_count: number;
   help: string;
   help_url: string;
@@ -104,6 +118,23 @@ const rowCounters = (row: AuditRow | PageRow): Counters => ({
   inapplicable: row.inapplicable,
 });
 
+const parseCompliance = (value: string | null): Compliance | null =>
+  value ? (JSON.parse(value) as Compliance) : null;
+
+const toViewport = (width: number | null, height: number | null): Viewport | null =>
+  width !== null && height !== null ? { width, height } : null;
+
+/**
+ * Las auditorias anteriores a los viewports multiples no guardan la lista: era
+ * la resolucion unica, o la de por defecto si no habia ni resolucion ni
+ * dispositivo.
+ */
+const toViewports = (row: AuditRow): Viewport[] => {
+  if (row.viewports) return JSON.parse(row.viewports) as Viewport[];
+  if (row.device) return [];
+  return [toViewport(row.viewport_width, row.viewport_height) ?? DEFAULT_VIEWPORT];
+};
+
 const toAudit = (row: AuditRow): Audit => ({
   id: row.id,
   label: row.label,
@@ -114,10 +145,8 @@ const toAudit = (row: AuditRow): Audit => ({
   config: {
     browser: row.browser as ScanBrowser,
     device: row.device,
-    viewport:
-      row.viewport_width !== null && row.viewport_height !== null
-        ? { width: row.viewport_width, height: row.viewport_height }
-        : null,
+    viewport: toViewport(row.viewport_width, row.viewport_height),
+    viewports: toViewports(row),
     waitUntil: row.wait_until as ScanWaitUntil,
     timeoutMs: row.timeout_ms,
     tags: JSON.parse(row.tags) as string[],
@@ -126,6 +155,7 @@ const toAudit = (row: AuditRow): Audit => ({
   completedPages: row.completed_pages,
   failedPages: row.failed_pages,
   score: row.score,
+  compliance: parseCompliance(row.compliance),
   error: row.error,
   ...rowCounters(row),
 });
@@ -137,11 +167,14 @@ const toPage = (row: PageRow): AuditPage => ({
   host: row.host,
   include: row.include_selector,
   exclude: row.exclude_selector,
+  viewport: toViewport(row.viewport_width, row.viewport_height),
+  device: row.device,
   status: row.status as PageStatus,
   startedAt: row.started_at,
   finishedAt: row.finished_at,
   durationMs: row.duration_ms,
   score: row.score,
+  compliance: parseCompliance(row.compliance),
   error: row.error,
   ...rowCounters(row),
 });
@@ -149,10 +182,23 @@ const toPage = (row: PageRow): AuditPage => ({
 const toIssue = (row: IssueRow): PageIssue => ({
   ruleId: row.rule_id,
   impact: row.impact as Impact | null,
+  level: (row.level as RuleLevel | null) ?? levelOfRule(row.rule_id),
   nodeCount: row.node_count,
   help: row.help,
   helpUrl: row.help_url,
   description: row.description,
+});
+
+/** Misma pantalla que la serie pedida. `IS` para que NULL case con NULL. */
+const SAME_SCREEN = `p.viewport_width IS @viewportWidth AND p.viewport_height IS @viewportHeight
+  AND p.device IS @device`;
+
+const seriesParams = (series: SeriesKey) => ({
+  url: series.url,
+  include: series.include,
+  viewportWidth: series.viewport?.width ?? null,
+  viewportHeight: series.viewport?.height ?? null,
+  device: series.device,
 });
 
 class AuditRepository {
@@ -161,19 +207,20 @@ class AuditRepository {
     label: string | null;
     createdAt: string;
     config: AuditConfig;
-    urls: Array<ScanTarget & { id: string; host: string }>;
+    urls: Array<ScanTarget & ScanScreen & { id: string; host: string }>;
   }): void {
     const db = getDb();
     const insertAudit = db.prepare(`
       INSERT INTO audits (id, label, status, created_at, browser, device, viewport_width,
-                          viewport_height, wait_until, timeout_ms, tags, total_pages)
+                          viewport_height, viewports, wait_until, timeout_ms, tags, total_pages)
       VALUES (@id, @label, 'queued', @createdAt, @browser, @device, @viewportWidth,
-              @viewportHeight, @waitUntil, @timeoutMs, @tags, @totalPages)
+              @viewportHeight, @viewports, @waitUntil, @timeoutMs, @tags, @totalPages)
     `);
     const insertPage = db.prepare(`
       INSERT INTO audit_pages (id, audit_id, position, url, host, include_selector,
-                               exclude_selector, status)
-      VALUES (@id, @auditId, @position, @url, @host, @include, @exclude, 'pending')
+                               exclude_selector, viewport_width, viewport_height, device, status)
+      VALUES (@id, @auditId, @position, @url, @host, @include, @exclude, @viewportWidth,
+              @viewportHeight, @device, 'pending')
     `);
 
     db.transaction(() => {
@@ -185,6 +232,7 @@ class AuditRepository {
         device: audit.config.device,
         viewportWidth: audit.config.viewport?.width ?? null,
         viewportHeight: audit.config.viewport?.height ?? null,
+        viewports: JSON.stringify(audit.config.viewports),
         waitUntil: audit.config.waitUntil,
         timeoutMs: audit.config.timeoutMs,
         tags: JSON.stringify(audit.config.tags),
@@ -200,6 +248,9 @@ class AuditRepository {
           host: page.host,
           include: page.include,
           exclude: page.exclude,
+          viewportWidth: page.viewport?.width ?? null,
+          viewportHeight: page.viewport?.height ?? null,
+          device: page.device,
         });
       });
     })();
@@ -222,6 +273,7 @@ class AuditRepository {
     finishedAt: string;
     durationMs: number;
     score: number;
+    compliance: Compliance;
     counters: Counters;
     issues: PageIssue[];
   }): void {
@@ -229,6 +281,7 @@ class AuditRepository {
     const update = db.prepare(`
       UPDATE audit_pages
       SET status = 'completed', finished_at = @finishedAt, duration_ms = @durationMs, score = @score,
+          compliance = @compliance,
           violations = @violations, violation_nodes = @violationNodes, critical = @critical,
           serious = @serious, moderate = @moderate, minor = @minor, passes = @passes,
           incomplete = @incomplete, inapplicable = @inapplicable, error = NULL
@@ -236,8 +289,8 @@ class AuditRepository {
     `);
     const clearIssues = db.prepare('DELETE FROM page_issues WHERE page_id = @id');
     const insertIssue = db.prepare(`
-      INSERT INTO page_issues (page_id, rule_id, impact, node_count, help, help_url, description)
-      VALUES (@pageId, @ruleId, @impact, @nodeCount, @help, @helpUrl, @description)
+      INSERT INTO page_issues (page_id, rule_id, impact, level, node_count, help, help_url, description)
+      VALUES (@pageId, @ruleId, @impact, @level, @nodeCount, @help, @helpUrl, @description)
     `);
 
     db.transaction(() => {
@@ -246,6 +299,7 @@ class AuditRepository {
         finishedAt: input.finishedAt,
         durationMs: input.durationMs,
         score: input.score,
+        compliance: JSON.stringify(input.compliance),
         ...counters(input.counters),
       });
       clearIssues.run({ id: input.id });
@@ -289,6 +343,36 @@ class AuditRepository {
         WHERE id = @id
       `)
       .run({ id, finishedAt });
+  }
+
+  setPageCompliance(id: string, compliance: Compliance): void {
+    getDb()
+      .prepare('UPDATE audit_pages SET compliance = @compliance WHERE id = @id')
+      .run({ id, compliance: JSON.stringify(compliance) });
+  }
+
+  setAuditCompliance(id: string, compliance: Compliance | null): void {
+    getDb()
+      .prepare('UPDATE audits SET compliance = @compliance WHERE id = @id')
+      .run({ id, compliance: compliance ? JSON.stringify(compliance) : null });
+  }
+
+  /** Paginas completadas antes de que existiera el desglose legal / mejoras. */
+  findPagesWithoutCompliance(): Array<{ id: string; auditId: string }> {
+    return getDb()
+      .prepare(`
+        SELECT id, audit_id AS auditId FROM audit_pages
+        WHERE status = 'completed' AND compliance IS NULL
+      `)
+      .all() as Array<{ id: string; auditId: string }>;
+  }
+
+  /** Auditorias cerradas sin desglose agregado (antiguas o cerradas por `recoverInterrupted`). */
+  findAuditIdsWithoutCompliance(): string[] {
+    const rows = getDb()
+      .prepare(`SELECT id FROM audits WHERE compliance IS NULL AND status IN ('completed', 'failed')`)
+      .all() as Array<{ id: string }>;
+    return rows.map((row) => row.id);
   }
 
   failAudit(id: string, finishedAt: string, error: string): void {
@@ -387,7 +471,7 @@ class AuditRepository {
   findIssues(pageId: string): PageIssue[] {
     const rows = getDb()
       .prepare(`
-        SELECT rule_id, impact, node_count, help, help_url, description
+        SELECT rule_id, impact, level, node_count, help, help_url, description
         FROM page_issues WHERE page_id = @pageId
         ORDER BY
           CASE impact WHEN 'critical' THEN 0 WHEN 'serious' THEN 1
@@ -399,37 +483,45 @@ class AuditRepository {
   }
 
   /**
-   * Escaneo completado inmediatamente anterior de la misma URL y la misma seccion.
+   * Escaneo completado inmediatamente anterior de la misma serie: URL, seccion y
+   * pantalla (resolucion + dispositivo). Movil y escritorio no se comparan.
    *
-   * `IS` en vez de `=` porque NULL (pagina entera) tiene que casar con NULL.
-   * Solo se compara `include_selector`: el de exclusion filtra ruido puntual
-   * (banners de cookies) y partir la serie por el daria comparaciones inutiles.
+   * `IS` en vez de `=` porque NULL (pagina entera, sin dispositivo) tiene que
+   * casar con NULL. Solo se compara `include_selector`: el de exclusion filtra
+   * ruido puntual (banners de cookies) y partir la serie por el daria
+   * comparaciones inutiles.
    */
-  findPreviousPage(url: string, include: string | null, before: string): AuditPage | null {
+  findPreviousPage(series: SeriesKey, before: string): AuditPage | null {
     const row = getDb()
       .prepare(`
         SELECT p.* FROM audit_pages p
         JOIN audits a ON a.id = p.audit_id
-        WHERE p.url = @url AND p.include_selector IS @include
+        WHERE p.url = @url AND p.include_selector IS @include AND ${SAME_SCREEN}
           AND p.status = 'completed' AND a.created_at < @before
         ORDER BY a.created_at DESC
         LIMIT 1
       `)
-      .get({ url, include, before }) as PageRow | undefined;
+      .get({ ...seriesParams(series), before }) as PageRow | undefined;
     return row ? toPage(row) : null;
   }
 
-  /** Serie temporal de una URL y seccion, de mas antiguo a mas reciente. */
-  history(url: string, include: string | null, limit: number): HistoryPoint[] {
+  /**
+   * Serie temporal de una URL y seccion, de mas antiguo a mas reciente.
+   *
+   * Sin `screen` no se filtra por pantalla: es lo que hacia la API antes de
+   * los viewports multiples y se mantiene para no romper a quien la use asi.
+   */
+  history(url: string, include: string | null, screen: ScanScreen | undefined, limit: number): HistoryPoint[] {
     const rows = getDb()
       .prepare(`
         SELECT p.*, a.created_at AS audit_created_at FROM audit_pages p
         JOIN audits a ON a.id = p.audit_id
         WHERE p.url = @url AND p.include_selector IS @include AND p.status = 'completed'
+          ${screen ? `AND ${SAME_SCREEN}` : ''}
         ORDER BY a.created_at DESC
         LIMIT @limit
       `)
-      .all({ url, include, limit }) as PageRow[];
+      .all({ ...seriesParams({ url, include, viewport: screen?.viewport ?? null, device: screen?.device ?? null }), limit }) as PageRow[];
 
     return rows
       .map((row) => ({
@@ -438,34 +530,39 @@ class AuditRepository {
         finishedAt: row.finished_at,
         score: row.score,
         include: row.include_selector,
+        viewport: toViewport(row.viewport_width, row.viewport_height),
+        device: row.device,
         ...rowCounters(row),
       }))
       .reverse();
   }
 
-  /** Series distintas auditadas (URL + seccion), para el selector de historico. */
-  scannedUrls(): Array<{
-    url: string;
-    host: string;
-    include: string | null;
-    runs: number;
-    lastScan: string | null;
-  }> {
-    return getDb()
+  /** Series distintas auditadas (URL + seccion + pantalla), para el selector de historico. */
+  scannedUrls(): Array<SeriesKey & { host: string; runs: number; lastScan: string | null }> {
+    const rows = getDb()
       .prepare(`
-        SELECT url, host, include_selector AS "include", COUNT(*) AS runs,
-               MAX(finished_at) AS lastScan
+        SELECT url, host, include_selector, viewport_width, viewport_height, device,
+               COUNT(*) AS runs, MAX(finished_at) AS lastScan
         FROM audit_pages WHERE status = 'completed'
-        GROUP BY url, host, include_selector
+        GROUP BY url, host, include_selector, viewport_width, viewport_height, device
         ORDER BY lastScan DESC
       `)
-      .all() as Array<{
-      url: string;
-      host: string;
-      include: string | null;
-      runs: number;
-      lastScan: string | null;
-    }>;
+      .all() as Array<
+      Pick<PageRow, 'url' | 'host' | 'include_selector' | 'viewport_width' | 'viewport_height' | 'device'> & {
+        runs: number;
+        lastScan: string | null;
+      }
+    >;
+
+    return rows.map((row) => ({
+      url: row.url,
+      host: row.host,
+      include: row.include_selector,
+      viewport: toViewport(row.viewport_width, row.viewport_height),
+      device: row.device,
+      runs: row.runs,
+      lastScan: row.lastScan,
+    }));
   }
 
   deleteAudit(id: string): boolean {

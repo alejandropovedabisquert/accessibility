@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
+import { devices } from 'playwright';
 import config from '../config/config';
+import { DEFAULT_VIEWPORT } from '../types/audit.types';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS audits (
@@ -85,26 +87,88 @@ CREATE INDEX IF NOT EXISTS idx_issues_rule ON page_issues (rule_id);
  * tiene que pasar por aqui, y ser idempotente.
  */
 const migrate = (instance: Db): void => {
-  const columns = instance.prepare('PRAGMA table_info(audit_pages)').all() as Array<{ name: string }>;
-  const has = (name: string) => columns.some((column) => column.name === name);
+  const addColumn = (table: string, column: string, type: string) => {
+    const columns = instance.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some((existing) => existing.name === column)) {
+      instance.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    }
+  };
 
   // Seccion analizada de la pagina. NULL en las filas antiguas = pagina entera.
-  if (!has('include_selector')) {
-    instance.exec('ALTER TABLE audit_pages ADD COLUMN include_selector TEXT');
-  }
-  if (!has('exclude_selector')) {
-    instance.exec('ALTER TABLE audit_pages ADD COLUMN exclude_selector TEXT');
-  }
+  addColumn('audit_pages', 'include_selector', 'TEXT');
+  addColumn('audit_pages', 'exclude_selector', 'TEXT');
 
-  // El historico y el diff van por URL + seccion, no solo por URL.
+  // Desglose legal (A/AA) / mejoras (AAA, buenas practicas), en JSON: solo se
+  // lee entero, nunca se filtra por el. NULL en filas antiguas hasta que
+  // `auditService.backfillCompliance()` lo recalcula desde el JSON crudo.
+  addColumn('audit_pages', 'compliance', 'TEXT');
+  addColumn('audits', 'compliance', 'TEXT');
+  // NULL en filas antiguas: se deduce del id de regla al leer.
+  addColumn('page_issues', 'level', 'TEXT');
+
+  // Pantalla de cada pagina: una auditoria puede escanear la misma URL en
+  // varias resoluciones. `audits.viewports` es la lista pedida, en JSON.
+  addColumn('audit_pages', 'viewport_width', 'INTEGER');
+  addColumn('audit_pages', 'viewport_height', 'INTEGER');
+  addColumn('audit_pages', 'device', 'TEXT');
+  addColumn('audits', 'viewports', 'TEXT');
+  backfillPageScreens(instance);
+
+  // El historico y el diff van por URL + seccion + pantalla, no solo por URL.
   instance.exec(`
     DROP INDEX IF EXISTS idx_pages_url;
-    CREATE INDEX IF NOT EXISTS idx_pages_url_scope
-      ON audit_pages (url, include_selector, finished_at DESC);
+    DROP INDEX IF EXISTS idx_pages_url_scope;
+    CREATE INDEX IF NOT EXISTS idx_pages_series
+      ON audit_pages (url, include_selector, viewport_width, viewport_height, device, finished_at DESC);
   `);
 };
 
+/**
+ * Las paginas anteriores a los viewports multiples no guardan su pantalla, pero
+ * se puede saber cual fue: la de su auditoria, que era unica. Sin viewport ni
+ * dispositivo se escaneaba siempre con DEFAULT_VIEWPORT. Asi las series
+ * antiguas siguen casando con los escaneos nuevos de la misma resolucion.
+ *
+ * Solo toca filas sin pantalla ni dispositivo, que desde este cambio ya no se
+ * crean, asi que es idempotente.
+ */
+const backfillPageScreens = (instance: Db): void => {
+  instance
+    .prepare(`
+      UPDATE audit_pages
+      SET viewport_width  = COALESCE((SELECT a.viewport_width  FROM audits a WHERE a.id = audit_pages.audit_id), @width),
+          viewport_height = COALESCE((SELECT a.viewport_height FROM audits a WHERE a.id = audit_pages.audit_id), @height)
+      WHERE viewport_width IS NULL AND device IS NULL
+        AND (SELECT a.device FROM audits a WHERE a.id = audit_pages.audit_id) IS NULL
+    `)
+    .run(DEFAULT_VIEWPORT);
+
+  const withDevice = instance
+    .prepare(`
+      SELECT DISTINCT a.device AS device FROM audit_pages p JOIN audits a ON a.id = p.audit_id
+      WHERE p.viewport_width IS NULL AND p.device IS NULL AND a.device IS NOT NULL
+    `)
+    .all() as Array<{ device: string }>;
+
+  const update = instance.prepare(`
+    UPDATE audit_pages SET device = @device, viewport_width = @width, viewport_height = @height
+    WHERE viewport_width IS NULL AND device IS NULL
+      AND audit_id IN (SELECT id FROM audits WHERE device = @device)
+  `);
+  for (const { device } of withDevice) {
+    // Si el dispositivo ya no existe en esta version de Playwright, queda el nombre sin tamano.
+    const viewport = devices[device]?.viewport ?? null;
+    update.run({ device, width: viewport?.width ?? null, height: viewport?.height ?? null });
+  }
+};
+
 export type Db = Database.Database;
+
+/** Esquema base + migraciones. Separado de getDb() para poder probarlo sobre una BD cualquiera. */
+export const applySchema = (instance: Db): void => {
+  instance.exec(SCHEMA);
+  migrate(instance);
+};
 
 let db: Db | null = null;
 
@@ -118,8 +182,7 @@ export const getDb = (): Db => {
   instance.pragma('journal_mode = WAL');
   instance.pragma('foreign_keys = ON');
   instance.pragma('busy_timeout = 5000');
-  instance.exec(SCHEMA);
-  migrate(instance);
+  applySchema(instance);
 
   db = instance;
   return instance;

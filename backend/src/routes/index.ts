@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createAudit,
   deleteAudit,
+  exportAudit,
   getAudit,
   getHistory,
   getPage,
@@ -27,6 +28,7 @@ router.get('/audits', listAudits);
 router.get('/audits/:id', getAudit);
 router.delete('/audits/:id', deleteAudit);
 router.post('/audits/:id/rerun', rerunAudit);
+router.get('/audits/:id/export', exportAudit);
 
 router.get('/audits/:id/pages/:pageId', getPage);
 router.get('/audits/:id/pages/:pageId/results', getPageResults);

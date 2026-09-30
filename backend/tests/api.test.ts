@@ -66,6 +66,29 @@ describe('POST /api/audits (validacion)', () => {
     }
   });
 
+  it.each<[string, object]>([
+    ['device y viewports', { device: 'iPhone 15', viewports: [{ width: 390, height: 844 }] }],
+    ['viewport y viewports', { viewport: { width: 800, height: 600 }, viewports: [{ width: 390, height: 844 }] }],
+    ['viewports vacio', { viewports: [] }],
+    ['demasiados viewports', { viewports: Array.from({ length: 5 }, (_, i) => ({ width: 400 + i, height: 800 })) }],
+    ['viewport diminuto', { viewports: [{ width: 10, height: 10 }] }],
+  ])('rechaza %s', async (_name, extra) => {
+    const res = await request(app)
+      .post('/api/audits')
+      .send({ urls: ['https://example.com'], ...extra })
+      .expect(400);
+    expect(JSON.stringify(res.body.details)).toContain('viewport');
+  });
+
+  it('limita el total de escaneos, no solo las URLs', async () => {
+    const urls = Array.from({ length: 13 }, (_, i) => `https://example.com/${i}`);
+    const res = await request(app)
+      .post('/api/audits')
+      .send({ urls, viewports: [{ width: 1366, height: 768 }, { width: 390, height: 844 }] })
+      .expect(400);
+    expect(res.body.error).toContain('26');
+  });
+
   it('rechaza combinar device y viewport', async () => {
     const res = await request(app)
       .post('/api/audits')

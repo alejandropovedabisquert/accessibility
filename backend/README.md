@@ -57,7 +57,8 @@ pnpm lint                               # tsc --noEmit
 
 ## Base de datos
 
-Tres tablas: `audits` (una por ejecución), `audit_pages` (una por URL) y `page_issues` (una por regla
-incumplida). El esquema está en `src/db/client.ts` y se aplica solo al arrancar; no hay sistema de
-migraciones porque todavía no hace falta. Si cambias el esquema con datos existentes, borra
-`data/audits.db` o añade las migraciones antes.
+Tres tablas: `audits` (una por ejecución), `audit_pages` (una por URL × sección × resolución) y
+`page_issues` (una por regla incumplida). El esquema está en `src/db/client.ts` y se aplica al
+arrancar. No hay sistema de migraciones: `CREATE TABLE IF NOT EXISTS` no toca tablas existentes, así
+que cualquier columna nueva va en `migrate()`, que tiene que ser idempotente (se ejecuta en cada
+arranque). Ahí están también los rellenos de filas antiguas, como la pantalla de cada página.

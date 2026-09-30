@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto';
+import { devices } from 'playwright';
 import config from '../../config/config';
 import repository from '../../db/audit.repository';
 import scanService, { DEFAULT_TAGS } from '../scanner/scan.service';
 import rawStore from '../storage/rawStore';
-import { summarize } from './summary';
+import { aggregateCompliance, summarize } from './summary';
 import { hostOf, normalizeUrl } from '../../utils/url';
 import { AppError, badRequest, notFound, toMessage } from '../../utils/errors';
 import type {
@@ -17,8 +18,13 @@ import type {
   PageDiff,
   PageIssue,
   Paginated,
+  ScanScreen,
   ScanTarget,
+  Viewport,
 } from '../../types/audit.types';
+import { DEFAULT_VIEWPORT } from '../../types/audit.types';
+
+type PlannedPage = ScanTarget & ScanScreen;
 
 class AuditService {
   /** Auditorias que este proceso esta ejecutando ahora mismo. */
@@ -26,8 +32,8 @@ class AuditService {
 
   /** Crea la auditoria, la deja encolada y devuelve sin esperar a que termine. */
   public create(input: CreateAuditInput): Audit {
-    const targets = this.resolveTargets(input.urls);
     const auditConfig = this.resolveConfig(input);
+    const pages = this.planPages(this.resolveTargets(input.urls), auditConfig);
     const id = randomUUID();
 
     repository.createAudit({
@@ -35,7 +41,7 @@ class AuditService {
       label: input.label?.trim() || null,
       createdAt: new Date().toISOString(),
       config: auditConfig,
-      urls: targets.map((target) => ({ ...target, id: randomUUID(), host: hostOf(target.url) })),
+      urls: pages.map((page) => ({ ...page, id: randomUUID(), host: hostOf(page.url) })),
     });
 
     const audit = repository.findAudit(id);
@@ -72,14 +78,17 @@ class AuditService {
     return { page, results };
   }
 
-  /** Compara una pagina con el escaneo completado anterior de la misma URL. */
+  /** Compara una pagina con el escaneo completado anterior de la misma URL, seccion y pantalla. */
   public getPageDiff(auditId: string, pageId: string): PageDiff {
     const page = repository.findPage(auditId, pageId);
     if (!page) throw notFound('Pagina no encontrada en esta auditoria');
 
     const audit = repository.findAudit(auditId);
     const previous = audit
-      ? repository.findPreviousPage(page.url, page.include, audit.createdAt)
+      ? repository.findPreviousPage(
+          { url: page.url, include: page.include, viewport: page.viewport, device: page.device },
+          audit.createdAt,
+        )
       : null;
 
     if (!previous) {
@@ -111,8 +120,14 @@ class AuditService {
     };
   }
 
-  public history(url: string, include: string | null = null, limit = 30): HistoryPoint[] {
-    return repository.history(normalizeUrl(url), include, Math.min(Math.max(limit, 1), 200));
+  /** Sin `screen` devuelve todas las pantallas mezcladas, como antes de los viewports multiples. */
+  public history(
+    url: string,
+    include: string | null = null,
+    screen?: ScanScreen,
+    limit = 30,
+  ): HistoryPoint[] {
+    return repository.history(normalizeUrl(url), include, screen, Math.min(Math.max(limit, 1), 200));
   }
 
   public scannedUrls() {
@@ -133,6 +148,8 @@ class AuditService {
     const previous = repository.findAuditWithPages(id);
     if (!previous) throw notFound('Auditoria no encontrada');
 
+    // Las paginas son URL x seccion x viewport: se deduplican aqui y create()
+    // las vuelve a multiplicar por los viewports de la configuracion.
     return this.create({
       urls: previous.pages.map((page) => ({
         url: page.url,
@@ -142,11 +159,30 @@ class AuditService {
       label: previous.label ?? undefined,
       browser: previous.config.browser,
       device: previous.config.device ?? undefined,
-      viewport: previous.config.viewport ?? undefined,
+      viewports: previous.config.device ? undefined : previous.config.viewports,
       waitUntil: previous.config.waitUntil,
       timeout: previous.config.timeoutMs,
       tags: previous.config.tags,
     });
+  }
+
+  /**
+   * Rellena el desglose legal / mejoras de las paginas escaneadas antes de que
+   * existiera, a partir de su JSON crudo. Se lanza al arrancar, en segundo
+   * plano. Una pagina sin JSON en disco se queda sin desglose ("n/d").
+   */
+  public async backfillCompliance(): Promise<{ pages: number; audits: number }> {
+    let pages = 0;
+    for (const page of repository.findPagesWithoutCompliance()) {
+      const results = await rawStore.readRaw(page.auditId, page.id);
+      if (!results) continue;
+      repository.setPageCompliance(page.id, summarize(results).compliance);
+      pages++;
+    }
+
+    const audits = repository.findAuditIdsWithoutCompliance();
+    for (const auditId of audits) this.refreshAuditCompliance(auditId);
+    return { pages, audits: audits.length };
   }
 
   public stats() {
@@ -180,17 +216,46 @@ class AuditService {
     }
 
     if (unique.size === 0) throw badRequest('Hay que indicar al menos una URL');
-    if (unique.size > config.maxUrlsPerAudit) {
-      throw badRequest(`Maximo ${config.maxUrlsPerAudit} URLs por auditoria`);
+    return [...unique.values()];
+  }
+
+  /**
+   * Una pagina por cada objetivo y cada pantalla. El limite de la auditoria va
+   * sobre el total de escaneos, que es lo que cuesta: 10 URLs en 3 viewports
+   * son 30 escaneos.
+   */
+  private planPages(targets: ScanTarget[], auditConfig: AuditConfig): PlannedPage[] {
+    const screens: ScanScreen[] = auditConfig.device
+      ? [{ device: auditConfig.device, viewport: devices[auditConfig.device]?.viewport ?? null }]
+      : auditConfig.viewports.map((viewport) => ({ device: null, viewport }));
+
+    const pages = targets.flatMap((target) => screens.map((screen) => ({ ...target, ...screen })));
+    if (pages.length > config.maxUrlsPerAudit) {
+      throw badRequest(
+        screens.length > 1
+          ? `Maximo ${config.maxUrlsPerAudit} escaneos por auditoria: ${targets.length} URL(s) en ${screens.length} resoluciones son ${pages.length}`
+          : `Maximo ${config.maxUrlsPerAudit} URLs por auditoria`,
+      );
     }
+    return pages;
+  }
+
+  /** `viewport` suelto equivale a una lista de uno; sin nada, la resolucion por defecto. */
+  private resolveViewports(input: CreateAuditInput): Viewport[] {
+    if (input.device) return [];
+    const requested = input.viewports ?? (input.viewport ? [input.viewport] : [DEFAULT_VIEWPORT]);
+    const unique = new Map(requested.map((viewport) => [`${viewport.width}x${viewport.height}`, viewport]));
     return [...unique.values()];
   }
 
   private resolveConfig(input: CreateAuditInput): AuditConfig {
+    const viewports = this.resolveViewports(input);
     return {
       browser: input.browser ?? 'chromium',
       device: input.device ?? null,
-      viewport: input.device ? null : input.viewport ?? null,
+      // Se conserva como antes: null si no se pidio ninguna resolucion.
+      viewport: input.device ? null : (input.viewports?.[0] ?? input.viewport ?? null),
+      viewports,
       waitUntil: input.waitUntil ?? 'load',
       timeoutMs: input.timeout ?? config.defaultTimeoutMs,
       tags: input.tags && input.tags.length > 0 ? input.tags : DEFAULT_TAGS,
@@ -207,9 +272,15 @@ class AuditService {
       await Promise.all(pages.map((page) => this.runPage(auditId, page, auditConfig)));
 
       repository.finalizeAudit(auditId, new Date().toISOString());
+      this.refreshAuditCompliance(auditId);
     } catch (error) {
       repository.failAudit(auditId, new Date().toISOString(), toMessage(error));
     }
+  }
+
+  private refreshAuditCompliance(auditId: string): void {
+    const pages = repository.findPages(auditId).filter((page) => page.status === 'completed');
+    repository.setAuditCompliance(auditId, aggregateCompliance(pages.map((page) => page.compliance)));
   }
 
   private async runPage(auditId: string, page: AuditPage, auditConfig: AuditConfig): Promise<void> {
@@ -221,9 +292,10 @@ class AuditService {
       const results = await scanService.enqueue({
         url: page.url,
         scope: { include: page.include, exclude: page.exclude },
+        viewport: page.viewport,
         config: auditConfig,
       });
-      const { counters, score, issues } = summarize(results);
+      const { counters, score, compliance, issues } = summarize(results);
 
       await rawStore.saveRaw(auditId, pageId, results);
       repository.completePage({
@@ -231,6 +303,7 @@ class AuditService {
         finishedAt: new Date().toISOString(),
         durationMs: Date.now() - startedAt,
         score,
+        compliance,
         counters,
         issues,
       });

@@ -3,8 +3,11 @@ import { chromium, devices, firefox, webkit } from 'playwright';
 import {
   AVAILABLE_TAGS,
   DEFAULT_TAGS,
+  DEFAULT_VIEWPORT,
   MAX_SELECTOR_LENGTH,
+  MAX_VIEWPORTS,
   SECTION_PRESETS,
+  VIEWPORT_PRESETS,
 } from '../services/scanner/scan.service';
 import auditService from '../services/audit/audit.service';
 import config from '../config/config';
@@ -29,17 +32,19 @@ export const getMeta = (_req: Request, res: Response) => {
     devices: DEVICES,
     tags: AVAILABLE_TAGS,
     sections: SECTION_PRESETS,
+    viewports: VIEWPORT_PRESETS,
     defaults: {
       browser: 'chromium',
       waitUntil: 'load',
       tags: DEFAULT_TAGS,
       timeout: config.defaultTimeoutMs,
-      viewport: { width: 1366, height: 768 },
+      viewport: DEFAULT_VIEWPORT,
     },
     limits: {
       maxUrlsPerAudit: config.maxUrlsPerAudit,
       scanConcurrency: config.scanConcurrency,
       maxSelectorLength: MAX_SELECTOR_LENGTH,
+      maxViewports: MAX_VIEWPORTS,
     },
   });
 };

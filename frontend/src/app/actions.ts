@@ -30,6 +30,29 @@ interface ScanTargetPayload {
   exclude?: string;
 }
 
+/**
+ * Resoluciones marcadas más las escritas a mano ("1920x1080, 360x800"). Una
+ * entrada mal escrita se devuelve aparte para avisar en vez de ignorarla.
+ */
+const parseViewports = (presets: string[], custom: string) => {
+  const entries = [...presets, ...custom.split(/[\s,;]+/)].map((entry) => entry.trim()).filter(Boolean);
+  const viewports: Array<{ width: number; height: number }> = [];
+  const invalid: string[] = [];
+
+  for (const entry of entries) {
+    const match = /^(\d+)\s*[x×]\s*(\d+)$/i.exec(entry);
+    if (!match) {
+      invalid.push(entry);
+      continue;
+    }
+    const viewport = { width: Number(match[1]), height: Number(match[2]) };
+    if (!viewports.some((v) => v.width === viewport.width && v.height === viewport.height)) {
+      viewports.push(viewport);
+    }
+  }
+  return { viewports, invalid };
+};
+
 // Un despiste habitual: pegar "avantio.com" sin protocolo.
 const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
 
@@ -91,9 +114,17 @@ export async function createAuditAction(_prev: FormState, formData: FormData): P
   if (device) {
     payload.device = device;
   } else {
-    const width = Number(formData.get('viewportWidth'));
-    const height = Number(formData.get('viewportHeight'));
-    if (width > 0 && height > 0) payload.viewport = { width, height };
+    const { viewports, invalid } = parseViewports(
+      formData.getAll('viewportPreset').map(String),
+      String(formData.get('viewportsCustom') ?? ''),
+    );
+    if (invalid.length > 0) {
+      return { error: `Resolución no válida: ${invalid.join(', ')}. Usa el formato ANCHOxALTO, por ejemplo 1366x768.` };
+    }
+    if (viewports.length === 0) {
+      return { error: 'Marca o escribe al menos una resolución.' };
+    }
+    payload.viewports = viewports;
   }
 
   let audit: Audit;

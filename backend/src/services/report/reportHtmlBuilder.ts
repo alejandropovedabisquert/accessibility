@@ -1,4 +1,12 @@
-import type { AuditConfig, AxeResults } from '../../types/audit.types';
+import type {
+    AuditConfig,
+    AxeResults,
+    Compliance,
+    ComplianceGroup,
+    RuleLevel,
+    Viewport,
+} from '../../types/audit.types';
+import { ruleLevel } from '../audit/levels';
 
 type ReportData = Pick<
     AxeResults,
@@ -11,10 +19,14 @@ type ReportItem = AxeResults['violations'][number];
 export interface ReportMeta {
     config: AuditConfig;
     score: number | null;
+    compliance: Compliance;
     label?: string | null;
     /** Seccion analizada. null = pagina entera. */
     include?: string | null;
     exclude?: string | null;
+    /** Pantalla con la que se escaneo esta pagina, no la de la auditoria: puede tener varias. */
+    viewport: Viewport | null;
+    device: string | null;
 }
 
 /**
@@ -80,6 +92,64 @@ const summaryItem = (label: string, count: number, targetId: string, key: Report
     `;
 };
 
+const LEVEL_LABEL: Record<RuleLevel, string> = {
+    A: 'WCAG A',
+    AA: 'WCAG AA',
+    AAA: 'WCAG AAA',
+    'best-practice': 'Buena practica',
+};
+
+const COMPLIANCE_BLOCKS = [
+    {
+        key: 'legal',
+        title: 'Cumplimiento legal (WCAG A y AA)',
+        note: 'Lo que exigen la Ley 11/2023 y EN 301 549 (WCAG 2.1 AA; objetivo interno WCAG 2.2 AA).',
+    },
+    {
+        key: 'improvements',
+        title: 'Mejoras (WCAG AAA y buenas practicas)',
+        note: 'No son exigibles legalmente, pero mejoran la experiencia.',
+    },
+] as const;
+
+const complianceCard = (title: string, note: string, group: ComplianceGroup): string => {
+    if (group.score === null) {
+        return `
+            <div class="summary-card compliance-card">
+                <h3 class="summary-card-title">${escapeHtml(title)}</h3>
+                <p class="compliance-note">No evaluado: las normas elegidas no incluyen reglas de este grupo.</p>
+            </div>
+        `;
+    }
+    return `
+        <div class="summary-card compliance-card">
+            <div class="summary-card-header">
+                <h3 class="summary-card-title">${escapeHtml(title)}</h3>
+                <span class="compliance-score">${escapeHtml(group.score)}%</span>
+            </div>
+            <p class="compliance-note">${escapeHtml(note)}</p>
+            <ul class="meta-list">
+                <li><strong>Reglas superadas:</strong> ${escapeHtml(group.passes)} de ${escapeHtml(group.passes + group.violations)}</li>
+                <li><strong>Incumplimientos:</strong> ${escapeHtml(group.violations)} (${escapeHtml(group.violationNodes)} elementos)</li>
+                <li><strong>Criticos:</strong> ${escapeHtml(group.critical)}</li>
+                <li><strong>Graves:</strong> ${escapeHtml(group.serious)}</li>
+                <li><strong>Moderados:</strong> ${escapeHtml(group.moderate)}</li>
+                <li><strong>Leves:</strong> ${escapeHtml(group.minor)}</li>
+                <li><strong>Revision manual:</strong> ${escapeHtml(group.incomplete)}</li>
+            </ul>
+        </div>
+    `;
+};
+
+const screenLabel = ({ viewport, device }: Pick<ReportMeta, 'viewport' | 'device'>): string => {
+    const size = viewport ? `${viewport.width}x${viewport.height}` : null;
+    if (device) return size ? `${device} (${size})` : device;
+    return size ?? 'desconocida';
+};
+
+const blockCompliance = (compliance: Compliance): string =>
+    COMPLIANCE_BLOCKS.map(({ key, title, note }) => complianceCard(title, note, compliance[key])).join('');
+
 const blockDetails = (item: ReportItem): string => {
     const nodes = item.nodes ?? [];
     const impact = item.impact ? String(item.impact).toLowerCase() : 'undefined';
@@ -97,6 +167,7 @@ const blockDetails = (item: ReportItem): string => {
     return `
         <article class="rule-item">
             <h3 class="rule-title">${escapeHtml(item.id)} - ${escapeHtml(item.description)}</h3>
+            <p><strong>Nivel:</strong> ${escapeHtml(LEVEL_LABEL[ruleLevel(item.tags ?? [])])}</p>
             <p><strong>Impacto:</strong> <span class="impact-pill ${impactClass}">${item.impact ? escapeHtml(item.impact) : 'Sin definir'}</span></p>
             <p><strong>Como corregirlo:</strong> ${escapeHtml(item.help)}</p>
             <p><strong>Documentacion:</strong> <a href="${escapeHtml(item.helpUrl)}" target="_blank" rel="noopener noreferrer" class="summary-link">${escapeHtml(item.helpUrl)}</a></p>
@@ -250,6 +321,26 @@ const buildStyles = (): string => `
     }
     .summary-card-title {
         margin: 0;
+    }
+    .scope-warning {
+        margin: 8px 0 0;
+        padding: 8px 10px;
+        font-size: 13px;
+        border: 1px solid ${SECTION_COLORS.incomplete};
+        border-radius: 6px;
+        background-color: #efe0bd;
+    }
+    .compliance-card {
+        margin-bottom: 12px;
+    }
+    .compliance-score {
+        font-size: 22px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .compliance-note {
+        margin: 4px 0 0;
+        font-size: 13px;
     }
     .summary-total {
         font-weight: 600;
@@ -428,15 +519,19 @@ export function reportHtmlBuilder(report: ReportData, meta: ReportMeta): string 
                         <p class="website-url"><strong>URL:</strong> <a href="${escapeHtml(report.url)}" target="_blank" rel="noopener noreferrer" class="summary-link">${escapeHtml(report.url)}</a></p>
                         <p class="timestamp"><strong>Fecha:</strong> ${escapeHtml(new Date(report.timestamp).toLocaleString('es-ES'))}</p>
                         <ul class="meta-list">
-                            <li><strong>Reglas superadas:</strong> ${meta.score === null ? 'n/d' : `${escapeHtml(meta.score)}%`}</li>
+                            <li><strong>Cumplimiento legal:</strong> ${meta.compliance.legal.score === null ? 'n/d' : `${escapeHtml(meta.compliance.legal.score)}%`}</li>
                             <li><strong>Navegador:</strong> ${escapeHtml(meta.config.browser)}</li>
-                            <li><strong>Dispositivo:</strong> ${escapeHtml(meta.config.device ?? (meta.config.viewport ? `${meta.config.viewport.width}x${meta.config.viewport.height}` : 'por defecto'))}</li>
+                            <li><strong>Pantalla:</strong> ${escapeHtml(screenLabel(meta))}</li>
                             <li><strong>Normas:</strong> ${escapeHtml(meta.config.tags.join(', '))}</li>
                             <li><strong>Ambito:</strong> ${meta.include ? `seccion <code>${escapeHtml(meta.include)}</code>` : 'pagina completa'}</li>
                             ${meta.exclude ? `<li><strong>Excluido:</strong> <code>${escapeHtml(meta.exclude)}</code></li>` : ''}
                         </ul>
                         ${meta.include ? '<p class="timestamp">Al analizar solo una seccion, axe omite las reglas de ambito de pagina (idioma del documento, landmarks, titulo).</p>' : ''}
+                        ${meta.exclude ? `<p class="scope-warning"><strong>Contenido excluido:</strong> lo que casa con <code>${escapeHtml(meta.exclude)}</code> no se ha auditado y no aparece en este informe. Si es contenido propio y no de un tercero, forma parte del sitio, cuenta para el cumplimiento legal y hay que revisarlo por separado.</p>` : ''}
                     </header>
+
+                    <h2 id="compliance" class="section-title">Cumplimiento</h2>
+                    ${blockCompliance(meta.compliance)}
 
                     <h2 id="summary" class="section-title">Resumen</h2>
                     ${blockSummary(report)}

@@ -5,11 +5,16 @@ import browserPool from './browserPool';
 import { LOCALIZED_AXE_SOURCE } from './locale';
 import { AsyncTaskQueue } from '../shared/AsyncTaskQueue';
 import { toMessage } from '../../utils/errors';
-import type { AuditConfig, AxeResults, ScanBrowser, ScanScope } from '../../types/audit.types';
+import { DEFAULT_VIEWPORT } from '../../types/audit.types';
+
+export { DEFAULT_VIEWPORT };
+import type { AuditConfig, AxeResults, ScanBrowser, ScanScope, Viewport } from '../../types/audit.types';
 
 export interface ScanJob {
   url: string;
   scope: ScanScope;
+  /** Resolucion de esta pagina. Se ignora si la auditoria usa un `device`. */
+  viewport: Viewport | null;
   config: AuditConfig;
 }
 
@@ -51,7 +56,26 @@ export const SECTION_PRESETS = [
 /** Longitud maxima de un selector, compartida con el esquema de validacion. */
 export const MAX_SELECTOR_LENGTH = 200;
 
-const DEFAULT_VIEWPORT = { width: 1366, height: 768 };
+
+/** Resoluciones habituales que ofrece el formulario. Se guarda el tamano, no el id. */
+export const VIEWPORT_PRESETS = [
+  { id: 'desktop', label: 'Escritorio', viewport: DEFAULT_VIEWPORT },
+  { id: 'tablet', label: 'Tablet', viewport: { width: 768, height: 1024 } },
+  { id: 'mobile', label: 'Movil', viewport: { width: 390, height: 844 } },
+];
+
+/** Cada viewport multiplica los escaneos de la auditoria. */
+export const MAX_VIEWPORTS = 4;
+
+/**
+ * Tamano con el que se escanea una auditoria de un solo viewport, sea por
+ * dispositivo, por resolucion o por defecto. Solo para filas antiguas: las
+ * nuevas guardan el suyo en la pagina.
+ */
+export const resolveViewport = (auditConfig: Pick<AuditConfig, 'device' | 'viewport'>): Viewport | null => {
+  if (auditConfig.device) return devices[auditConfig.device]?.viewport ?? null;
+  return auditConfig.viewport ?? DEFAULT_VIEWPORT;
+};
 
 class ScanService {
   private readonly queue = new AsyncTaskQueue<ScanJob, AxeResults>(
@@ -73,7 +97,7 @@ class ScanService {
     const browser = await browserPool.acquire(browserName);
 
     try {
-      const context = await browser.newContext(this.contextOptions(job.config));
+      const context = await browser.newContext(this.contextOptions(job));
       context.setDefaultTimeout(job.config.timeoutMs);
 
       try {
@@ -132,12 +156,12 @@ class ScanService {
     }
   }
 
-  private contextOptions(auditConfig: AuditConfig) {
-    if (auditConfig.device) {
-      const preset = devices[auditConfig.device];
+  private contextOptions(job: ScanJob) {
+    if (job.config.device) {
+      const preset = devices[job.config.device];
       if (preset) return { ...preset };
     }
-    return { viewport: auditConfig.viewport ?? DEFAULT_VIEWPORT };
+    return { viewport: job.viewport ?? DEFAULT_VIEWPORT };
   }
 
   /** Traduce los errores mas comunes de Playwright a algo legible en la UI. */

@@ -14,6 +14,17 @@ if (recovered > 0) {
   console.warn(`[startup] ${recovered} auditoria(s) interrumpida(s) marcadas como fallidas`);
 }
 
+// Las auditorias anteriores al desglose legal / mejoras no lo tienen guardado:
+// se recalcula desde el JSON crudo sin bloquear el arranque.
+auditService
+  .backfillCompliance()
+  .then(({ pages, audits }) => {
+    if (pages > 0 || audits > 0) {
+      console.log(`[startup] desglose legal/mejoras recalculado: ${pages} pagina(s), ${audits} auditoria(s)`);
+    }
+  })
+  .catch((error: unknown) => console.error('[startup] no se pudo recalcular el desglose legal/mejoras', error));
+
 const server = app.listen(config.port, () => {
   console.log(`API de accesibilidad escuchando en http://localhost:${config.port}`);
   console.log(`  datos:     ${config.dataDir}`);
