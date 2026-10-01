@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { CollectedEvidenceKind } from '../types/audit.types';
 import { DEFAULT_MAX_NODES, MAX_NODES_LIMIT } from '../services/export/compact';
 import { MAX_SITE_HOSTS } from '../services/review/review.service';
 
@@ -88,6 +89,36 @@ export const reviewFindingSchema = z
     description: findingFields.description.optional(),
   })
   .strict();
+
+const EVIDENCE_KINDS = [
+  'screenshot',
+  'orientation',
+  'focus-sequence',
+  'reflow-320',
+  'zoom-200',
+  'text-spacing',
+  'images',
+  'media',
+  'forms',
+  'controls',
+  'headings',
+  'landmarks',
+  'text-content',
+] as const satisfies readonly CollectedEvidenceKind[];
+
+/** `kinds=focus-sequence,images`: solo esos tipos. Sin `kinds`, todos. */
+export const evidenceQuerySchema = z.object({
+  kinds: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((value) => value.split(',').map((kind) => kind.trim()))
+    .pipe(z.array(z.enum(EVIDENCE_KINDS, { message: `Tipos válidos: ${EVIDENCE_KINDS.join(', ')}` })))
+    .optional(),
+});
+
+/** Solo los nombres que genera el recolector: nada de rutas. */
+export const evidenceFileSchema = z.string().regex(/^[a-z0-9-]+\.jpg$/, 'Nombre de captura no válido');
 
 export const pageReviewQuerySchema = z.object({
   maxTargets: z.coerce.number().int().min(1).max(MAX_NODES_LIMIT).default(DEFAULT_MAX_NODES),

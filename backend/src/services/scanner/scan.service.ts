@@ -4,6 +4,7 @@ import config from '../../config/config';
 import browserPool from './browserPool';
 import { LOCALIZED_AXE_SOURCE } from './locale';
 import { AsyncTaskQueue } from '../shared/AsyncTaskQueue';
+import evidenceService, { type EvidenceBundle } from '../evidence/evidence.service';
 import { toMessage } from '../../utils/errors';
 import { DEFAULT_VIEWPORT } from '../../types/audit.types';
 
@@ -16,6 +17,12 @@ export interface ScanJob {
   /** Resolucion de esta pagina. Se ignora si la auditoria usa un `device`. */
   viewport: Viewport | null;
   config: AuditConfig;
+}
+
+export interface ScanOutcome {
+  results: AxeResults;
+  /** null si la auditoria no pidio evidencia. */
+  evidence: EvidenceBundle | null;
 }
 
 /** Selector de seccion invalido o que no casa con nada. Su mensaje ya es para el usuario. */
@@ -78,13 +85,13 @@ export const resolveViewport = (auditConfig: Pick<AuditConfig, 'device' | 'viewp
 };
 
 class ScanService {
-  private readonly queue = new AsyncTaskQueue<ScanJob, AxeResults>(
+  private readonly queue = new AsyncTaskQueue<ScanJob, ScanOutcome>(
     (job) => this.runScan(job),
     config.scanConcurrency,
     'scan'
   );
 
-  public enqueue(job: ScanJob): Promise<AxeResults> {
+  public enqueue(job: ScanJob): Promise<ScanOutcome> {
     return this.queue.enqueue(job);
   }
 
@@ -92,7 +99,7 @@ class ScanService {
     return { queue: this.queue.getStats(), browsers: browserPool.getStats() };
   }
 
-  private async runScan(job: ScanJob): Promise<AxeResults> {
+  private async runScan(job: ScanJob): Promise<ScanOutcome> {
     const browserName = job.config.browser;
     const browser = await browserPool.acquire(browserName);
 
@@ -120,7 +127,12 @@ class ScanService {
           builder.exclude(job.scope.exclude);
         }
 
-        return await builder.analyze();
+        const results = await builder.analyze();
+        // En la misma pagina y despues de axe: la evidencia cambia viewport y estilos.
+        const evidence = job.config.evidence
+          ? await evidenceService.collect({ page, browser: browserName, scope: job.scope })
+          : null;
+        return { results, evidence };
       } finally {
         await context.close().catch(() => undefined);
       }

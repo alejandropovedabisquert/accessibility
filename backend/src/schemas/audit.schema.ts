@@ -64,6 +64,8 @@ export const createAuditSchema = z
     waitUntil: z.enum(['load', 'domcontentloaded', 'networkidle']).optional(),
     timeout: z.number().int().min(1000).max(180_000).optional(),
     tags: z.array(z.enum(TAG_IDS as [string, ...string[]])).min(1).optional(),
+    // Capturas, secuencia de foco, reflujo... para la revision manual. Hace el escaneo mas lento.
+    evidence: z.boolean().optional(),
   })
   .strict()
   .refine((body) => !(body.device && body.viewport), {

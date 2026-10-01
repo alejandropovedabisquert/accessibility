@@ -39,6 +39,7 @@ interface AuditRow {
   timeout_ms: number;
   tags: string;
   viewports: string | null;
+  evidence: number | null;
   total_pages: number;
   completed_pages: number;
   failed_pages: number;
@@ -150,6 +151,8 @@ const toAudit = (row: AuditRow): Audit => ({
     waitUntil: row.wait_until as ScanWaitUntil,
     timeoutMs: row.timeout_ms,
     tags: JSON.parse(row.tags) as string[],
+    // NULL en las auditorias anteriores a la evidencia: no se recogio.
+    evidence: row.evidence === 1,
   },
   totalPages: row.total_pages,
   completedPages: row.completed_pages,
@@ -212,9 +215,10 @@ class AuditRepository {
     const db = getDb();
     const insertAudit = db.prepare(`
       INSERT INTO audits (id, label, status, created_at, browser, device, viewport_width,
-                          viewport_height, viewports, wait_until, timeout_ms, tags, total_pages)
+                          viewport_height, viewports, wait_until, timeout_ms, tags, evidence,
+                          total_pages)
       VALUES (@id, @label, 'queued', @createdAt, @browser, @device, @viewportWidth,
-              @viewportHeight, @viewports, @waitUntil, @timeoutMs, @tags, @totalPages)
+              @viewportHeight, @viewports, @waitUntil, @timeoutMs, @tags, @evidence, @totalPages)
     `);
     const insertPage = db.prepare(`
       INSERT INTO audit_pages (id, audit_id, position, url, host, include_selector,
@@ -236,6 +240,7 @@ class AuditRepository {
         waitUntil: audit.config.waitUntil,
         timeoutMs: audit.config.timeoutMs,
         tags: JSON.stringify(audit.config.tags),
+        evidence: audit.config.evidence ? 1 : 0,
         totalPages: audit.urls.length,
       });
 

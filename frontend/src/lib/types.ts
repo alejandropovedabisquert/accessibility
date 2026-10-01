@@ -1,5 +1,6 @@
 export type AuditStatus = 'queued' | 'running' | 'completed' | 'failed';
 export type PageStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type ScanBrowser = 'chromium' | 'firefox' | 'webkit';
 export type Impact = 'critical' | 'serious' | 'moderate' | 'minor';
 
 export const IMPACTS: Impact[] = ['critical', 'serious', 'moderate', 'minor'];
@@ -58,6 +59,8 @@ export interface AuditConfig {
   waitUntil: string;
   timeoutMs: number;
   tags: string[];
+  /** Recoger evidencia para la revision manual. */
+  evidence: boolean;
 }
 
 /** Seccion analizada de una pagina. `include` a null = la pagina entera. */
@@ -279,9 +282,14 @@ export interface Site {
 
 export type FindingSubject = { kind: 'page'; pageId: string } | { kind: 'site'; siteId: string };
 
+/**
+ * `applicability`: propuesta de no aplicable porque `appliesWhen` no caso con
+ * nada al recoger la evidencia. La pone el sistema, como las de axe.
+ */
 export type FindingSource =
   | { kind: 'check'; checkId: string; catalogVersion: number }
-  | { kind: 'axe-needs-review'; ruleId: string; checkId: string };
+  | { kind: 'axe-needs-review'; ruleId: string; checkId: string }
+  | { kind: 'applicability'; checkId: string; selector: string };
 
 export interface FindingTarget {
   selector: string;
@@ -344,6 +352,8 @@ export interface PageReview {
   page: AuditPage;
   site: Site | null;
   catalog: { id: string; version: number };
+  /** Que evidencia hay para esta pagina; null si la auditoria no la pidio. */
+  evidence: { collected: string[]; errors: Record<string, string> } | null;
   summary: Record<EarlOutcome, number>;
   checks: CheckReview[];
 }
@@ -371,4 +381,139 @@ export interface SignOff {
   conformance: ConformanceStatus;
   findingsHash: string;
   statement: string;
+}
+
+// ---------------------------------------------------------------------------
+// Evidencia para la revision manual. Se guarda en disco junto al JSON de axe
+// (`scan-results/<auditId>/evidence/<pageId>/`), nunca en SQLite. Las capturas
+// van como ficheros aparte y aqui solo su nombre.
+// ---------------------------------------------------------------------------
+
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Un elemento de la pagina. `name` es una aproximacion del nombre accesible
+ * calculada en el DOM; el de Chromium de verdad esta en `landmarks.ariaSnapshot`.
+ */
+export interface EvidenceElement {
+  selector: string;
+  tag: string;
+  role: string | null;
+  name: string;
+  box: Box | null;
+  /** Dentro de la seccion analizada (`include` sin `exclude`). Siempre true en pagina entera. */
+  inScope: boolean;
+}
+
+export interface FocusStop extends EvidenceElement {
+  index: number;
+  /** Si al enfocarlo cambia algun estilo que haga de indicador; `unknown` si no se pudo comparar. */
+  indicator: 'changed' | 'unchanged' | 'unknown';
+  indicatorProperties: string[];
+  /** Cuanto lo tapan otros elementos (cabeceras fijas, banners): 2.4.11. */
+  obscured: 'none' | 'partial' | 'full' | 'offscreen';
+  screenshot: string | null;
+}
+
+export interface FocusSequenceEvidence {
+  stops: FocusStop[];
+  /** `cycle`: volvio al principio o salio del documento; `stuck`: el foco no avanza (posible trampa). */
+  stoppedBecause: 'cycle' | 'limit' | 'stuck' | 'no-focusable';
+}
+
+/** Reflujo, zoom y espaciado de texto comparten forma: lo que se desborda o se corta. */
+export interface LayoutEvidence {
+  viewport: Viewport;
+  horizontalScroll: boolean;
+  scrollWidth: number;
+  /** Elementos que se salen por la derecha del viewport. */
+  overflowing: EvidenceElement[];
+  /** Elementos con texto cortado (overflow oculto con contenido que no cabe). */
+  clipped: EvidenceElement[];
+  screenshot: string | null;
+}
+
+export interface OrientationEvidence {
+  portrait: { viewport: Viewport; horizontalScroll: boolean; screenshot: string | null };
+  landscape: { viewport: Viewport; horizontalScroll: boolean; screenshot: string | null };
+}
+
+export interface ImageItem extends EvidenceElement {
+  src: string | null;
+  /** null = sin atributo alt, '' = alt vacio. No son lo mismo. */
+  alt: string | null;
+  decorative: boolean;
+  screenshot: string | null;
+}
+
+export interface MediaItem extends EvidenceElement {
+  kind: 'video' | 'audio' | 'iframe';
+  src: string | null;
+  autoplay: boolean;
+  muted: boolean;
+  controls: boolean;
+  tracks: Array<{ kind: string; srclang: string | null; label: string | null }>;
+}
+
+export interface FormField extends EvidenceElement {
+  type: string;
+  label: string | null;
+  placeholder: string | null;
+  required: boolean;
+  autocomplete: string | null;
+  invalid: boolean;
+  description: string | null;
+  /** Leyenda del fieldset o nombre del grupo que lo contiene. */
+  group: string | null;
+}
+
+export interface ControlItem extends EvidenceElement {
+  visibleText: string;
+  href: string | null;
+  /** aria-expanded, aria-pressed, aria-selected, aria-checked... tal y como estan. */
+  states: Record<string, string>;
+  /** Enlace dentro de un bloque de texto: exento de 2.5.8. */
+  inline: boolean;
+}
+
+export interface EvidenceData {
+  screenshot: { viewport: string | null; fullPage: string | null; fullPageTruncated: boolean };
+  orientation: OrientationEvidence;
+  'focus-sequence': FocusSequenceEvidence;
+  'reflow-320': LayoutEvidence;
+  'zoom-200': LayoutEvidence;
+  'text-spacing': LayoutEvidence;
+  images: { items: ImageItem[]; total: number };
+  media: { items: MediaItem[]; runningAnimations: number };
+  forms: { fields: FormField[]; total: number };
+  controls: { items: ControlItem[]; total: number };
+  headings: { items: Array<{ level: number; text: string; selector: string; inScope: boolean }> };
+  landmarks: { items: EvidenceElement[]; ariaSnapshot: string };
+  'text-content': {
+    title: string;
+    lang: string | null;
+    langParts: Array<{ selector: string; lang: string; text: string }>;
+    text: string;
+    truncated: boolean;
+  };
+}
+
+/** Lo que tiene recolector: todo menos `interaction`, que es manejar la pagina a mano. */
+export type CollectedEvidenceKind = keyof EvidenceData;
+
+export interface PageEvidence {
+  collectedAt: string;
+  browser: ScanBrowser;
+  viewport: Viewport | null;
+  scope: ScanScope;
+  items: Partial<EvidenceData>;
+  /** Recolectores que fallaron, con su error. El resto de la evidencia sigue valiendo. */
+  errors: Partial<Record<CollectedEvidenceKind, string>>;
+  /** Elementos que casan con `appliesWhen` de cada criterio, por id de criterio. */
+  applicability: Record<string, number>;
 }

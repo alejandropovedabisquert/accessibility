@@ -25,6 +25,7 @@ interface FindingRow {
   catalog_version: number;
   source_kind: string;
   axe_rule_id: string | null;
+  source_selector: string | null;
   outcome: string;
   targets: string;
   target_count: number;
@@ -67,10 +68,15 @@ const toSubject = (row: FindingRow): FindingSubject =>
     ? { kind: 'page', pageId: row.page_id }
     : { kind: 'site', siteId: row.site_id ?? '' };
 
-const toSource = (row: FindingRow): FindingSource =>
-  row.source_kind === 'axe-needs-review'
-    ? { kind: 'axe-needs-review', ruleId: row.axe_rule_id ?? '', checkId: row.check_id }
-    : { kind: 'check', checkId: row.check_id, catalogVersion: row.catalog_version };
+const toSource = (row: FindingRow): FindingSource => {
+  if (row.source_kind === 'axe-needs-review') {
+    return { kind: 'axe-needs-review', ruleId: row.axe_rule_id ?? '', checkId: row.check_id };
+  }
+  if (row.source_kind === 'applicability') {
+    return { kind: 'applicability', checkId: row.check_id, selector: row.source_selector ?? '' };
+  }
+  return { kind: 'check', checkId: row.check_id, catalogVersion: row.catalog_version };
+};
 
 const toFinding = (row: FindingRow): ManualFinding => ({
   id: row.id,
@@ -150,24 +156,29 @@ class ReviewRepository {
     getDb()
       .prepare(`
         INSERT INTO manual_findings (id, page_id, site_id, check_id, catalog_version, source_kind,
-          axe_rule_id, outcome, targets, target_count, description, recommendation, evidence_refs,
-          asserted_by, review_status, created_at)
-        VALUES (@id, @pageId, @siteId, @checkId, @catalogVersion, @sourceKind, @axeRuleId, @outcome,
-          @targets, @targetCount, @description, @recommendation, @evidenceRefs, @assertedBy,
-          'proposed', @createdAt)
+          axe_rule_id, source_selector, outcome, targets, target_count, description, recommendation,
+          evidence_refs, asserted_by, review_status, created_at)
+        VALUES (@id, @pageId, @siteId, @checkId, @catalogVersion, @sourceKind, @axeRuleId,
+          @sourceSelector, @outcome, @targets, @targetCount, @description, @recommendation,
+          @evidenceRefs, @assertedBy, 'proposed', @createdAt)
       `)
       .run(this.findingParams(finding, subject, source));
   }
 
-  /** Las propuestas de axe: si ya existe la de esa pagina, regla y criterio, no hace nada. */
-  insertAxeProposals(findings: NewFinding[], catalogVersion: number): number {
+  /**
+   * Propuestas que pone el sistema (axe, `appliesWhen`). Si ya existe la de esa
+   * pagina y origen, no hace nada: los indices unicos parciales lo garantizan
+   * aunque se abra la revision dos veces a la vez.
+   */
+  insertSystemProposals(findings: NewFinding[], catalogVersion: number): number {
     const db = getDb();
     const insert = db.prepare(`
       INSERT OR IGNORE INTO manual_findings (id, page_id, site_id, check_id, catalog_version,
-        source_kind, axe_rule_id, outcome, targets, target_count, description, recommendation,
-        evidence_refs, asserted_by, review_status, created_at)
-      VALUES (@id, @pageId, NULL, @checkId, @catalogVersion, 'axe-needs-review', @axeRuleId,
-        @outcome, @targets, @targetCount, @description, NULL, '[]', @assertedBy, 'proposed', @createdAt)
+        source_kind, axe_rule_id, source_selector, outcome, targets, target_count, description,
+        recommendation, evidence_refs, asserted_by, review_status, created_at)
+      VALUES (@id, @pageId, NULL, @checkId, @catalogVersion, @sourceKind, @axeRuleId, @sourceSelector,
+        @outcome, @targets, @targetCount, @description, NULL, @evidenceRefs, @assertedBy, 'proposed',
+        @createdAt)
     `);
     let inserted = 0;
     db.transaction(() => {
@@ -193,6 +204,7 @@ class ReviewRepository {
       catalogVersion: source.kind === 'check' ? source.catalogVersion : (catalogVersion ?? 0),
       sourceKind: source.kind,
       axeRuleId: source.kind === 'axe-needs-review' ? source.ruleId : null,
+      sourceSelector: source.kind === 'applicability' ? source.selector : null,
       outcome: finding.outcome,
       targets: JSON.stringify(finding.targets),
       targetCount: finding.targetCount,

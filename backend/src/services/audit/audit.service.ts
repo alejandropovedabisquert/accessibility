@@ -163,6 +163,7 @@ class AuditService {
       waitUntil: previous.config.waitUntil,
       timeout: previous.config.timeoutMs,
       tags: previous.config.tags,
+      evidence: previous.config.evidence,
     });
   }
 
@@ -259,6 +260,7 @@ class AuditService {
       waitUntil: input.waitUntil ?? 'load',
       timeoutMs: input.timeout ?? config.defaultTimeoutMs,
       tags: input.tags && input.tags.length > 0 ? input.tags : DEFAULT_TAGS,
+      evidence: input.evidence ?? false,
     };
   }
 
@@ -289,7 +291,7 @@ class AuditService {
     repository.markPageRunning(pageId, new Date().toISOString());
 
     try {
-      const results = await scanService.enqueue({
+      const { results, evidence } = await scanService.enqueue({
         url: page.url,
         scope: { include: page.include, exclude: page.exclude },
         viewport: page.viewport,
@@ -298,6 +300,7 @@ class AuditService {
       const { counters, score, compliance, issues } = summarize(results);
 
       await rawStore.saveRaw(auditId, pageId, results);
+      if (evidence) await rawStore.saveEvidence(auditId, pageId, evidence.evidence, evidence.files);
       repository.completePage({
         id: pageId,
         finishedAt: new Date().toISOString(),

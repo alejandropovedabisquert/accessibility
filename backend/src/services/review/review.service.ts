@@ -12,10 +12,12 @@ import type {
   AxeResults,
   Check,
   CheckReview,
+  CollectedEvidenceKind,
   EarlOutcome,
   FindingOutcome,
   FindingTarget,
   ManualFinding,
+  PageEvidence,
   PageReview,
   ReviewStatus,
   Site,
@@ -132,8 +134,9 @@ class ReviewService {
     const page = this.requireCompletedPage(auditId, pageId);
     const results = await rawStore.readRaw(auditId, pageId);
     if (!results) throw notFound('No hay resultado guardado para esta pagina');
+    const evidence = await rawStore.readEvidence(auditId, pageId);
 
-    this.proposeFromAxe(page, results);
+    this.proposeFromTools(page, results, evidence);
 
     const findings = reviewRepository.findPageFindings(page.id);
     const violated = new Set(results.violations.map((rule) => rule.id));
@@ -162,9 +165,32 @@ class ReviewService {
       page,
       site: reviewRepository.findSiteByHost(page.host),
       catalog: { id: catalog.id, version: catalog.version },
+      evidence: evidence
+        ? { collected: Object.keys(evidence.items), errors: evidence.errors as Record<string, string> }
+        : null,
       summary,
       checks,
     };
+  }
+
+  /** Evidencia de una pagina, opcionalmente solo de algunos tipos para no mandar de mas. */
+  public async getPageEvidence(auditId: string, pageId: string, kinds?: CollectedEvidenceKind[]): Promise<PageEvidence> {
+    this.requireCompletedPage(auditId, pageId);
+    const evidence = await rawStore.readEvidence(auditId, pageId);
+    if (!evidence) throw notFound('Esta página no tiene evidencia: la auditoría no la pidió (evidence: true)');
+    if (!kinds) return evidence;
+
+    const wanted = new Set<string>(kinds);
+    const pick = <T extends object>(record: T): Partial<T> =>
+      Object.fromEntries(Object.entries(record).filter(([kind]) => wanted.has(kind))) as Partial<T>;
+    return { ...evidence, items: pick(evidence.items), errors: pick(evidence.errors) };
+  }
+
+  public evidenceFile(auditId: string, pageId: string, name: string): string {
+    this.requireCompletedPage(auditId, pageId);
+    const filePath = rawStore.evidenceFilePath(auditId, pageId, name);
+    if (!rawStore.exists(filePath)) throw notFound('Captura no encontrada');
+    return filePath;
   }
 
   public createPageFinding(auditId: string, pageId: string, input: FindingInput): ManualFinding {
@@ -266,17 +292,17 @@ class ReviewService {
     return this.getFinding(id);
   }
 
-  /** Una propuesta `cantTell` por cada `needs-review` y criterio de pagina al que afecta. */
-  private proposeFromAxe(page: AuditPage, results: AxeResults): void {
+  /**
+   * Propuestas del sistema: un `cantTell` por cada `needs-review` de axe y
+   * criterio de pagina al que afecta, y un `inapplicable` por cada criterio cuyo
+   * `appliesWhen` no caso con nada al recoger la evidencia.
+   */
+  private proposeFromTools(page: AuditPage, results: AxeResults, evidence: PageEvidence | null): void {
     const createdAt = new Date().toISOString();
-    const assertedBy: Assertor = {
-      type: 'tool',
-      name: `axe-core ${results.testEngine?.version ?? ''}`.trim(),
-      model: null,
-      assistiveTech: null,
-    };
+    const tool = (name: string): Assertor => ({ type: 'tool', name, model: null, assistiveTech: null });
+    const axeAuthor = tool(`axe-core ${results.testEngine?.version ?? ''}`.trim());
 
-    const proposals = results.incomplete.flatMap((rule) =>
+    const fromAxe = results.incomplete.flatMap((rule) =>
       checksForAxeRule(rule.id)
         .filter((check) => check.scope === 'page')
         .map(
@@ -294,13 +320,37 @@ class ReviewService {
             description: rule.help,
             recommendation: null,
             evidenceRefs: [],
-            assertedBy,
+            assertedBy: axeAuthor,
             createdAt,
           }),
         ),
     );
 
-    if (proposals.length > 0) reviewRepository.insertAxeProposals(proposals, catalog.version);
+    const where = page.include ? 'la sección analizada' : 'la página';
+    const fromEvidence = evidence
+      ? catalog.checks.flatMap((check): NewFinding[] => {
+          // -1 = el navegador no entendio el selector: no se puede afirmar nada.
+          if (check.scope !== 'page' || !check.appliesWhen || evidence.applicability[check.id] !== 0) return [];
+          return [
+            {
+              id: randomUUID(),
+              subject: { kind: 'page', pageId: page.id },
+              source: { kind: 'applicability', checkId: check.id, selector: check.appliesWhen },
+              outcome: 'inapplicable',
+              targets: [],
+              targetCount: 0,
+              description: `Ningún elemento de ${where} casa con «${check.appliesWhen}»: se propone como no aplicable.`,
+              recommendation: null,
+              evidenceRefs: ['evidence.json#applicability'],
+              assertedBy: tool('evidencia'),
+              createdAt,
+            },
+          ];
+        })
+      : [];
+
+    const proposals = [...fromAxe, ...fromEvidence];
+    if (proposals.length > 0) reviewRepository.insertSystemProposals(proposals, catalog.version);
   }
 }
 

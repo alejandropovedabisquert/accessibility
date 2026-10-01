@@ -3,6 +3,8 @@ import reviewService from '../services/review/review.service';
 import {
   createFindingSchema,
   createSiteSchema,
+  evidenceFileSchema,
+  evidenceQuerySchema,
   pageReviewQuerySchema,
   reviewFindingSchema,
   updateFindingSchema,
@@ -43,6 +45,18 @@ export const getPageReview = asyncHandler(async (req: Request<PageParams>, res: 
   const { maxTargets } = pageReviewQuerySchema.parse(req.query);
   res.json(await reviewService.getPageReview(req.params.id, req.params.pageId, maxTargets));
 });
+
+export const getPageEvidence = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  const { kinds } = evidenceQuerySchema.parse(req.query);
+  res.json(await reviewService.getPageEvidence(req.params.id, req.params.pageId, kinds));
+});
+
+export const getEvidenceFile = asyncHandler(
+  async (req: Request<PageParams & { name: string }>, res: Response) => {
+    const name = evidenceFileSchema.parse(req.params.name);
+    res.type('image/jpeg').sendFile(reviewService.evidenceFile(req.params.id, req.params.pageId, name));
+  },
+);
 
 export const createPageFinding = asyncHandler(async (req: Request<PageParams>, res: Response) => {
   const body = createFindingSchema.parse(req.body);

@@ -20,6 +20,8 @@ import {
   createSiteFinding,
   deleteSite,
   getChecks,
+  getEvidenceFile,
+  getPageEvidence,
   getFinding,
   getPageReview,
   getSite,
@@ -49,6 +51,8 @@ router.get('/audits/:id/pages/:pageId/diff', getPageDiff);
 router.get('/audits/:id/pages/:pageId/report.pdf', getPagePdf);
 router.get('/audits/:id/pages/:pageId/review', getPageReview);
 router.post('/audits/:id/pages/:pageId/findings', createPageFinding);
+router.get('/audits/:id/pages/:pageId/evidence', getPageEvidence);
+router.get('/audits/:id/pages/:pageId/evidence/files/:name', getEvidenceFile);
 
 router.get('/checks', getChecks);
 

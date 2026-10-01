@@ -126,6 +126,8 @@ CREATE INDEX IF NOT EXISTS idx_findings_site ON manual_findings (site_id);
 -- veces a la vez: el indice hace que la segunda no duplique.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_axe
   ON manual_findings (page_id, axe_rule_id, check_id) WHERE source_kind = 'axe-needs-review';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_applicability
+  ON manual_findings (page_id, check_id) WHERE source_kind = 'applicability';
 `;
 
 /**
@@ -161,6 +163,10 @@ const migrate = (instance: Db): void => {
   addColumn('audit_pages', 'viewport_height', 'INTEGER');
   addColumn('audit_pages', 'device', 'TEXT');
   addColumn('audits', 'viewports', 'TEXT');
+  // Recoger evidencia para la revision manual. NULL en filas antiguas = no.
+  addColumn('audits', 'evidence', 'INTEGER');
+  // Selector de `appliesWhen` con el que se propuso un no aplicable (source_kind = 'applicability').
+  addColumn('manual_findings', 'source_selector', 'TEXT');
   backfillPageScreens(instance);
 
   // El historico y el diff van por URL + seccion + pantalla, no solo por URL.
