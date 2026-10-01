@@ -8,7 +8,7 @@ import type { Check, CheckReview, EarlOutcome } from '@/lib/types';
 import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 import { FindingCard } from '@/components/FindingCard';
 import { EvidencePanel } from '@/components/EvidencePanel';
-import { CreateFindingForm, FalsePositiveForm } from '@/components/ReviewForms';
+import { BulkInapplicableForm, CreateFindingForm, FalsePositiveForm } from '@/components/ReviewForms';
 import { BaselinePanel } from '@/components/BaselinePanel';
 
 interface Props {
@@ -73,6 +73,11 @@ export default async function PageReviewView({ params, searchParams }: Props) {
   const checkById = new Map<string, Check>(catalog.checks.map((check) => [check.id, check]));
   const path = `/auditorias/${id}/paginas/${pageId}/revision`;
   const pending = review.checks.reduce((sum, check) => sum + check.pendingReview, 0);
+  const pendingInapplicable = review.checks.flatMap((check) =>
+    check.findings
+      .filter((finding) => finding.source.kind === 'applicability' && finding.review.status === 'proposed')
+      .map((finding) => ({ criterion: check.criterion, name: check.name, reason: finding.description })),
+  );
   const visible = review.checks.filter((check) => matches(check, filter));
   const filterHref = (value: Filter) => (value ? `${path}?estado=${value}` : path);
 
@@ -150,6 +155,12 @@ export default async function PageReviewView({ params, searchParams }: Props) {
           <dd className="text-xl font-semibold tabular-nums text-accent">{pending}</dd>
         </div>
       </dl>
+
+      {pendingInapplicable.length > 0 ? (
+        <Card className="mb-6 p-5">
+          <BulkInapplicableForm auditId={id} pageId={pageId} path={path} reviewer={reviewer} criteria={pendingInapplicable} />
+        </Card>
+      ) : null}
 
       <section className="mb-8" aria-labelledby="h-evidencia">
         <h2 id="h-evidencia" className="mb-3 text-lg font-semibold">

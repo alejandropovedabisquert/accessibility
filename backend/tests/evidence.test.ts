@@ -210,6 +210,33 @@ describe('revision con evidencia', () => {
     expect(again.checks.find((check) => check.checkId === 'captions-prerecorded')?.findings).toHaveLength(1);
   });
 
+  it('valida en bloque los no aplicables automaticos, y solo esos', async () => {
+    const url = `${base()}/findings/validate-inapplicable`;
+    await request(app).post(url).send({}).expect(400);
+
+    const before = (await request(app).get(`${base()}/review`).expect(200)).body as PageReview;
+    const pending = before.checks.flatMap((check) =>
+      check.findings.filter((finding) => finding.source.kind === 'applicability' && finding.review.status === 'proposed'),
+    );
+    const others = before.checks.flatMap((check) =>
+      check.findings.filter((finding) => finding.source.kind !== 'applicability' && finding.review.status === 'proposed'),
+    );
+    expect(pending.length).toBeGreaterThan(0);
+
+    const res = await request(app).post(url).send({ by: 'Revisora IAAP' }).expect(200);
+    expect(res.body.validated).toBe(pending.length);
+    expect(res.body.findings.every((finding: { review: { status: string; by: string } }) =>
+      finding.review.status === 'validated' && finding.review.by === 'Revisora IAAP')).toBe(true);
+
+    const after = (await request(app).get(`${base()}/review`).expect(200)).body as PageReview;
+    const stillProposed = after.checks.flatMap((check) => check.findings.filter((finding) => finding.review.status === 'proposed'));
+    // Las propuestas de axe y demás siguen pendientes: el bloque solo toca los no aplicables.
+    expect(stillProposed.map((finding) => finding.id).sort()).toEqual(others.map((finding) => finding.id).sort());
+
+    // Repetirlo no hace nada.
+    expect((await request(app).post(url).send({ by: 'Revisora IAAP' }).expect(200)).body.validated).toBe(0);
+  });
+
   it('sin evidence: true no hay evidencia ni propuestas de no aplicable', async () => {
     const res = await request(app).post('/api/audits').send({ urls: [fixture.url('/evidencia')] }).expect(202);
     const audit = await waitForAudit(app, res.body.id);

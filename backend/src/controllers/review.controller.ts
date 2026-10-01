@@ -6,6 +6,7 @@ import { slugifyUrl } from '../utils/url';
 import {
   createFindingSchema,
   baselineSchema,
+  bulkValidateSchema,
   createSiteSchema,
   evidenceFileSchema,
   evidenceQuerySchema,
@@ -135,4 +136,9 @@ export const linkBaseline = asyncHandler(async (req: Request<PageParams>, res: R
 export const unlinkBaseline = asyncHandler(async (req: Request<PageParams>, res: Response) => {
   await baselineService.unlink(req.params.id, req.params.pageId);
   res.status(204).end();
+});
+
+export const validateApplicability = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  const validated = reviewService.validateApplicability(req.params.id, req.params.pageId, bulkValidateSchema.parse(req.body));
+  res.json({ validated: validated.length, findings: validated });
 });

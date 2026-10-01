@@ -479,6 +479,7 @@ POST  /api/sites/:id/findings                  Hallazgo de un criterio de sitio 
 PATCH /api/findings/:id                        Cambiar un hallazgo aún sin revisar
 PATCH /api/findings/:id/review                 Validar, rechazar o corregir (capa 3)
 POST  /api/audits/:id/pages/:pageId/false-positives   Declarar falso positivo una violación de axe (capa 3)
+POST  /api/audits/:id/pages/:pageId/findings/validate-inapplicable   Validar en bloque los «No aplica» automáticos (capa 3)
 GET/POST/DELETE /api/sites[/:id]               Webs: una página es del sitio cuyo host coincide
 ```
 

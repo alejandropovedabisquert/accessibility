@@ -363,6 +363,26 @@ class ReviewService {
     }
   }
 
+  /**
+   * Valida de una vez las propuestas automaticas de no aplicable pendientes de
+   * una pagina. Solo esas: son las unicas que el sistema afirma con un
+   * criterio comprobable (el selector no casa con nada). Pasa por
+   * `reviewFinding` una a una para que se propague a las copias heredadas.
+   */
+  public validateApplicability(auditId: string, pageId: string, input: { by: string; note: string | null }): ManualFinding[] {
+    const page = this.requireCompletedPage(auditId, pageId);
+    const pending = reviewRepository
+      .findPageFindings(page.id)
+      .filter((finding) => finding.source.kind === 'applicability' && finding.review.status === 'proposed');
+    return pending.map((finding) =>
+      this.reviewFinding(finding.id, {
+        status: 'validated',
+        by: input.by,
+        note: input.note ?? 'Validación en bloque de los no aplicables automáticos',
+      }),
+    );
+  }
+
   private requireCompletedPage(auditId: string, pageId: string): AuditPage {
     const page = auditRepository.findPage(auditId, pageId);
     if (!page) throw notFound('Pagina no encontrada en esta auditoria');

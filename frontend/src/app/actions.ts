@@ -384,3 +384,24 @@ export async function unlinkBaselineAction(_prev: FormState, formData: FormData)
   revalidatePath(internalPath(formData));
   return { error: null };
 }
+
+/** Valida de una vez los «No aplica» automáticos pendientes de una página (capa 3). */
+export async function validateInapplicableAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const by = text(formData, 'by');
+  if (!by) return { error: 'Indica quién revisa.' };
+
+  try {
+    const res = await send(
+      `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/findings/validate-inapplicable`,
+      'POST',
+      { by },
+    );
+    if (!res.ok) return { error: await readError(res) };
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+
+  await rememberReviewer(by);
+  revalidatePath(internalPath(formData));
+  return { error: null };
+}

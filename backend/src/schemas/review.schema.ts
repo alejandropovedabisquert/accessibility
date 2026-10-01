@@ -159,6 +159,13 @@ export const baselineSchema = z
   })
   .strict();
 
+export const bulkValidateSchema = z
+  .object({
+    by: nameSchema,
+    note: z.string().trim().min(1).max(TEXT_LIMIT).nullable().default(null),
+  })
+  .strict();
+
 export const pageReviewQuerySchema = z.object({
   maxTargets: z.coerce.number().int().min(1).max(MAX_NODES_LIMIT).default(DEFAULT_MAX_NODES),
 });

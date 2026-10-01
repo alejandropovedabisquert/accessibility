@@ -8,6 +8,7 @@ import {
   falsePositiveAction,
   linkBaselineAction,
   unlinkBaselineAction,
+  validateInapplicableAction,
   reviewFindingAction,
   signOffAction,
   type FormState,
@@ -408,6 +409,58 @@ export function UnlinkBaselineForm({ auditId, pageId, path }: { auditId: string;
       <input type="hidden" name="path" value={path} />
       <FormError state={state} />
       <Submit variant="danger">Quitar la línea base</Submit>
+    </form>
+  );
+}
+
+/**
+ * Validar en bloque los «No aplica» que propuso el sistema porque no encontró
+ * el contenido al que aplica el criterio. Enseña cuáles antes de validar.
+ */
+export function BulkInapplicableForm({
+  auditId,
+  pageId,
+  path,
+  reviewer,
+  criteria,
+}: {
+  auditId: string;
+  pageId: string;
+  path: string;
+  reviewer: string;
+  criteria: Array<{ criterion: string; name: string; reason: string }>;
+}) {
+  const [state, action] = useActionState(validateInapplicableAction, INITIAL);
+  const id = useId();
+  return (
+    <form action={action} className="space-y-3">
+      <input type="hidden" name="auditId" value={auditId} />
+      <input type="hidden" name="pageId" value={pageId} />
+      <input type="hidden" name="path" value={path} />
+      <p className="text-sm">
+        <strong>{criteria.length}</strong> criterio(s) propuestos como &laquo;No aplica&raquo; porque la página no tiene el
+        contenido al que se refieren. Revisa la lista y, si es así, valídalos de una vez.
+      </p>
+      <details>
+        <summary className="cursor-pointer text-sm text-accent">Ver cuáles</summary>
+        <ul className="mt-2 space-y-1 text-sm">
+          {criteria.map((item) => (
+            <li key={item.criterion}>
+              <strong>
+                {item.criterion} {item.name}
+              </strong>
+              <span className="text-ink-muted"> · {item.reason}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+      <FormError state={state} />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-56">
+          <ReviewerField id={`${id}-by`} reviewer={reviewer} />
+        </div>
+        <Submit variant="primary">Validar los {criteria.length} «No aplica»</Submit>
+      </div>
     </form>
   );
 }
