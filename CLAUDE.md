@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 Herramienta interna de escaneo y auditoría de accesibilidad web (Playwright + axe-core).
-Monorepo de dos servicios: `backend/` (API) y `frontend/` (Next.js). Uso local, sin autenticación.
+Monorepo: `backend/` (API), `frontend/` (Next.js) y `mcp/` (servidor MCP sobre la API, para la
+revisión asistida por IA). Uso local, sin autenticación.
 
 Documentación de producto y endpoints: `README.md`. Decisiones de backend: `backend/README.md`.
 
@@ -40,6 +41,22 @@ POST /api/audits → 202 {id}          El escaneo corre en segundo plano
 
 El frontend sondea `GET /api/audits/:id` mientras el estado sea `queued` o `running`.
 
+### Revisión manual (capas 2 y 3)
+
+El escaneo es la capa 1. La capa 2 (Claude, vía `mcp/` y la skill `revision-manual`) propone
+resultados para los 55 criterios WCAG 2.2 A/AA del catálogo (`services/review/catalog/`); la capa 3
+(una persona) los valida y firma. Resultados en vocabulario EARL.
+
+```
+evidence: true en la auditoría       scan.service → evidenceService.collect() tras axe, misma página
+GET .../review                       Crea propuestas del sistema (needs-review de axe, appliesWhen)
+                                     y deriva el estado de cada criterio
+POST/PATCH findings                  Capa 2: nacen y se editan como `proposed`
+PATCH /findings/:id/review           Capa 3: validated / rejected / amended; después, inmutable
+```
+
+Una página es de un sitio por su `host` (`site_hosts`), sin columna en `audit_pages`.
+
 ### Capas del backend (no las saltes)
 
 ```
@@ -66,6 +83,7 @@ routes/ → controllers/ → services/ → db/audit.repository.ts
 - Comentarios y textos de cara al usuario **en castellano**. Nombres de código en inglés.
 - Comenta el *por qué*, no el *qué*. La mayoría del código no necesita comentario.
 - Sin `any`. El backend tiene `noUncheckedIndexedAccess`, así que `array[0]` es `T | undefined`.
+- Si cambias `mcp/src`, `make mcp`: Claude Code arranca `mcp/dist/index.js`.
 - Tipos compartidos del backend en `src/types/audit.types.ts`; el frontend tiene su copia en
   `src/lib/types.ts` (no hay paquete compartido). **Si cambias uno, cambia el otro.**
 - Los tests de flujo escanean de verdad con Chromium contra fixtures locales. No metas dependencias
@@ -121,6 +139,18 @@ que **no toca una tabla que ya existe**. Todo cambio posterior sobre una tabla c
 4.13 no expone `configure`; `scanner/locale.ts` añade `axe.configure({ locale })` al final del fuente de
 axe. La traducción `es` de axe está incompleta y lo que falta sale en inglés: se completa en
 `scanner/locales/es.overrides.json`, nunca editando `node_modules`. `ruleId` y `helpUrl` no se traducen.
+
+**El MCP no puede validar hallazgos, y no debe poder.** `mcp/src/tools.ts` no expone
+`PATCH /findings/:id/review` a propósito: es la capa 3. Un test falla si aparece una herramienta así.
+
+**El código de `services/evidence/probes.ts` corre en el navegador.** `installProbes` se serializa, así
+que no puede usar nada de fuera de su cuerpo. Se manda como texto con un `__name` vacío delante porque
+`tsx` (y por tanto `make dev`) mete llamadas a ese helper de esbuild y en la página no existe; los
+tests con vitest no lo reproducen. Los métodos se llaman por nombre con `page.evaluate`, nunca
+construyendo código en la página (`new Function`): el CSP de muchas webs lo bloquea.
+
+**La evidencia, como el JSON de axe, va a disco** (`scan-results/<auditId>/evidence/<pageId>/`), nunca a
+SQLite. Un recolector que falla se anota en `errors` y no tumba ni la evidencia ni el escaneo.
 
 **Un fallo de una URL no debe tumbar la auditoría.** `runPage` captura el error y marca esa página
 como `failed`; el resto sigue.

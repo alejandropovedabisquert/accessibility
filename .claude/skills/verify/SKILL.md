@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Comprobación antes de dar trabajo por terminado en la herramienta de accesibilidad - typecheck de backend y frontend, tests del backend y `next build`. Úsala al acabar cualquier cambio en backend/ o frontend/.
+description: Comprobación antes de dar trabajo por terminado en la herramienta de accesibilidad - typecheck de backend, frontend y mcp, tests del backend y del mcp, y `next build`. Úsala al acabar cualquier cambio en backend/, frontend/ o mcp/.
 ---
 
 # Verificar la herramienta de accesibilidad
@@ -9,8 +9,8 @@ Ejecuta los tres pasos desde la raíz de `accessibility/`, en este orden, y no p
 fallo: informa de los tres.
 
 ```bash
-make typecheck                 # tsc --noEmit en backend y frontend
-make test                      # vitest del backend (escanea de verdad con Chromium)
+make typecheck                 # tsc --noEmit en backend, frontend y mcp
+make test                      # vitest del backend y del mcp (escanean de verdad con Chromium)
 cd frontend && pnpm build      # next build
 ```
 
@@ -30,6 +30,10 @@ cd frontend && pnpm build      # next build
 
 - `next build` sobrescribe `frontend/.next`. Si `make dev` está corriendo, el servidor de desarrollo
   del frontend se queda roto: avisa y reinícialo después.
+- Los tests del mcp importan el backend de `../backend/src` y levantan su API en un puerto libre:
+  si fallan al importar, falta `pnpm install` en `backend/`, no es el mcp.
+- Si cambias `mcp/src`, `make mcp` para recompilar: Claude Code arranca `mcp/dist/index.js`, no las
+  fuentes.
 - Los tests del backend comparten BD en memoria y pool de navegadores (`fileParallelism: false`); no
   los lances en paralelo con otra ejecución de vitest.
 

@@ -34,6 +34,7 @@ compararla con escaneos anteriores y descargar el informe.
 accessibility/
 ├── backend/     API Express + TypeScript, Playwright, axe-core, SQLite
 ├── frontend/    Next.js (App Router) + Tailwind
+├── mcp/         Servidor MCP para la revisión asistida por IA (capa 2)
 └── docker-compose.yml
 ```
 
@@ -435,6 +436,69 @@ ninguna mejora), su `score` es `null` y la interfaz lo muestra como "No evaluado
 Las auditorías anteriores a este desglose se recalculan solas al arrancar el backend, a partir del
 JSON crudo guardado en disco. Si ese JSON ya no existe, `compliance` queda a `null`.
 
+## Revisión manual: tres capas
+
+El escaneo automático es la primera de tres capas. Las otras dos cubren lo que axe no puede decidir:
+
+| Capa | Quién | Qué hace |
+|---|---|---|
+| 1. Detección automática | Esta herramienta (axe-core) | Escanea y guarda el histórico |
+| 2. Revisión asistida | Claude, vía el MCP de la herramienta y el de Playwright | Revisa los criterios pendientes con la evidencia recogida y propone resultados |
+| 3. Validación y firma | Una persona formada (idealmente IAAP) | Prueba con lectores de pantalla, valida o corrige cada propuesta y firma la web |
+
+El vocabulario de resultados es el de [EARL](https://www.w3.org/TR/EARL10-Schema/) (`passed`,
+`failed`, `cantTell`, `inapplicable`, `untested`), para poder exportarlo tal cual.
+
+### Catálogo
+
+`GET /api/checks`: los 55 criterios A/AA de WCAG 2.2, con qué comprobar en cada uno, qué evidencia
+hace falta, si exige lector de pantalla y qué reglas de axe lo tocan (calculadas con la versión de
+axe instalada). Axe toca 29 de los 55 y no cierra ninguno por sí solo: una violación da el criterio
+por fallado, pero que pase sus reglas no basta. Los 6 criterios nuevos de 2.2 no están aún en EN 301
+549 v3.2.1.
+
+### Evidencia
+
+Con `"evidence": true` al crear la auditoría, cada página guarda además (en
+`scan-results/<auditId>/evidence/<pageId>/`): secuencia de foco con indicador y ocultación, reflujo
+a 320 px, zoom al 200 %, espaciado de texto, orientación, imágenes con su alt y su captura,
+formularios, controles, encabezados, regiones (árbol de accesibilidad de Chromium) y texto. Añade
+unos segundos por página.
+
+```
+GET /api/audits/:id/pages/:pageId/evidence?kinds=focus-sequence,images
+GET /api/audits/:id/pages/:pageId/evidence/files/focus-3.jpg
+```
+
+### Revisión y hallazgos
+
+```
+GET   /api/audits/:id/pages/:pageId/review     Estado de cada criterio de página y sus hallazgos
+POST  /api/audits/:id/pages/:pageId/findings   Hallazgo de un criterio de página (capa 2)
+POST  /api/sites/:id/findings                  Hallazgo de un criterio de sitio (2.4.5, 3.2.3, 3.2.4, 3.2.6)
+PATCH /api/findings/:id                        Cambiar un hallazgo aún sin revisar
+PATCH /api/findings/:id/review                 Validar, rechazar o corregir (capa 3)
+GET/POST/DELETE /api/sites[/:id]               Webs: una página es del sitio cuyo host coincide
+```
+
+Al abrir la revisión de una página se crean solas dos clases de propuestas: un `cantTell` por cada
+"requiere revisión manual" de axe, y un `inapplicable` por cada criterio cuyo contenido no aparece
+en la página (sin vídeo, sin formularios...). Todo hallazgo nace `proposed`; solo la capa 3 lo pasa a
+`validated`, `rejected` o `amended`, y a partir de ahí no se puede editar.
+
+### MCP para Claude Code
+
+`.mcp.json` registra dos servidores: `accessibility` (esta API) y `playwright`. Con el backend
+levantado y `make install` (que compila `mcp/`), una sesión de Claude Code en este repo puede hacer la
+capa 2 con la skill `revision-manual`. El servidor `accessibility` **no expone ninguna herramienta
+para validar**: eso es de la capa 3, a propósito.
+
+Para usarlo desde otro proyecto, apunta a la API con `A11Y_API_URL`:
+
+```bash
+claude mcp add accessibility -e A11Y_API_URL=http://localhost:3000/api -- node /ruta/a/accessibility/mcp/dist/index.js
+```
+
 ## Tests
 
 ```bash
@@ -451,8 +515,9 @@ Chromium, así que no dependen de la red.
 - **La cola vive en memoria**: si el servicio se reinicia a mitad de una auditoría, esa auditoría se
   marca como fallida al arrancar (no se reanuda).
 - Un escaneo automático **no sustituye una revisión manual**: axe detecta aproximadamente entre un
-  30 % y un 40 % de los problemas de accesibilidad. La sección "requieren revisión manual" es
-  justamente lo que hay que mirar a mano.
+  30 % y un 40 % de los problemas de accesibilidad. Para eso están las capas 2 y 3 (ver
+  [Revisión manual](#revisión-manual-tres-capas)), y ni la capa 2 sustituye a probar con lectores de
+  pantalla reales.
 - Solo se escanean las URLs que se indican; no hay descubrimiento automático de páginas.
 - La sección se elige escribiendo o eligiendo un selector CSS: no hay selector visual sobre una
   captura de la página.

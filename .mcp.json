@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "accessibility": {
+      "command": "node",
+      "args": ["mcp/dist/index.js"],
+      "env": {
+        "A11Y_API_URL": "http://localhost:3000/api",
+        "A11Y_ASSERTOR_NAME": "Claude"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless", "--isolated"]
+    }
+  }
+}

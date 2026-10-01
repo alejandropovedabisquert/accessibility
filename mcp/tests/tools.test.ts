@@ -1,0 +1,206 @@
+import type { AddressInfo } from 'net';
+import type { Server } from 'http';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
+import app from '../../backend/src/app';
+import { closeDb } from '../../backend/src/db/client';
+import auditService from '../../backend/src/services/audit/audit.service';
+import browserPool from '../../backend/src/services/scanner/browserPool';
+import { startFixtureServer, type FixtureServer } from '../../backend/tests/helpers/fixtureServer';
+import { ApiClient } from '../src/api';
+import { createServer } from '../src/tools';
+
+/** Contraste sobre degradado (needs-review de axe) y unos cuantos elementos enfocables. */
+const PAGE = `<!doctype html>
+<html lang="es">
+  <head><meta charset="utf-8"><title>Pagina para el MCP</title></head>
+  <body style="background:#fff">
+    <header><nav aria-label="Principal"><a href="/a">Inicio</a> <a href="/b">Contacto</a></nav></header>
+    <main>
+      <h1 style="color:#111">Titulo</h1>
+      <p style="color:#777;background-image:linear-gradient(90deg,#fff,#999)">Texto sobre degradado</p>
+      <label for="q">Buscar</label><input id="q" autocomplete="off"><button>Ir</button>
+    </main>
+  </body>
+</html>`;
+
+type TextContent = { type: 'text'; text: string };
+type ToolResult = { content: Array<TextContent | { type: 'image'; data: string; mimeType: string }>; isError?: boolean };
+
+let fixture: FixtureServer;
+let backend: Server;
+let client: Client;
+let auditId = '';
+let pageId = '';
+
+const call = async (name: string, args: Record<string, unknown> = {}): Promise<ToolResult> =>
+  (await client.callTool({ name, arguments: args })) as ToolResult;
+
+const callJson = async <T = Record<string, unknown>>(name: string, args: Record<string, unknown> = {}): Promise<T> => {
+  const result = await call(name, args);
+  const first = result.content[0] as TextContent;
+  if (result.isError) throw new Error(`${name} devolvio error: ${first.text}`);
+  return JSON.parse(first.text) as T;
+};
+
+const connect = async (baseUrl: string) => {
+  const server = createServer(new ApiClient(baseUrl), { name: 'Claude', model: 'claude-test' });
+  const mcpClient = new Client({ name: 'tests', version: '1.0.0' });
+  const [clientEnd, serverEnd] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverEnd);
+  await mcpClient.connect(clientEnd);
+  return mcpClient;
+};
+
+beforeAll(async () => {
+  fixture = await startFixtureServer({ '/mcp': PAGE });
+  backend = app.listen(0);
+  await new Promise<void>((resolve) => backend.once('listening', () => resolve()));
+  client = await connect(`http://127.0.0.1:${(backend.address() as AddressInfo).port}/api`);
+});
+
+afterAll(async () => {
+  await client.close();
+  await auditService.drain();
+  await browserPool.closeAll();
+  await fixture.close();
+  await new Promise((resolve) => backend.close(resolve));
+  closeDb();
+});
+
+describe('herramientas publicadas', () => {
+  it('expone la capa 2 y nada de la capa 3', async () => {
+    const { tools } = await client.listTools();
+    const names = tools.map((tool) => tool.name).sort();
+    expect(names).toEqual(
+      [
+        'create_audit',
+        'create_finding',
+        'create_site',
+        'create_site_finding',
+        'get_audit',
+        'get_checks',
+        'get_evidence',
+        'get_evidence_image',
+        'get_page_review',
+        'get_site',
+        'list_audits',
+        'list_sites',
+        'update_finding',
+      ].sort(),
+    );
+    // Validar, rechazar o corregir es de una persona: no puede haber herramienta para eso.
+    expect(names.some((name) => /review_finding|validate|reject|amend|delete/.test(name))).toBe(false);
+  });
+});
+
+describe('flujo de la capa 2 a traves del MCP', () => {
+  it('lanza la auditoria con evidencia y espera a que termine', async () => {
+    const created = await callJson<{ id: string; evidence: boolean }>('create_audit', { urls: [fixture.url('/mcp')] });
+    expect(created.evidence).toBe(true);
+    auditId = created.id;
+
+    const deadline = Date.now() + 90_000;
+    let audit = await callJson<{ status: string; pages: Array<{ id: string }> }>('get_audit', { auditId });
+    while (audit.status !== 'completed' && audit.status !== 'failed' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      audit = await callJson('get_audit', { auditId });
+    }
+    expect(audit.status).toBe('completed');
+    pageId = audit.pages[0]?.id ?? '';
+    expect(pageId).toBeTruthy();
+  });
+
+  it('get_page_review filtra por resultado y compacta los hallazgos', async () => {
+    const review = await callJson<{
+      checks: Array<{ checkId: string; outcome: string; findings: Array<{ id: string; by: string; review: string }> }>;
+    }>('get_page_review', { auditId, pageId, outcomes: ['cantTell'] });
+
+    expect(review.checks.length).toBeGreaterThan(0);
+    expect(review.checks.every((check) => check.outcome === 'cantTell')).toBe(true);
+    const contrast = review.checks.find((check) => check.checkId === 'contrast-minimum');
+    expect(contrast?.findings[0]?.by).toMatch(/^tool:axe-core/);
+    expect(contrast?.findings[0]?.review).toBe('proposed');
+  });
+
+  it('get_checks trae solo los criterios pedidos', async () => {
+    const catalog = await callJson<{ checks: Array<{ id: string }> }>('get_checks', { checkIds: ['focus-order', 'reflow'] });
+    expect(catalog.checks.map((check) => check.id).sort()).toEqual(['focus-order', 'reflow']);
+  });
+
+  it('get_evidence trae solo los tipos pedidos y get_evidence_image la captura', async () => {
+    const evidence = await callJson<{ items: Record<string, { stops?: Array<{ screenshot: string | null }> }> }>(
+      'get_evidence',
+      { auditId, pageId, kinds: ['focus-sequence'] },
+    );
+    expect(Object.keys(evidence.items)).toEqual(['focus-sequence']);
+    const shot = evidence.items['focus-sequence']?.stops?.find((stop) => stop.screenshot)?.screenshot;
+    expect(shot).toMatch(/^focus-\d+\.jpg$/);
+
+    const image = await call('get_evidence_image', { auditId, pageId, name: shot });
+    expect(image.isError).toBeFalsy();
+    const content = image.content[0];
+    expect(content?.type).toBe('image');
+    if (content?.type === 'image') {
+      expect(content.mimeType).toBe('image/jpeg');
+      // Cabecera JPEG (FF D8) en base64.
+      expect(content.data.startsWith('/9j/')).toBe(true);
+    }
+  });
+
+  it('create_finding registra como ia con el modelo configurado, y queda propuesto', async () => {
+    const finding = await callJson<{ by: string; review: string; outcome: string }>('create_finding', {
+      auditId,
+      pageId,
+      checkId: 'focus-order',
+      outcome: 'passed',
+      description: 'El foco recorre menú, buscador y botón en el orden visual',
+      evidenceRefs: ['focus-sequence'],
+    });
+    expect(finding).toMatchObject({ by: 'ai:Claude', review: 'proposed', outcome: 'passed' });
+  });
+
+  it('update_finding cierra la propuesta de axe', async () => {
+    const review = await callJson<{ checks: Array<{ checkId: string; findings: Array<{ id: string }> }> }>(
+      'get_page_review',
+      { auditId, pageId, outcomes: ['cantTell'] },
+    );
+    const proposalId = review.checks.find((check) => check.checkId === 'contrast-minimum')?.findings[0]?.id;
+
+    const closed = await callJson<{ outcome: string; by: string }>('update_finding', {
+      findingId: proposalId,
+      outcome: 'failed',
+      description: 'El texto gris sobre la zona oscura del degradado baja de 4,5:1',
+      recommendation: 'Oscurecer el texto o aclarar el degradado',
+    });
+    expect(closed).toMatchObject({ outcome: 'failed', by: 'ai:Claude' });
+
+    const after = await callJson<{ checks: Array<{ checkId: string; outcome: string }> }>('get_page_review', {
+      auditId,
+      pageId,
+    });
+    expect(after.checks.find((check) => check.checkId === 'contrast-minimum')?.outcome).toBe('failed');
+  });
+});
+
+describe('errores', () => {
+  it('los errores de la API llegan al modelo como isError con el mensaje de la API', async () => {
+    const result = await call('create_finding', {
+      auditId,
+      pageId,
+      checkId: 'multiple-ways',
+      outcome: 'passed',
+      description: 'x',
+    });
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as TextContent).text).toContain('se evalúa por sitio');
+  });
+
+  it('sin backend, el error dice que no esta arrancado', async () => {
+    const offline = await connect('http://127.0.0.1:1/api');
+    const result = (await offline.callTool({ name: 'list_audits', arguments: {} })) as ToolResult;
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as TextContent).text).toContain('¿Está arrancado el backend?');
+    await offline.close();
+  });
+});
