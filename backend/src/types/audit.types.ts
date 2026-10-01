@@ -457,6 +457,37 @@ export interface SignOffDetail extends SignOff {
   stillMatches: boolean | null;
 }
 
+/**
+ * Por que un hallazgo decidido de la linea base no se ha heredado:
+ * - `targets-changed`: algun elemento afectado, o la region que lo contiene, no es igual.
+ * - `page-changed`: es un hallazgo sin elementos y la pagina no es igual entera.
+ * - `already-reviewed`: la pagina ya tiene su propia revision de eso.
+ * - `not-in-page`: la regla de axe de la que sale no aparece en esta pagina.
+ * - `not-inheritable`: propuestas automaticas, que cada pagina calcula por si misma.
+ */
+export type NotInheritedReason = 'targets-changed' | 'page-changed' | 'already-reviewed' | 'not-in-page' | 'not-inheritable';
+
+export interface BaselineRegion {
+  selector: string;
+  role: string | null;
+  /** `same`: misma estructura; `changed`: cambia; `only-*`: solo existe en una de las dos. */
+  status: 'same' | 'changed' | 'only-baseline' | 'only-page';
+}
+
+/** Resultado de enlazar una pagina a su linea base. Se guarda tal cual y se recalcula a peticion. */
+export interface BaselineReport {
+  pageId: string;
+  baseline: { pageId: string; auditId: string; url: string };
+  linkedBy: string;
+  linkedAt: string;
+  regions: BaselineRegion[];
+  /** Todas las regiones iguales y ninguna de mas o de menos. */
+  wholePageMatch: boolean;
+  focusSequence: 'same' | 'different' | 'unavailable';
+  inherited: Array<{ findingId: string; fromFindingId: string; checkId: string; criterion: string }>;
+  notInherited: Array<{ fromFindingId: string; checkId: string; criterion: string; reason: NotInheritedReason }>;
+}
+
 // ---------------------------------------------------------------------------
 // Evidencia para la revision manual. Se guarda en disco junto al JSON de axe
 // (`scan-results/<auditId>/evidence/<pageId>/`), nunca en SQLite. Las capturas
@@ -590,4 +621,9 @@ export interface PageEvidence {
   errors: Partial<Record<CollectedEvidenceKind, string>>;
   /** Elementos que casan con `appliesWhen` de cada criterio, por id de criterio. */
   applicability: Record<string, number>;
+  /**
+   * Fichero con el DOM tras cargar (`dom.html`), para la herencia de lineas base.
+   * null si no se pudo guardar o pasaba del limite; ausente en evidencia antigua.
+   */
+  domSnapshot?: string | null;
 }

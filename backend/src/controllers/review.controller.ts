@@ -1,9 +1,11 @@
 import type { Request, Response } from 'express';
 import reviewService from '../services/review/review.service';
 import signOffService from '../services/review/signoff.service';
+import baselineService from '../services/review/baseline.service';
 import { slugifyUrl } from '../utils/url';
 import {
   createFindingSchema,
+  baselineSchema,
   createSiteSchema,
   evidenceFileSchema,
   evidenceQuerySchema,
@@ -116,4 +118,21 @@ export const getSignOffEarl = asyncHandler(async (req: Request<IdParams>, res: R
 export const getSignOffPdf = asyncHandler(async (req: Request<IdParams>, res: Response) => {
   const { filePath, fileName } = await signOffService.pdf(req.params.id);
   res.download(filePath, fileName);
+});
+
+export const getBaseline = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  res.json(baselineService.get(req.params.id, req.params.pageId));
+});
+
+export const getBaselineCandidates = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  res.json(baselineService.candidates(req.params.id, req.params.pageId));
+});
+
+export const linkBaseline = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  res.json(await baselineService.link(req.params.id, req.params.pageId, baselineSchema.parse(req.body)));
+});
+
+export const unlinkBaseline = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  await baselineService.unlink(req.params.id, req.params.pageId);
+  res.status(204).end();
 });

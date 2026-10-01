@@ -131,6 +131,17 @@ export interface ProbeApi {
   layout(): Omit<LayoutEvidence, 'viewport' | 'screenshot'>;
   setTextSpacing(enabled: boolean): void;
   scrollHeight(): number;
+  /**
+   * Para la herencia de lineas base, sobre un DOM guardado: cada selector con
+   * el HTML de su elemento y el indice de su region (el landmark que lo
+   * contiene, o el body si no hay). El HTML de cada region va una sola vez.
+   */
+  resolveTargets(selectors: string[]): {
+    targets: Array<{ selector: string; found: boolean; html: string; region: number }>;
+    regions: Array<{ selector: string; role: string | null; html: string }>;
+  };
+  /** Todas las regiones del documento con su HTML, para comparar dos paginas. */
+  regionsHtml(): Array<{ selector: string; role: string | null; html: string }>;
 }
 
 export const installProbes = (options: ProbeOptions): void => {
@@ -625,6 +636,43 @@ export const installProbes = (options: ProbeOptions): void => {
 
     scrollHeight() {
       return doc.documentElement.scrollHeight;
+    },
+
+    resolveTargets(selectors) {
+      const regionElements: ProbeElement[] = [];
+      const regionOf = (element: ProbeElement): number => {
+        const region = element.closest(LANDMARKS) ?? doc.body ?? doc.documentElement;
+        let index = regionElements.indexOf(region);
+        if (index === -1) {
+          regionElements.push(region);
+          index = regionElements.length - 1;
+        }
+        return index;
+      };
+      const outer = (element: ProbeElement) => (element as unknown as { outerHTML: string }).outerHTML;
+      const targets = selectors.map((selector) => {
+        let element: ProbeElement | null = null;
+        try {
+          element = doc.querySelector(selector);
+        } catch {
+          element = null;
+        }
+        return element
+          ? { selector, found: true, html: outer(element), region: regionOf(element) }
+          : { selector, found: false, html: '', region: -1 };
+      });
+      return {
+        targets,
+        regions: regionElements.map((region) => ({ selector: selectorOf(region), role: roleOf(region), html: outer(region) })),
+      };
+    },
+
+    regionsHtml() {
+      return safeAll(doc, LANDMARKS).map((region) => ({
+        selector: selectorOf(region),
+        role: roleOf(region),
+        html: (region as unknown as { outerHTML: string }).outerHTML,
+      }));
     },
   };
 

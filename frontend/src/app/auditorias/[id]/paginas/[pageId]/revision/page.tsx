@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { ApiError, getAudit, getChecks, getPage, getPageEvidence, getPageReview } from '@/lib/api';
+import { ApiError, getAudit, getBaseline, getBaselineCandidates, getChecks, getPage, getPageEvidence, getPageReview } from '@/lib/api';
 import { OUTCOME_LABEL, OUTCOMES, displayUrl, screenLabel } from '@/lib/format';
 import { getReviewer } from '@/lib/reviewer';
 import type { Check, CheckReview, EarlOutcome } from '@/lib/types';
@@ -9,6 +9,7 @@ import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 import { FindingCard } from '@/components/FindingCard';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { CreateFindingForm, FalsePositiveForm } from '@/components/ReviewForms';
+import { BaselinePanel } from '@/components/BaselinePanel';
 
 interface Props {
   params: Promise<{ id: string; pageId: string }>;
@@ -60,11 +61,13 @@ export default async function PageReviewView({ params, searchParams }: Props) {
     throw error;
   }
 
-  const [catalog, audit, evidence, reviewer] = await Promise.all([
+  const [catalog, audit, evidence, reviewer, baseline, candidates] = await Promise.all([
     getChecks(),
     getAudit(id).catch(() => null),
     review.evidence ? getPageEvidence(id, pageId, [...PANEL_KINDS]).catch(() => null) : Promise.resolve(null),
     getReviewer(),
+    getBaseline(id, pageId).catch(() => null),
+    getBaselineCandidates(id, pageId).catch(() => []),
   ]);
 
   const checkById = new Map<string, Check>(catalog.checks.map((check) => [check.id, check]));
@@ -160,6 +163,20 @@ export default async function PageReviewView({ params, searchParams }: Props) {
             manual&raquo; para tener capturas, recorrido con el tabulador, reflujo y el resto.
           </Card>
         )}
+      </section>
+
+      <section className="mb-8" aria-labelledby="h-linea-base">
+        <h2 id="h-linea-base" className="mb-3 text-lg font-semibold">
+          Línea base
+        </h2>
+        <BaselinePanel
+          report={baseline}
+          candidates={candidates}
+          auditId={id}
+          pageId={pageId}
+          path={path}
+          reviewer={reviewer}
+        />
       </section>
 
       <nav aria-label="Filtrar criterios" className="mb-4">

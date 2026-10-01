@@ -1,5 +1,6 @@
 import { getDb } from './client';
 import type {
+  BaselineReport,
   Assertor,
   FindingOutcome,
   FindingSource,
@@ -295,6 +296,100 @@ class ReviewRepository {
       total: number;
     };
     return row.total;
+  }
+
+  // ------------------------------------------------------------- lineas base
+
+  saveBaseline(report: BaselineReport): void {
+    getDb()
+      .prepare(`
+        INSERT INTO page_baselines (page_id, baseline_page_id, report) VALUES (@pageId, @baselinePageId, @report)
+        ON CONFLICT (page_id) DO UPDATE SET baseline_page_id = excluded.baseline_page_id, report = excluded.report
+      `)
+      .run({ pageId: report.pageId, baselinePageId: report.baseline.pageId, report: JSON.stringify(report) });
+  }
+
+  findBaseline(pageId: string): BaselineReport | null {
+    const row = getDb().prepare('SELECT report FROM page_baselines WHERE page_id = @pageId').get({ pageId }) as
+      | { report: string }
+      | undefined;
+    return row ? (JSON.parse(row.report) as BaselineReport) : null;
+  }
+
+  deleteBaseline(pageId: string): void {
+    getDb().prepare('DELETE FROM page_baselines WHERE page_id = @pageId').run({ pageId });
+  }
+
+  /** Copia heredada de un hallazgo decidido: nace con la revision de quien enlazo la linea base. */
+  insertInherited(
+    finding: NewFinding,
+    review: { status: 'validated' | 'amended'; by: string; at: string; note: string },
+    inheritedFrom: { findingId: string; fingerprint: string },
+  ): void {
+    getDb()
+      .prepare(`
+        INSERT INTO manual_findings (id, page_id, site_id, check_id, catalog_version, source_kind,
+          axe_rule_id, source_selector, outcome, targets, target_count, description, recommendation,
+          evidence_refs, asserted_by, review_status, reviewed_by, reviewed_at, review_note,
+          inherited_from, inherited_fingerprint, created_at)
+        VALUES (@id, @pageId, @siteId, @checkId, @catalogVersion, @sourceKind, @axeRuleId,
+          @sourceSelector, @outcome, @targets, @targetCount, @description, @recommendation,
+          @evidenceRefs, @assertedBy, @status, @by, @at, @note, @inheritedFrom, @fingerprint, @createdAt)
+      `)
+      .run({
+        ...this.findingParams(finding, finding.subject, finding.source),
+        ...review,
+        inheritedFrom: inheritedFrom.findingId,
+        fingerprint: inheritedFrom.fingerprint,
+      });
+  }
+
+  /** Resuelve una propuesta de axe de la pagina con el resultado del original de la linea base. */
+  resolveByInheritance(
+    id: string,
+    resolution: Pick<ManualFinding, 'outcome' | 'description' | 'recommendation' | 'assertedBy'> & {
+      status: 'validated' | 'amended';
+      by: string;
+      at: string;
+      note: string;
+      inheritedFrom: string;
+      fingerprint: string;
+    },
+  ): void {
+    getDb()
+      .prepare(`
+        UPDATE manual_findings
+        SET outcome = @outcome, description = @description, recommendation = @recommendation,
+            asserted_by = @assertedBy, review_status = @status, reviewed_by = @by, reviewed_at = @at,
+            review_note = @note, inherited_from = @inheritedFrom, inherited_fingerprint = @fingerprint
+        WHERE id = @id
+      `)
+      .run({ ...resolution, id, assertedBy: JSON.stringify(resolution.assertedBy) });
+  }
+
+  /** Devuelve una propuesta de axe resuelta por herencia a como la dejo axe. */
+  resetProposal(id: string, proposal: { description: string; assertedBy: Assertor }): void {
+    getDb()
+      .prepare(`
+        UPDATE manual_findings
+        SET outcome = 'cantTell', description = @description, recommendation = NULL, asserted_by = @assertedBy,
+            review_status = 'proposed', reviewed_by = NULL, reviewed_at = NULL, review_note = NULL,
+            inherited_from = NULL, inherited_fingerprint = NULL
+        WHERE id = @id
+      `)
+      .run({ id, description: proposal.description, assertedBy: JSON.stringify(proposal.assertedBy) });
+  }
+
+  deleteFinding(id: string): void {
+    getDb().prepare('DELETE FROM manual_findings WHERE id = @id').run({ id });
+  }
+
+  /** Copias heredadas de un hallazgo (en todas las paginas que lo heredaron). */
+  findInheritedCopies(findingId: string): ManualFinding[] {
+    const rows = getDb()
+      .prepare('SELECT * FROM manual_findings WHERE inherited_from = @findingId')
+      .all({ findingId }) as FindingRow[];
+    return rows.map(toFinding);
   }
 
   findFinding(id: string): ManualFinding | null {

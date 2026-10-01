@@ -6,6 +6,8 @@ import {
   createFindingAction,
   createSiteAction,
   falsePositiveAction,
+  linkBaselineAction,
+  unlinkBaselineAction,
   reviewFindingAction,
   signOffAction,
   type FormState,
@@ -344,6 +346,68 @@ export function SignOffForm({
       <Submit variant="primary" disabled={!canSign}>
         Firmar la web
       </Submit>
+    </form>
+  );
+}
+
+/** Enlazar la línea base, o recalcularla si ya hay una (mismo formulario con la página fijada). */
+export function BaselineForm({
+  auditId,
+  pageId,
+  path,
+  reviewer,
+  candidates,
+  current,
+}: {
+  auditId: string;
+  pageId: string;
+  path: string;
+  reviewer: string;
+  candidates: Array<{ id: string; label: string }>;
+  /** Línea base actual: el formulario pasa a ser "Recalcular". */
+  current?: string;
+}) {
+  const [state, action] = useActionState(linkBaselineAction, INITIAL);
+  const id = useId();
+  return (
+    <form action={action} className="space-y-3">
+      <input type="hidden" name="auditId" value={auditId} />
+      <input type="hidden" name="pageId" value={pageId} />
+      <input type="hidden" name="path" value={path} />
+      <FormError state={state} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {current ? (
+          <input type="hidden" name="baselinePageId" value={current} />
+        ) : (
+          <div>
+            <label htmlFor={`${id}-baseline`} className={LABEL}>
+              Página de línea base
+            </label>
+            <select id={`${id}-baseline`} name="baselinePageId" required className={FIELD}>
+              {candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <ReviewerField id={`${id}-by`} reviewer={reviewer} />
+      </div>
+      <Submit variant={current ? 'secondary' : 'primary'}>{current ? 'Recalcular la herencia' : 'Enlazar y heredar'}</Submit>
+    </form>
+  );
+}
+
+export function UnlinkBaselineForm({ auditId, pageId, path }: { auditId: string; pageId: string; path: string }) {
+  const [state, action] = useActionState(unlinkBaselineAction, INITIAL);
+  return (
+    <form action={action} className="space-y-2">
+      <input type="hidden" name="auditId" value={auditId} />
+      <input type="hidden" name="pageId" value={pageId} />
+      <input type="hidden" name="path" value={path} />
+      <FormError state={state} />
+      <Submit variant="danger">Quitar la línea base</Submit>
     </form>
   );
 }

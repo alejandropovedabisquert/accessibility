@@ -151,6 +151,14 @@ export const signOffSchema = z
   })
   .strict();
 
+/** Enlazar es decision de la capa 3: los hallazgos heredados quedan validados a nombre de `by`. */
+export const baselineSchema = z
+  .object({
+    baselinePageId: z.string().trim().min(1),
+    by: nameSchema,
+  })
+  .strict();
+
 export const pageReviewQuerySchema = z.object({
   maxTargets: z.coerce.number().int().min(1).max(MAX_NODES_LIMIT).default(DEFAULT_MAX_NODES),
 });

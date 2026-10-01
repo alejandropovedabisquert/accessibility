@@ -347,3 +347,40 @@ export async function signOffAction(_prev: FormState, formData: FormData): Promi
   revalidatePath(`/sitios/${siteId}`);
   redirect(`/firmas/${signOff.id}`);
 }
+
+/** Enlazar (o recalcular) la línea base de una página: hereda hallazgos validados a nombre de quien enlaza. */
+export async function linkBaselineAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const by = text(formData, 'by');
+  const baselinePageId = text(formData, 'baselinePageId');
+  if (!by) return { error: 'Indica quién enlaza la línea base.' };
+  if (!baselinePageId) return { error: 'Elige la página de línea base.' };
+
+  try {
+    const res = await send(
+      `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/baseline`,
+      'PUT',
+      { baselinePageId, by },
+    );
+    if (!res.ok) return { error: await readError(res) };
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+
+  await rememberReviewer(by);
+  revalidatePath(internalPath(formData));
+  return { error: null };
+}
+
+export async function unlinkBaselineAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const res = await fetch(
+      `${API_URL}/api/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/baseline`,
+      { method: 'DELETE', cache: 'no-store' },
+    );
+    if (!res.ok) return { error: await readError(res) };
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+  revalidatePath(internalPath(formData));
+  return { error: null };
+}

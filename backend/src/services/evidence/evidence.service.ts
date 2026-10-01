@@ -23,7 +23,12 @@ export const EVIDENCE_LIMITS = {
   maxTabPresses: 200,
   maxImageShots: 40,
   maxFullPageHeight: 8_000,
+  /** El DOM guardado para la herencia de lineas base; por encima no se guarda. */
+  maxDomBytes: 5_000_000,
 } as const;
+
+/** Nombre del DOM guardado tal y como quedo tras cargar, para comparar paginas sin volver a la web. */
+export const DOM_SNAPSHOT = 'dom.html';
 
 /** 1280 × 1024 al 400 % (lo que pide 1.4.10). */
 const REFLOW_VIEWPORT: Viewport = { width: 320, height: 256 };
@@ -50,7 +55,7 @@ export interface EvidenceJob {
  * vitest compilan con esbuild y meten llamadas a ese helper dentro de las
  * funciones con nombre, y en el navegador no existe.
  */
-const installScript = (options: ProbeOptions): string =>
+export const installScript = (options: ProbeOptions): string =>
   `(() => { const __name = (fn) => fn; (${installProbes.toString()})(${JSON.stringify(options)}); })()`;
 
 /**
@@ -58,7 +63,7 @@ const installScript = (options: ProbeOptions): string =>
  * funcion: evaluar codigo construido dentro de la pagina (new Function) lo
  * bloquea el CSP de muchas webs, y `page.evaluate` no.
  */
-const probe = <K extends keyof ProbeApi>(
+export const probe = <K extends keyof ProbeApi>(
   page: Page,
   method: K,
   ...args: Parameters<ProbeApi[K]>
@@ -87,6 +92,18 @@ class EvidenceService {
     const files: EvidenceFile[] = [];
     const original = page.viewportSize();
     let applicability: Record<string, number> = {};
+    let domSnapshot: string | null = null;
+
+    // Lo primero, antes de que los recolectores toquen estilos o viewport.
+    try {
+      const html = Buffer.from(await page.content(), 'utf-8');
+      if (html.length <= EVIDENCE_LIMITS.maxDomBytes) {
+        files.push({ name: DOM_SNAPSHOT, data: html });
+        domSnapshot = DOM_SNAPSHOT;
+      }
+    } catch {
+      domSnapshot = null;
+    }
 
     const step = async <K extends CollectedEvidenceKind>(kind: K, run: () => Promise<EvidenceData[K]>) => {
       try {
@@ -164,6 +181,7 @@ class EvidenceService {
         items,
         errors,
         applicability,
+        domSnapshot,
       },
       files,
     };
@@ -178,6 +196,7 @@ class EvidenceService {
       items: {},
       errors: { screenshot: message },
       applicability: {},
+      domSnapshot: null,
     };
   }
 

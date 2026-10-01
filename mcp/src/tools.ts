@@ -48,6 +48,7 @@ interface ApiFinding {
   evidenceRefs: string[];
   assertedBy: { type: string; name: string };
   review: { status: string; note: string | null };
+  inheritedFrom: unknown;
 }
 
 interface ApiCheckReview {
@@ -123,6 +124,8 @@ const compactFinding = (finding: ApiFinding) => ({
   by: `${finding.assertedBy.type}:${finding.assertedBy.name}`,
   review: finding.review.status,
   ...(finding.review.note ? { reviewNote: finding.review.note } : {}),
+  // Heredado de una linea base: ya viene decidido y validado por una persona.
+  ...(finding.inheritedFrom ? { inherited: true } : {}),
 });
 
 const compactPage = (page: ApiAuditPage) => ({

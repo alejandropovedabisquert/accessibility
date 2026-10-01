@@ -23,7 +23,10 @@ exige el navegador, que es mucho más caro. Propón relanzarla con evidencia ant
 ## Proceso por página
 
 1. **Lo pendiente.** `get_page_review` con `outcomes: ["untested", "cantTell"]`. Los `failed` por
-   violación de axe y los `inapplicable` propuestos ya tienen resultado: no los repitas.
+   violación de axe y los `inapplicable` propuestos ya tienen resultado: no los repitas. Los
+   hallazgos con `inherited: true` vienen de una línea base y ya están validados: no los toques.
+   Si varias páginas comparten plantilla, revisa a fondo una, y sugiere a la persona que la valide
+   y la enlace como línea base de las demás antes de seguir con ellas: ahorra repetir trabajo.
 2. **Qué mirar.** `get_checks` con los `checkIds` pendientes, **una vez por sesión**: trae las
    instrucciones de cada criterio, la evidencia que necesita y si exige lector de pantalla.
 3. **La evidencia justa.** `get_evidence` pidiendo solo los `kinds` de los criterios que vas a

@@ -149,6 +149,13 @@ que no puede usar nada de fuera de su cuerpo. Se manda como texto con un `__name
 tests con vitest no lo reproducen. Los métodos se llaman por nombre con `page.evaluate`, nunca
 construyendo código en la página (`new Function`): el CSP de muchas webs lo bloquea.
 
+**La herencia de líneas base compara DOMs guardados, no la web en vivo.** `baseline.service` carga el
+`dom.html` de la evidencia de cada página sin red y sin `<script>` (podrían rehacer el DOM) y compara
+cada elemento y su landmark con `normalizeHtml` de `fingerprint.ts`. Un hallazgo heredado es una copia
+con `inherited_from`; las propuestas de axe resueltas por herencia se modifican en su sitio y
+`clearInheritance` las devuelve a `cantTell` al quitar o recalcular. `reviewFinding` propaga cada
+revisión a las copias (`propagateToCopies`): si añades otra forma de cambiar un hallazgo, propágala.
+
 **Lo firmado sale de la copia congelada, nunca de la BD.** `signoff.service` guarda el `SignOffSnapshot`
 en `scan-results/sign-offs/<id>.json` y su hash (JSON con claves ordenadas) en `sign_offs`. El PDF y el
 EARL se generan desde esa copia; `stillMatches` recalcula con los datos actuales para avisar si algo

@@ -1,4 +1,5 @@
 import type {
+  BaselineReport,
   SignOff,
   SignOffDetail,
   SignOffPreview,
@@ -113,3 +114,16 @@ export const getSignOffPreview = (siteId: string, pageIds: string[]) =>
 export const listSignOffs = (siteId: string) => apiFetch<SignOff[]>(`/sites/${siteId}/sign-offs`);
 
 export const getSignOff = (id: string) => apiFetch<SignOffDetail>(`/sign-offs/${id}`);
+
+/** null si la página no tiene línea base. */
+export const getBaseline = async (auditId: string, pageId: string): Promise<BaselineReport | null> => {
+  try {
+    return await apiFetch<BaselineReport>(`/audits/${auditId}/pages/${pageId}/baseline`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+};
+
+export const getBaselineCandidates = (auditId: string, pageId: string) =>
+  apiFetch<Array<{ page: AuditPage; decidedFindings: number }>>(`/audits/${auditId}/pages/${pageId}/baseline-candidates`);

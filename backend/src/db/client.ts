@@ -128,6 +128,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_axe
   ON manual_findings (page_id, axe_rule_id, check_id) WHERE source_kind = 'axe-needs-review';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_applicability
   ON manual_findings (page_id, check_id) WHERE source_kind = 'applicability';
+-- Pagina enlazada a su linea base. report es el BaselineReport en JSON: solo se lee entero.
+CREATE TABLE IF NOT EXISTS page_baselines (
+  page_id           TEXT PRIMARY KEY REFERENCES audit_pages (id) ON DELETE CASCADE,
+  baseline_page_id  TEXT NOT NULL REFERENCES audit_pages (id) ON DELETE CASCADE,
+  report            TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_baselines_baseline ON page_baselines (baseline_page_id);
+CREATE INDEX IF NOT EXISTS idx_findings_inherited ON manual_findings (inherited_from);
+
 -- Sin ON DELETE CASCADE a proposito: un sitio con firmas no se puede borrar.
 -- El contenido firmado vive en disco (scan-results/sign-offs/<id>.json).
 CREATE TABLE IF NOT EXISTS sign_offs (

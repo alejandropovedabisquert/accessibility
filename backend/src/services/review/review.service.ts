@@ -336,16 +336,31 @@ class ReviewService {
       throw badRequest('Un hallazgo sin decidir (cantTell) no se puede validar: corrígelo con su resultado');
     }
 
-    reviewRepository.reviewFinding({
-      id,
-      status: input.status,
-      by: input.by,
-      at: new Date().toISOString(),
-      note: input.note,
-      outcome,
-      description,
-    });
+    const at = new Date().toISOString();
+    reviewRepository.reviewFinding({ id, status: input.status, by: input.by, at, note: input.note, outcome, description });
+    this.propagateToCopies(id, { status: input.status, by: input.by, at, outcome, description, note: input.note });
     return this.getFinding(id);
+  }
+
+  /**
+   * Las copias heredadas (lineas base) siguen al original: si se corrige o se
+   * rechaza, ellas tambien. En cadena, por si una linea base heredo a su vez.
+   */
+  private propagateToCopies(
+    id: string,
+    review: { status: Exclude<ReviewStatus, 'proposed'>; by: string; at: string; outcome: FindingOutcome; description: string; note: string | null },
+    seen = new Set<string>(),
+  ): void {
+    seen.add(id);
+    for (const copy of reviewRepository.findInheritedCopies(id)) {
+      if (seen.has(copy.id)) continue;
+      reviewRepository.reviewFinding({
+        id: copy.id,
+        ...review,
+        note: `Revisión del original: ${review.note ?? review.status}`,
+      });
+      this.propagateToCopies(copy.id, review, seen);
+    }
   }
 
   private requireCompletedPage(auditId: string, pageId: string): AuditPage {

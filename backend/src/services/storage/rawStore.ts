@@ -68,6 +68,14 @@ class RawStore {
     }
   }
 
+  public async readEvidenceText(auditId: string, pageId: string, name: string): Promise<string | null> {
+    try {
+      return await fs.readFile(this.evidenceFilePath(auditId, pageId, name), 'utf-8');
+    } catch {
+      return null;
+    }
+  }
+
   /** Ruta de una captura; el nombre ya viene validado por el esquema, basename por si acaso. */
   public evidenceFilePath(auditId: string, pageId: string, name: string): string {
     return path.join(this.evidenceDir(auditId, pageId), path.basename(name));

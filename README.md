@@ -497,6 +497,24 @@ en cada uno validar, rechazar, corregir, añadir un resultado propio o marcar un
 **Sitios** agrupa las páginas de una web por host y recoge los 4 criterios de sitio. Quien revisa se
 recuerda en una cookie; no hay autenticación.
 
+### Líneas base: revisar una plantilla una vez
+
+Si varias páginas comparten plantilla, se revisa y valida una y se enlaza como **línea base** de las
+demás (desde su revisión, o `PUT /api/audits/:id/pages/:pageId/baseline` con `baselinePageId` y
+`by`). Se heredan, ya validados a nombre de quien enlaza, los hallazgos cuyos elementos **y la región
+que los contiene** (cabecera, navegación, pie…) son estructuralmente iguales en las dos páginas. La
+comparación ignora textos, enlaces e ids generados (la misma huella de `fingerprint.ts`) y se hace
+sobre el DOM guardado al escanear (`dom.html` de la evidencia), no sobre la web de ahora.
+
+- Los hallazgos sin elementos concretos (p. ej. "el orden del foco es correcto") solo se heredan si
+  la página entera es igual.
+- Una "requiere revisión manual" de axe se resuelve con la de la línea base si todos sus elementos
+  coinciden.
+- Lo que no se hereda queda en el informe con su motivo, para revisarlo en la página.
+- Lo heredado sigue al original: si se corrige o se rechaza allí, cambia en todas las copias. Quitar la
+  línea base deja la página como estaba.
+- Solo se comparan páginas de la misma pantalla, y ambas necesitan evidencia con DOM guardado.
+
 ### Firma de una web
 
 Desde la página del sitio se elige la **muestra** de páginas (WCAG-EM) y se ve qué se firmaría y qué lo

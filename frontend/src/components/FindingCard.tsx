@@ -33,6 +33,11 @@ export function FindingCard({
       <header className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={finding.outcome} />
         <ReviewStatusBadge status={review.status} />
+        {finding.inheritedFrom ? (
+          <span className="rounded-full border border-line bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-ink-muted">
+            Heredado de la línea base
+          </span>
+        ) : null}
         <span className="text-xs text-ink-muted">
           {SOURCE_LABEL[finding.source.kind]}
           {'ruleId' in finding.source ? <> · <code>{finding.source.ruleId}</code></> : null} · {assertorLabel(finding.assertedBy)} ·{' '}

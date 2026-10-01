@@ -15,6 +15,10 @@ import {
 } from '../controllers/audit.controller';
 import { getMeta, getStats } from '../controllers/meta.controller';
 import {
+  getBaseline,
+  getBaselineCandidates,
+  linkBaseline,
+  unlinkBaseline,
   createFalsePositive,
   createSignOff,
   getSignOff,
@@ -61,6 +65,11 @@ router.post('/audits/:id/pages/:pageId/findings', createPageFinding);
 // Solo capa 3: el MCP no lo expone.
 router.post('/audits/:id/pages/:pageId/false-positives', createFalsePositive);
 router.get('/audits/:id/pages/:pageId/evidence', getPageEvidence);
+// Enlazar una linea base es de la capa 3: hereda hallazgos ya validados.
+router.get('/audits/:id/pages/:pageId/baseline', getBaseline);
+router.get('/audits/:id/pages/:pageId/baseline-candidates', getBaselineCandidates);
+router.put('/audits/:id/pages/:pageId/baseline', linkBaseline);
+router.delete('/audits/:id/pages/:pageId/baseline', unlinkBaseline);
 router.get('/audits/:id/pages/:pageId/evidence/files/:name', getEvidenceFile);
 
 router.get('/checks', getChecks);
