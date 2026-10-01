@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { CUSTOM_SECTION } from '@/lib/format';
 import { REVIEWER_COOKIE } from '@/lib/reviewer';
-import type { Audit, Site } from '@/lib/types';
+import type { Audit, SignOffBlocker, Site, SignOff } from '@/lib/types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:3000';
 
@@ -308,4 +308,42 @@ export async function createFindingAction(_prev: FormState, formData: FormData):
   await rememberReviewer(by);
   revalidatePath(internalPath(formData));
   return { error: null };
+}
+
+/**
+ * Firmar la web con la muestra elegida. La API vuelve a comprobar todo: si
+ * entre la vista previa y la firma alguien deja algo pendiente, lo rechaza y
+ * aquí se enseña qué.
+ */
+export async function signOffAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const siteId = text(formData, 'siteId');
+  const signer = text(formData, 'signer');
+  const statement = text(formData, 'statement');
+  const credential = text(formData, 'credential');
+  const pageIds = formData.getAll('pageIds').map(String).filter(Boolean);
+  if (!signer) return { error: 'Indica quién firma.' };
+  if (!statement) return { error: 'Escribe la declaración que firmas.' };
+
+  let signOff: SignOff;
+  try {
+    const res = await send(`/sites/${encodeURIComponent(siteId)}/sign-offs`, 'POST', {
+      pageIds,
+      signer,
+      credential: credential || null,
+      statement,
+    });
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => null)) as { error?: string; details?: SignOffBlocker[] } | null;
+      const first = body?.details?.slice(0, 3).map((blocker) => blocker.message).join(' · ');
+      return { error: `${body?.error ?? 'No se puede firmar todavía'}${first ? `: ${first}` : ''}` };
+    }
+    if (!res.ok) return { error: await readError(res) };
+    signOff = (await res.json()) as SignOff;
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+
+  await rememberReviewer(signer);
+  revalidatePath(`/sitios/${siteId}`);
+  redirect(`/firmas/${signOff.id}`);
 }

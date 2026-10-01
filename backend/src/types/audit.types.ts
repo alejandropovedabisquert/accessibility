@@ -396,6 +396,67 @@ export interface SignOff {
   statement: string;
 }
 
+/** Un criterio en toda la muestra: el peor resultado de sus paginas (o el del sitio). */
+export interface CriterionResult {
+  checkId: string;
+  criterion: string;
+  name: string;
+  level: WcagLevel;
+  scope: CheckScope;
+  /** Esta en EN 301 549 v3.2.1 y por tanto cuenta para la conformidad legal. */
+  legal: boolean;
+  outcome: EarlOutcome;
+  /** Resultado en cada pagina de la muestra; vacio en los criterios de sitio. */
+  byPage: Record<string, EarlOutcome>;
+  /** Violaciones de axe que cuentan (sin falsos positivos), por pagina. */
+  axeViolations: Record<string, string[]>;
+  findings: ManualFinding[];
+}
+
+export interface ConformanceSummary {
+  status: ConformanceStatus;
+  /** Criterios legales con contenido al que aplicar (no `inapplicable`). */
+  applicable: number;
+  passed: number;
+  failed: number;
+  inapplicable: number;
+}
+
+/** Lo que se firma. Su hash (JSON con claves ordenadas) es `SignOff.findingsHash`. */
+export interface SignOffSnapshot {
+  site: Site;
+  pages: Array<Pick<AuditPage, 'id' | 'auditId' | 'url' | 'include' | 'exclude' | 'viewport' | 'device' | 'finishedAt'>>;
+  catalog: { id: string; version: number };
+  criteria: CriterionResult[];
+  /** Solo criterios legales (WCAG 2.1 A/AA via EN 301 549). */
+  conformance: ConformanceSummary;
+  /** Los criterios nuevos de WCAG 2.2, que aun no son exigibles. */
+  wcag22: { passed: number; failed: number; pending: number };
+}
+
+export interface SignOffBlocker {
+  kind: 'pending-review' | 'undecided' | 'untested' | 'page';
+  checkId: string | null;
+  pageId: string | null;
+  message: string;
+}
+
+/** Vista previa de la firma: lo que se firmaria y lo que lo impide todavia. */
+export interface SignOffPreview {
+  snapshot: SignOffSnapshot;
+  blockers: SignOffBlocker[];
+  canSign: boolean;
+}
+
+export interface SignOffDetail extends SignOff {
+  snapshot: SignOffSnapshot;
+  /**
+   * Si lo firmado sigue coincidiendo con los datos actuales. false = alguien ha
+   * cambiado un hallazgo despues; null = ya no se puede recalcular (se borro una auditoria).
+   */
+  stillMatches: boolean | null;
+}
+
 // ---------------------------------------------------------------------------
 // Evidencia para la revision manual. Se guarda en disco junto al JSON de axe
 // (`scan-results/<auditId>/evidence/<pageId>/`), nunca en SQLite. Las capturas

@@ -149,6 +149,12 @@ que no puede usar nada de fuera de su cuerpo. Se manda como texto con un `__name
 tests con vitest no lo reproducen. Los métodos se llaman por nombre con `page.evaluate`, nunca
 construyendo código en la página (`new Function`): el CSP de muchas webs lo bloquea.
 
+**Lo firmado sale de la copia congelada, nunca de la BD.** `signoff.service` guarda el `SignOffSnapshot`
+en `scan-results/sign-offs/<id>.json` y su hash (JSON con claves ordenadas) en `sign_offs`. El PDF y el
+EARL se generan desde esa copia; `stillMatches` recalcula con los datos actuales para avisar si algo
+cambió. Si cambias la forma del snapshot, las firmas antiguas pasarán a `stillMatches: false`. Un sitio
+con firmas no se borra (`sign_offs` sin `ON DELETE CASCADE` a propósito).
+
 **La evidencia, como el JSON de axe, va a disco** (`scan-results/<auditId>/evidence/<pageId>/`), nunca a
 SQLite. Un recolector que falla se anota en `errors` y no tumba ni la evidencia ni el escaneo.
 

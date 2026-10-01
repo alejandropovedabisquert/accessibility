@@ -130,6 +130,27 @@ export const falsePositiveSchema = z
   })
   .strict();
 
+const pageIdsSchema = z.array(z.string().trim().min(1)).min(1, 'Elige al menos una página para la muestra').max(50);
+
+/** `pageIds=a,b,c` */
+export const signOffPreviewQuerySchema = z.object({
+  pageIds: z
+    .string()
+    .trim()
+    .min(1, 'Elige al menos una página para la muestra')
+    .transform((value) => value.split(',').map((id) => id.trim()).filter(Boolean))
+    .pipe(pageIdsSchema),
+});
+
+export const signOffSchema = z
+  .object({
+    pageIds: pageIdsSchema,
+    signer: nameSchema,
+    credential: z.string().trim().min(1).max(NAME_LIMIT).nullable().default(null),
+    statement: z.string().trim().min(1, 'Escribe la declaración que firmas').max(TEXT_LIMIT),
+  })
+  .strict();
+
 export const pageReviewQuerySchema = z.object({
   maxTargets: z.coerce.number().int().min(1).max(MAX_NODES_LIMIT).default(DEFAULT_MAX_NODES),
 });

@@ -83,6 +83,7 @@ describe('herramientas publicadas', () => {
         'get_evidence',
         'get_evidence_image',
         'get_page_review',
+        'get_sign_off_preview',
         'get_site',
         'list_audits',
         'list_sites',
@@ -90,7 +91,9 @@ describe('herramientas publicadas', () => {
       ].sort(),
     );
     // Validar, rechazar o corregir es de una persona: no puede haber herramienta para eso.
-    expect(names.some((name) => /review_finding|validate|reject|amend|delete/.test(name))).toBe(false);
+    expect(names.some((name) => /review_finding|validate|reject|amend|delete|false_positive/.test(name))).toBe(false);
+    // Firmar tampoco: solo se puede ver que falta.
+    expect(names.some((name) => /sign/.test(name) && name !== 'get_sign_off_preview')).toBe(false);
   });
 });
 

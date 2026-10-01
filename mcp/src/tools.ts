@@ -8,7 +8,8 @@ import { ApiError, type ApiClient } from './api.js';
  * Deliberadamente NO hay ninguna para validar, rechazar o corregir hallazgos
  * (`PATCH /findings/:id/review`): eso es la capa 3, una persona. Si el modelo
  * pudiera validar sus propios hallazgos, la separacion de capas no serviria de
- * nada. Tampoco se exponen los borrados.
+ * nada. Tampoco se exponen los borrados ni la firma: de esta solo se puede ver
+ * la vista previa (que falta para poder firmar).
  */
 
 export interface AssertorDefaults {
@@ -267,6 +268,32 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
       inputSchema: z.object({ name: z.string().min(1), hosts: z.array(z.string().min(1)).min(1) }),
     },
     (input) => run(async () => json(await api.post('/sites', input))),
+  );
+
+  server.registerTool(
+    'get_sign_off_preview',
+    {
+      description:
+        'Qué falta para que una persona pueda firmar la web con esta muestra de páginas: criterios sin revisar o sin decidir y hallazgos sin validar, y la conformidad que saldría. No firma.',
+      inputSchema: z.object({ siteId: z.string().min(1), pageIds: z.array(z.string().min(1)).min(1).max(50) }),
+    },
+    ({ siteId, pageIds }) =>
+      run(async () => {
+        const preview = await api.get<{
+          canSign: boolean;
+          blockers: unknown[];
+          snapshot: { conformance: unknown; wcag22: unknown; pages: unknown[]; criteria: Array<{ checkId: string; criterion: string; outcome: string }> };
+        }>(`/sites/${encodeURIComponent(siteId)}/sign-off-preview`, { pageIds: pageIds.join(',') });
+        // Sin los hallazgos de cada criterio: para eso esta get_page_review.
+        return json({
+          canSign: preview.canSign,
+          blockers: preview.blockers,
+          conformance: preview.snapshot.conformance,
+          wcag22: preview.snapshot.wcag22,
+          pages: preview.snapshot.pages,
+          criteria: preview.snapshot.criteria.map(({ checkId, criterion, outcome }) => ({ checkId, criterion, outcome })),
+        });
+      }),
   );
 
   server.registerTool(

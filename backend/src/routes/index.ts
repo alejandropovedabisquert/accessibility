@@ -16,6 +16,12 @@ import {
 import { getMeta, getStats } from '../controllers/meta.controller';
 import {
   createFalsePositive,
+  createSignOff,
+  getSignOff,
+  getSignOffEarl,
+  getSignOffPdf,
+  getSignOffPreview,
+  listSignOffs,
   createPageFinding,
   createSite,
   createSiteFinding,
@@ -64,6 +70,14 @@ router.post('/sites', createSite);
 router.get('/sites/:id', getSite);
 router.delete('/sites/:id', deleteSite);
 router.post('/sites/:id/findings', createSiteFinding);
+router.get('/sites/:id/sign-off-preview', getSignOffPreview);
+// Solo capa 3: el MCP puede ver la vista previa, pero no firmar.
+router.post('/sites/:id/sign-offs', createSignOff);
+router.get('/sites/:id/sign-offs', listSignOffs);
+
+router.get('/sign-offs/:id', getSignOff);
+router.get('/sign-offs/:id/earl', getSignOffEarl);
+router.get('/sign-offs/:id/report.pdf', getSignOffPdf);
 
 router.get('/findings/:id', getFinding);
 router.patch('/findings/:id', updateFinding);

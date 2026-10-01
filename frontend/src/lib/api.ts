@@ -1,4 +1,7 @@
 import type {
+  SignOff,
+  SignOffDetail,
+  SignOffPreview,
   CheckCatalog,
   CollectedEvidenceKind,
   PageEvidence,
@@ -103,3 +106,10 @@ export const evidenceImageHref = (auditId: string, pageId: string, name: string)
 export const listSites = () => apiFetch<Site[]>('/sites');
 
 export const getSite = (id: string) => apiFetch<SiteDetail>(`/sites/${id}`);
+
+export const getSignOffPreview = (siteId: string, pageIds: string[]) =>
+  apiFetch<SignOffPreview>(`/sites/${siteId}/sign-off-preview?pageIds=${pageIds.map(encodeURIComponent).join(',')}`);
+
+export const listSignOffs = (siteId: string) => apiFetch<SignOff[]>(`/sites/${siteId}/sign-offs`);
+
+export const getSignOff = (id: string) => apiFetch<SignOffDetail>(`/sign-offs/${id}`);

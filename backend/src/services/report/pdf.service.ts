@@ -20,6 +20,30 @@ export interface PdfResult {
   fileName: string;
 }
 
+/** Pinta un HTML autocontenido en un PDF A4 con el navegador del pool. */
+export const htmlToPdf = async (html: string, filePath: string): Promise<void> => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+
+  const browser = await browserPool.acquire('chromium');
+  try {
+    const context = await browser.newContext();
+    try {
+      const tab = await context.newPage();
+      await tab.setContent(html, { waitUntil: 'load' });
+      await tab.pdf({
+        path: filePath,
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '12mm', bottom: '12mm', left: '10mm', right: '10mm' },
+      });
+    } finally {
+      await context.close().catch(() => undefined);
+    }
+  } finally {
+    browserPool.release('chromium');
+  }
+};
+
 /**
  * Genera el PDF la primera vez que alguien lo pide y lo cachea en disco.
  *
@@ -78,26 +102,7 @@ class PdfService {
       device: page.device ?? audit.config.device,
     });
 
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-
-    const browser = await browserPool.acquire('chromium');
-    try {
-      const context = await browser.newContext();
-      try {
-        const tab = await context.newPage();
-        await tab.setContent(html, { waitUntil: 'load' });
-        await tab.pdf({
-          path: filePath,
-          format: 'A4',
-          printBackground: true,
-          margin: { top: '12mm', bottom: '12mm', left: '10mm', right: '10mm' },
-        });
-      } finally {
-        await context.close().catch(() => undefined);
-      }
-    } finally {
-      browserPool.release('chromium');
-    }
+    await htmlToPdf(html, filePath);
 
     return { filePath, fileName: this.fileName(page.url) };
   }

@@ -73,6 +73,28 @@ class RawStore {
     return path.join(this.evidenceDir(auditId, pageId), path.basename(name));
   }
 
+  /** Las firmas no son de una auditoria: van aparte y no se borran con `removeAudit`. */
+  private signOffDir(): string {
+    return path.join(config.resultsDir, 'sign-offs');
+  }
+
+  public async saveSignOffSnapshot(id: string, snapshot: unknown): Promise<void> {
+    await fs.mkdir(this.signOffDir(), { recursive: true });
+    await fs.writeFile(path.join(this.signOffDir(), `${path.basename(id)}.json`), JSON.stringify(snapshot), 'utf-8');
+  }
+
+  public async readSignOffSnapshot<T>(id: string): Promise<T | null> {
+    try {
+      return JSON.parse(await fs.readFile(path.join(this.signOffDir(), `${path.basename(id)}.json`), 'utf-8')) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  public signOffPdfPath(id: string): string {
+    return path.join(this.signOffDir(), `${path.basename(id)}.pdf`);
+  }
+
   public exists(filePath: string): boolean {
     return fsSync.existsSync(filePath);
   }

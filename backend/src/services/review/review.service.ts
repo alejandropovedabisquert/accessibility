@@ -136,7 +136,12 @@ class ReviewService {
   }
 
   public deleteSite(id: string): void {
-    if (!reviewRepository.deleteSite(id)) throw notFound('Sitio no encontrado');
+    if (!reviewRepository.findSite(id)) throw notFound('Sitio no encontrado');
+    // Borrarlo haria desaparecer lo firmado: una firma es un registro, no un borrador.
+    if (reviewRepository.countSiteSignOffs(id) > 0) {
+      throw conflict('Este sitio tiene firmas: no se puede borrar');
+    }
+    reviewRepository.deleteSite(id);
   }
 
   /**
@@ -147,9 +152,35 @@ class ReviewService {
    */
   public async getPageReview(auditId: string, pageId: string, maxTargets: number): Promise<PageReview> {
     const page = this.requireCompletedPage(auditId, pageId);
-    const results = await rawStore.readRaw(auditId, pageId);
+    const { checks: full, evidence } = await this.pageCheckReviews(page);
+    const checks = full.map((check) => ({
+      ...check,
+      findings: check.findings.map((finding) => limitTargets(finding, maxTargets)),
+    }));
+
+    const summary = Object.fromEntries(OUTCOME_ORDER.map((outcome) => [outcome, 0])) as Record<EarlOutcome, number>;
+    for (const check of checks) summary[check.outcome]++;
+
+    return {
+      page,
+      site: reviewRepository.findSiteByHost(page.host),
+      catalog: { id: catalog.id, version: catalog.version },
+      evidence: evidence
+        ? { collected: Object.keys(evidence.items), errors: evidence.errors as Record<string, string> }
+        : null,
+      summary,
+      checks,
+    };
+  }
+
+  /**
+   * Estado de cada criterio de pagina, con los hallazgos completos. Crea antes
+   * las propuestas del sistema que falten. Lo usan la revision y la firma.
+   */
+  public async pageCheckReviews(page: AuditPage): Promise<{ checks: CheckReview[]; evidence: PageEvidence | null }> {
+    const results = await rawStore.readRaw(page.auditId, page.id);
     if (!results) throw notFound('No hay resultado guardado para esta pagina');
-    const evidence = await rawStore.readEvidence(auditId, pageId);
+    const evidence = await rawStore.readEvidence(page.auditId, page.id);
 
     this.proposeFromTools(page, results, evidence);
 
@@ -174,23 +205,11 @@ class ReviewService {
             falsePositives: allViolations.filter((rule) => overridden.has(rule)),
           },
           pendingReview: own.filter((finding) => finding.review.status === 'proposed').length,
-          findings: own.map((finding) => limitTargets(finding, maxTargets)),
+          findings: own,
         };
       });
 
-    const summary = Object.fromEntries(OUTCOME_ORDER.map((outcome) => [outcome, 0])) as Record<EarlOutcome, number>;
-    for (const check of checks) summary[check.outcome]++;
-
-    return {
-      page,
-      site: reviewRepository.findSiteByHost(page.host),
-      catalog: { id: catalog.id, version: catalog.version },
-      evidence: evidence
-        ? { collected: Object.keys(evidence.items), errors: evidence.errors as Record<string, string> }
-        : null,
-      summary,
-      checks,
-    };
+    return { checks, evidence };
   }
 
   /** Evidencia de una pagina, opcionalmente solo de algunos tipos para no mandar de mas. */

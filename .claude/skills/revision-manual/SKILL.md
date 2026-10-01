@@ -94,6 +94,10 @@ evidencia deja en duda.
 
 ## Al terminar
 
+Si la página es de un sitio, `get_sign_off_preview` con la muestra que te hayan indicado (o las
+páginas que has revisado) dice qué queda para que una persona pueda firmar. Inclúyelo en el resumen.
+Tú no firmas: no hay herramienta para eso.
+
 Resume por página: cuántos criterios has cerrado por resultado, los `failed` con su elemento, los
 `cantTell` con lo que falta, y cuáles necesitan lector de pantalla en la capa 3. No digas que la
 web "cumple": eso solo lo puede decir la firma.

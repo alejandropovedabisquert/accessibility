@@ -128,6 +128,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_axe
   ON manual_findings (page_id, axe_rule_id, check_id) WHERE source_kind = 'axe-needs-review';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_applicability
   ON manual_findings (page_id, check_id) WHERE source_kind = 'applicability';
+-- Sin ON DELETE CASCADE a proposito: un sitio con firmas no se puede borrar.
+-- El contenido firmado vive en disco (scan-results/sign-offs/<id>.json).
+CREATE TABLE IF NOT EXISTS sign_offs (
+  id               TEXT PRIMARY KEY,
+  site_id          TEXT NOT NULL REFERENCES sites (id),
+  page_ids         TEXT NOT NULL,
+  catalog_id       TEXT NOT NULL,
+  catalog_version  INTEGER NOT NULL,
+  signer           TEXT NOT NULL,
+  credential       TEXT,
+  signed_at        TEXT NOT NULL,
+  conformance      TEXT NOT NULL,
+  findings_hash    TEXT NOT NULL,
+  statement        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sign_offs_site ON sign_offs (site_id, signed_at DESC);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_false_positive
   ON manual_findings (page_id, axe_rule_id, check_id) WHERE source_kind = 'axe-false-positive';
 `;

@@ -1,4 +1,5 @@
 import type {
+  ConformanceStatus,
   AuditStatus,
   ComplianceGroupKey,
   EarlOutcome,
@@ -176,4 +177,11 @@ const OUTCOME_SEVERITY: readonly EarlOutcome[] = ['failed', 'cantTell', 'passed'
 export const siteCheckOutcome = (findings: ReadonlyArray<{ outcome: EarlOutcome; review: { status: ReviewStatus } }>): EarlOutcome => {
   const outcomes = new Set(findings.filter((finding) => finding.review.status !== 'rejected').map((finding) => finding.outcome));
   return OUTCOME_SEVERITY.find((outcome) => outcomes.has(outcome)) ?? 'untested';
+};
+
+/** Los tres estados de la declaración de accesibilidad del RD 1112/2018. */
+export const CONFORMANCE_LABEL: Record<ConformanceStatus, string> = {
+  full: 'Plenamente conforme',
+  partial: 'Parcialmente conforme',
+  'non-conformant': 'No conforme',
 };

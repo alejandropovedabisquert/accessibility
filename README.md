@@ -497,6 +497,32 @@ en cada uno validar, rechazar, corregir, añadir un resultado propio o marcar un
 **Sitios** agrupa las páginas de una web por host y recoge los 4 criterios de sitio. Quien revisa se
 recuerda en una cookie; no hay autenticación.
 
+### Firma de una web
+
+Desde la página del sitio se elige la **muestra** de páginas (WCAG-EM) y se ve qué se firmaría y qué lo
+impide: criterios sin revisar o sin decidir y hallazgos sin validar en esas páginas. Sin bloqueos se
+puede firmar.
+
+```
+GET  /api/sites/:id/sign-off-preview?pageIds=a,b   Lo que se firmaría y lo que falta
+POST /api/sites/:id/sign-offs                      Firmar (capa 3)
+GET  /api/sign-offs/:id                            La firma, y si lo firmado sigue coincidiendo
+GET  /api/sign-offs/:id/earl?download=1            EARL 1.0 en JSON-LD
+GET  /api/sign-offs/:id/report.pdf                 Informe firmado
+```
+
+- **El estado de conformidad se calcula**, con los tres valores de la declaración del RD 1112/2018, y
+  solo sobre los requisitos legales (WCAG 2.1 A/AA, por EN 301 549 v3.2.1). Los criterios nuevos de
+  WCAG 2.2 se informan aparte. El RD no cuantifica "parcialmente": aquí es **no conforme** si falla la
+  mitad o más de los requisitos que aplican, **parcialmente** si falla alguno y **plenamente** si
+  ninguno.
+- En la muestra, un criterio toma el peor resultado de sus páginas, y una página sin revisar pesa más
+  que otra que cumple: el criterio no está evaluado en la web.
+- **Lo firmado se congela** en `scan-results/sign-offs/<id>.json` con su huella SHA-256. El PDF y el
+  EARL salen siempre de esa copia. Si después alguien corrige un hallazgo de la muestra, la firma sigue
+  igual pero avisa de que ya no coincide con los datos actuales.
+- Un sitio con firmas no se puede borrar.
+
 ### MCP para Claude Code
 
 `.mcp.json` registra dos servidores: `accessibility` (esta API) y `playwright`. Con el backend

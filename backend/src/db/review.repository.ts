@@ -6,9 +6,39 @@ import type {
   FindingSubject,
   FindingTarget,
   ManualFinding,
+  ConformanceStatus,
   ReviewStatus,
   Site,
+  SignOff,
 } from '../types/audit.types';
+
+interface SignOffRow {
+  id: string;
+  site_id: string;
+  page_ids: string;
+  catalog_id: string;
+  catalog_version: number;
+  signer: string;
+  credential: string | null;
+  signed_at: string;
+  conformance: string;
+  findings_hash: string;
+  statement: string;
+}
+
+const toSignOff = (row: SignOffRow): SignOff => ({
+  id: row.id,
+  siteId: row.site_id,
+  pageIds: JSON.parse(row.page_ids) as string[],
+  catalogId: row.catalog_id,
+  catalogVersion: row.catalog_version,
+  signer: row.signer,
+  credential: row.credential,
+  signedAt: row.signed_at,
+  conformance: row.conformance as ConformanceStatus,
+  findingsHash: row.findings_hash,
+  statement: row.statement,
+});
 
 interface SiteRow {
   id: string;
@@ -235,6 +265,36 @@ class ReviewRepository {
       `)
       .run({ ...this.findingParams(finding, finding.subject, finding.source), ...review });
     return result.changes > 0;
+  }
+
+  insertSignOff(signOff: SignOff): void {
+    getDb()
+      .prepare(`
+        INSERT INTO sign_offs (id, site_id, page_ids, catalog_id, catalog_version, signer, credential,
+          signed_at, conformance, findings_hash, statement)
+        VALUES (@id, @siteId, @pageIds, @catalogId, @catalogVersion, @signer, @credential, @signedAt,
+          @conformance, @findingsHash, @statement)
+      `)
+      .run({ ...signOff, pageIds: JSON.stringify(signOff.pageIds) });
+  }
+
+  findSignOff(id: string): SignOff | null {
+    const row = getDb().prepare('SELECT * FROM sign_offs WHERE id = @id').get({ id }) as SignOffRow | undefined;
+    return row ? toSignOff(row) : null;
+  }
+
+  listSiteSignOffs(siteId: string): SignOff[] {
+    const rows = getDb()
+      .prepare('SELECT * FROM sign_offs WHERE site_id = @siteId ORDER BY signed_at DESC')
+      .all({ siteId }) as SignOffRow[];
+    return rows.map(toSignOff);
+  }
+
+  countSiteSignOffs(siteId: string): number {
+    const row = getDb().prepare('SELECT COUNT(*) AS total FROM sign_offs WHERE site_id = @siteId').get({ siteId }) as {
+      total: number;
+    };
+    return row.total;
   }
 
   findFinding(id: string): ManualFinding | null {

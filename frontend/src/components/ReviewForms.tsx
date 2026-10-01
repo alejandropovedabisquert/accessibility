@@ -7,6 +7,7 @@ import {
   createSiteAction,
   falsePositiveAction,
   reviewFindingAction,
+  signOffAction,
   type FormState,
 } from '@/app/actions';
 import { OUTCOME_LABEL } from '@/lib/format';
@@ -286,6 +287,63 @@ export function CreateSiteForm() {
         </p>
       </div>
       <Submit variant="primary">Crear sitio</Submit>
+    </form>
+  );
+}
+
+/** Firma de la web (capa 3). La muestra viene ya elegida y comprobada en la vista previa. */
+export function SignOffForm({
+  siteId,
+  siteName,
+  pageIds,
+  reviewer,
+  canSign,
+}: {
+  siteId: string;
+  siteName: string;
+  pageIds: string[];
+  reviewer: string;
+  canSign: boolean;
+}) {
+  const [state, action] = useActionState(signOffAction, INITIAL);
+  return (
+    <form action={action} className="space-y-4">
+      <input type="hidden" name="siteId" value={siteId} />
+      {pageIds.map((id) => (
+        <input key={id} type="hidden" name="pageIds" value={id} />
+      ))}
+      <FormError state={state} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="signer" className={LABEL}>
+            Firma
+          </label>
+          <input id="signer" name="signer" defaultValue={reviewer} required autoComplete="name" className={FIELD} />
+        </div>
+        <div>
+          <label htmlFor="credential" className={LABEL}>
+            Certificación <span className="font-normal text-ink-muted">(opcional)</span>
+          </label>
+          <input id="credential" name="credential" placeholder="IAAP WAS" className={FIELD} />
+        </div>
+      </div>
+      <div>
+        <label htmlFor="statement" className={LABEL}>
+          Declaración
+        </label>
+        <textarea
+          id="statement"
+          name="statement"
+          required
+          rows={4}
+          defaultValue={`Declaro que he evaluado la muestra de páginas de ${siteName} indicada en este informe frente a los criterios A y AA de WCAG 2.2, incluidas pruebas con lectores de pantalla, y que los resultados reflejan esa evaluación.`}
+          className={FIELD}
+        />
+        <p className={HINT}>La firma no se puede modificar después. Si cambian los hallazgos, la firma lo indicará.</p>
+      </div>
+      <Submit variant="primary" disabled={!canSign}>
+        Firmar la web
+      </Submit>
     </form>
   );
 }
