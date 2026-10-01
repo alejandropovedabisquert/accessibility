@@ -120,6 +120,16 @@ export const evidenceQuerySchema = z.object({
 /** Solo los nombres que genera el recolector: nada de rutas. */
 export const evidenceFileSchema = z.string().regex(/^[a-z0-9-]+\.jpg$/, 'Nombre de captura no válido');
 
+/** La justificacion es obligatoria: un falso positivo sin motivo no se puede auditar. */
+export const falsePositiveSchema = z
+  .object({
+    checkId: z.string().trim().min(1),
+    ruleId: z.string().trim().min(1),
+    by: nameSchema,
+    note: z.string().trim().min(1, 'Explica por qué es un falso positivo').max(TEXT_LIMIT),
+  })
+  .strict();
+
 export const pageReviewQuerySchema = z.object({
   maxTargets: z.coerce.number().int().min(1).max(MAX_NODES_LIMIT).default(DEFAULT_MAX_NODES),
 });

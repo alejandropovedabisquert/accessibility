@@ -15,6 +15,7 @@ const NAV = [
   { href: '/', label: 'Auditorías' },
   { href: '/nueva', label: 'Nueva auditoría' },
   { href: '/historico', label: 'Histórico' },
+  { href: '/sitios', label: 'Sitios' },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -128,6 +128,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_axe
   ON manual_findings (page_id, axe_rule_id, check_id) WHERE source_kind = 'axe-needs-review';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_applicability
   ON manual_findings (page_id, check_id) WHERE source_kind = 'applicability';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_false_positive
+  ON manual_findings (page_id, axe_rule_id, check_id) WHERE source_kind = 'axe-false-positive';
 `;
 
 /**

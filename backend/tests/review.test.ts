@@ -277,18 +277,75 @@ describe('sitios', () => {
   });
 });
 
+describe('falsos positivos de axe (capa 3)', () => {
+  const url = () => `/api/audits/${auditId}/pages/${pageId}/false-positives`;
+  const nonText = async () =>
+    checkOf((await request(app).get(reviewUrl()).expect(200)).body as PageReview, 'non-text-content');
+
+  it('validan y quitan la violacion del calculo, sin dar el criterio por cumplido', async () => {
+    const res = await request(app)
+      .post(url())
+      .send({ checkId: 'non-text-content', ruleId: 'image-alt', by: HUMAN.name, note: 'Es un píxel de seguimiento oculto' })
+      .expect(201);
+    expect(res.body.source).toEqual({ kind: 'axe-false-positive', ruleId: 'image-alt', checkId: 'non-text-content' });
+    expect(res.body.review).toMatchObject({ status: 'validated', by: HUMAN.name, note: 'Es un píxel de seguimiento oculto' });
+    expect(res.body.assertedBy.type).toBe('human');
+
+    const check = await nonText();
+    expect(check.axe.violations).toEqual([]);
+    expect(check.axe.falsePositives).toEqual(['image-alt']);
+    expect(check.outcome).toBe('untested');
+  });
+
+  it('no se duplican, piden justificacion y solo valen para violaciones reales del criterio', async () => {
+    await request(app)
+      .post(url())
+      .send({ checkId: 'non-text-content', ruleId: 'image-alt', by: HUMAN.name, note: 'otra vez' })
+      .expect(409);
+    await request(app).post(url()).send({ checkId: 'non-text-content', ruleId: 'image-alt', by: HUMAN.name }).expect(400);
+    await request(app)
+      .post(url())
+      .send({ checkId: 'contrast-minimum', ruleId: 'image-alt', by: HUMAN.name, note: 'x' })
+      .expect(400);
+    await request(app)
+      .post(url())
+      .send({ checkId: 'non-text-content', ruleId: 'svg-img-alt', by: HUMAN.name, note: 'x' })
+      .expect(400);
+  });
+
+  it('rechazarlo devuelve la violacion', async () => {
+    const fp = (await nonText()).findings.find((finding) => finding.source.kind === 'axe-false-positive');
+    await request(app).patch(`/api/findings/${fp?.id}/review`).send({ status: 'rejected', by: HUMAN.name }).expect(200);
+    const check = await nonText();
+    expect(check.axe.violations).toEqual(['image-alt']);
+    expect(check.outcome).toBe('failed');
+  });
+});
+
 describe('deriveOutcome', () => {
-  const finding = (outcome: ManualFinding['outcome'], status: ManualFinding['review']['status'] = 'proposed') =>
-    ({ outcome, review: { status } }) as ManualFinding;
+  const finding = (
+    outcome: ManualFinding['outcome'],
+    status: ManualFinding['review']['status'] = 'proposed',
+    source: ManualFinding['source'] = { kind: 'check', checkId: 'x', catalogVersion: 1 },
+  ) => ({ outcome, review: { status }, source }) as ManualFinding;
+  const falsePositive = (ruleId: string, status: ManualFinding['review']['status'] = 'validated') =>
+    finding('passed', status, { kind: 'axe-false-positive', ruleId, checkId: 'x' });
 
   it('una violacion de axe manda sobre cualquier hallazgo', () => {
-    expect(deriveOutcome(true, [finding('passed', 'validated')])).toBe('failed');
+    expect(deriveOutcome(['image-alt'], [finding('passed', 'validated')])).toBe('failed');
+  });
+
+  it('un falso positivo quita su regla, no las demas, y no cuenta como cumple', () => {
+    expect(deriveOutcome(['image-alt'], [falsePositive('image-alt')])).toBe('untested');
+    expect(deriveOutcome(['image-alt', 'role-img-alt'], [falsePositive('image-alt')])).toBe('failed');
+    expect(deriveOutcome(['image-alt'], [falsePositive('image-alt', 'rejected')])).toBe('failed');
+    expect(deriveOutcome(['image-alt'], [falsePositive('image-alt'), finding('cantTell')])).toBe('cantTell');
   });
 
   it('manda lo peor de los hallazgos no rechazados', () => {
-    expect(deriveOutcome(false, [finding('passed'), finding('cantTell')])).toBe('cantTell');
-    expect(deriveOutcome(false, [finding('passed'), finding('failed', 'rejected')])).toBe('passed');
-    expect(deriveOutcome(false, [finding('inapplicable'), finding('passed')])).toBe('passed');
-    expect(deriveOutcome(false, [])).toBe('untested');
+    expect(deriveOutcome([], [finding('passed'), finding('cantTell')])).toBe('cantTell');
+    expect(deriveOutcome([], [finding('passed'), finding('failed', 'rejected')])).toBe('passed');
+    expect(deriveOutcome([], [finding('inapplicable'), finding('passed')])).toBe('passed');
+    expect(deriveOutcome([], [])).toBe('untested');
   });
 });

@@ -478,6 +478,7 @@ POST  /api/audits/:id/pages/:pageId/findings   Hallazgo de un criterio de págin
 POST  /api/sites/:id/findings                  Hallazgo de un criterio de sitio (2.4.5, 3.2.3, 3.2.4, 3.2.6)
 PATCH /api/findings/:id                        Cambiar un hallazgo aún sin revisar
 PATCH /api/findings/:id/review                 Validar, rechazar o corregir (capa 3)
+POST  /api/audits/:id/pages/:pageId/false-positives   Declarar falso positivo una violación de axe (capa 3)
 GET/POST/DELETE /api/sites[/:id]               Webs: una página es del sitio cuyo host coincide
 ```
 
@@ -485,6 +486,16 @@ Al abrir la revisión de una página se crean solas dos clases de propuestas: un
 "requiere revisión manual" de axe, y un `inapplicable` por cada criterio cuyo contenido no aparece
 en la página (sin vídeo, sin formularios...). Todo hallazgo nace `proposed`; solo la capa 3 lo pasa a
 `validated`, `rejected` o `amended`, y a partir de ahí no se puede editar.
+
+Una violación de axe da el criterio por fallado, salvo que la capa 3 la declare **falso positivo**
+con una justificación. El falso positivo nace validado a nombre de quien lo declara y se deshace
+rechazándolo. No cuenta como "cumple": solo deja de contar esa violación.
+
+En la interfaz, cada página completada tiene su **Revisión manual**: evidencia (capturas, recorrido con
+el tabulador, imágenes), los 51 criterios de página agrupados por principio con filtros por estado, y
+en cada uno validar, rechazar, corregir, añadir un resultado propio o marcar un falso positivo.
+**Sitios** agrupa las páginas de una web por host y recoge los 4 criterios de sitio. Quien revisa se
+recuerda en una cookie; no hay autenticación.
 
 ### MCP para Claude Code
 

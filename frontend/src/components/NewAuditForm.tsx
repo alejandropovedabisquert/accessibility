@@ -4,12 +4,9 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createAuditAction, type FormState } from '@/app/actions';
 import { CUSTOM_SECTION } from '@/lib/format';
-import { buttonStyles, Card, ExcludeNotice } from '@/components/ui';
+import { buttonStyles, Card, ExcludeNotice, FIELD, HINT, LABEL } from '@/components/ui';
 import type { Meta } from '@/lib/types';
 
-const FIELD = 'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm';
-const LABEL = 'mb-1 block text-sm font-medium';
-const HINT = 'mt-1 text-xs text-ink-muted';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -222,6 +219,18 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
             ))}
           </div>
         </fieldset>
+      </Card>
+
+      <Card className="space-y-2 p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">Revisión manual</h2>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="evidence" aria-describedby="evidence-hint" className="mt-0.5 size-4" />
+          <span>Recoger evidencia para la revisión manual</span>
+        </label>
+        <p id="evidence-hint" className={HINT}>
+          Capturas, recorrido con el tabulador, reflujo a 320 px, zoom, espaciado de texto, imágenes y
+          formularios. Es lo que usan la revisión asistida y quien valida. Añade unos segundos por página.
+        </p>
       </Card>
 
       <Card className="space-y-5 p-5">

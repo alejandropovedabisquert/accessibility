@@ -100,6 +100,9 @@ export default async function PageDetail({ params }: Props) {
         }
         actions={
           <>
+            <Link href={`/auditorias/${id}/paginas/${pageId}/revision`} className={buttonStyles.primary}>
+              Revisión manual
+            </Link>
             <a href={pdfHref} className={buttonStyles.secondary}>
               Descargar PDF
             </a>

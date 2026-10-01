@@ -294,11 +294,14 @@ export type FindingSubject = { kind: 'page'; pageId: string } | { kind: 'site'; 
 /**
  * `applicability`: propuesta de no aplicable porque `appliesWhen` no caso con
  * nada al recoger la evidencia. La pone el sistema, como las de axe.
+ * `axe-false-positive`: la capa 3 declara que una violacion de axe no lo es
+ * para ese criterio. Nace validado y solo lo crea una persona.
  */
 export type FindingSource =
   | { kind: 'check'; checkId: string; catalogVersion: number }
   | { kind: 'axe-needs-review'; ruleId: string; checkId: string }
-  | { kind: 'applicability'; checkId: string; selector: string };
+  | { kind: 'applicability'; checkId: string; selector: string }
+  | { kind: 'axe-false-positive'; ruleId: string; checkId: string };
 
 export interface FindingTarget {
   selector: string;
@@ -350,7 +353,8 @@ export interface CheckReview {
   criterion: string;
   name: string;
   outcome: EarlOutcome;
-  axe: { violations: string[]; needsReview: string[] };
+  /** `violations` ya sin las que la capa 3 ha marcado como falso positivo, que van en `falsePositives`. */
+  axe: { violations: string[]; needsReview: string[]; falsePositives: string[] };
   /** Hallazgos sin validar todavia por la capa 3. */
   pendingReview: number;
   findings: ManualFinding[];

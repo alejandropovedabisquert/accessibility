@@ -1,6 +1,9 @@
 import type {
   AuditStatus,
   ComplianceGroupKey,
+  EarlOutcome,
+  ReviewStatus,
+  Assertor,
   Impact,
   Meta,
   PageStatus,
@@ -137,4 +140,40 @@ export const COMPLIANCE_LABEL: Record<ComplianceGroupKey, { title: string; hint:
     title: 'Mejoras',
     hint: 'WCAG AAA y buenas prácticas: no exigibles legalmente',
   },
+};
+
+/** Resultados EARL en castellano. `untested` es "nadie lo ha mirado", no "no cumple". */
+export const OUTCOME_LABEL: Record<EarlOutcome, string> = {
+  passed: 'Cumple',
+  failed: 'No cumple',
+  cantTell: 'Sin decidir',
+  inapplicable: 'No aplica',
+  untested: 'Sin revisar',
+};
+
+export const OUTCOMES: readonly EarlOutcome[] = ['failed', 'cantTell', 'untested', 'passed', 'inapplicable'];
+
+export const REVIEW_STATUS_LABEL: Record<ReviewStatus, string> = {
+  proposed: 'Pendiente de validar',
+  validated: 'Validado',
+  rejected: 'Rechazado',
+  amended: 'Corregido',
+};
+
+export const assertorLabel = (assertor: Assertor): string => {
+  if (assertor.type === 'tool') return assertor.name;
+  if (assertor.type === 'ai') return assertor.model ? `${assertor.name} (${assertor.model})` : `${assertor.name} (IA)`;
+  return assertor.assistiveTech ? `${assertor.name} · ${assertor.assistiveTech}` : assertor.name;
+};
+
+const OUTCOME_SEVERITY: readonly EarlOutcome[] = ['failed', 'cantTell', 'passed', 'inapplicable', 'untested'];
+
+/**
+ * Estado de un criterio de sitio: lo peor de sus hallazgos no rechazados. Es la
+ * misma regla que `deriveOutcome` del backend, sin la parte de axe (los
+ * criterios de sitio no tienen reglas de axe).
+ */
+export const siteCheckOutcome = (findings: ReadonlyArray<{ outcome: EarlOutcome; review: { status: ReviewStatus } }>): EarlOutcome => {
+  const outcomes = new Set(findings.filter((finding) => finding.review.status !== 'rejected').map((finding) => finding.outcome));
+  return OUTCOME_SEVERITY.find((outcome) => outcomes.has(outcome)) ?? 'untested';
 };

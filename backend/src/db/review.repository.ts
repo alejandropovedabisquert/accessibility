@@ -72,6 +72,9 @@ const toSource = (row: FindingRow): FindingSource => {
   if (row.source_kind === 'axe-needs-review') {
     return { kind: 'axe-needs-review', ruleId: row.axe_rule_id ?? '', checkId: row.check_id };
   }
+  if (row.source_kind === 'axe-false-positive') {
+    return { kind: 'axe-false-positive', ruleId: row.axe_rule_id ?? '', checkId: row.check_id };
+  }
   if (row.source_kind === 'applicability') {
     return { kind: 'applicability', checkId: row.check_id, selector: row.source_selector ?? '' };
   }
@@ -203,7 +206,7 @@ class ReviewRepository {
       checkId: source.checkId,
       catalogVersion: source.kind === 'check' ? source.catalogVersion : (catalogVersion ?? 0),
       sourceKind: source.kind,
-      axeRuleId: source.kind === 'axe-needs-review' ? source.ruleId : null,
+      axeRuleId: source.kind === 'axe-needs-review' || source.kind === 'axe-false-positive' ? source.ruleId : null,
       sourceSelector: source.kind === 'applicability' ? source.selector : null,
       outcome: finding.outcome,
       targets: JSON.stringify(finding.targets),
@@ -214,6 +217,24 @@ class ReviewRepository {
       assertedBy: JSON.stringify(finding.assertedBy),
       createdAt: finding.createdAt,
     };
+  }
+
+  /**
+   * Un falso positivo nace ya revisado por quien lo declara. Devuelve false si
+   * ya habia uno para esa pagina, regla y criterio (indice unico).
+   */
+  insertFalsePositive(finding: NewFinding, review: { by: string; at: string; note: string }): boolean {
+    const result = getDb()
+      .prepare(`
+        INSERT OR IGNORE INTO manual_findings (id, page_id, site_id, check_id, catalog_version,
+          source_kind, axe_rule_id, outcome, targets, target_count, description, recommendation,
+          evidence_refs, asserted_by, review_status, reviewed_by, reviewed_at, review_note, created_at)
+        VALUES (@id, @pageId, NULL, @checkId, @catalogVersion, 'axe-false-positive', @axeRuleId,
+          @outcome, @targets, @targetCount, @description, NULL, @evidenceRefs, @assertedBy, 'validated',
+          @by, @at, @note, @createdAt)
+      `)
+      .run({ ...this.findingParams(finding, finding.subject, finding.source), ...review });
+    return result.changes > 0;
   }
 
   findFinding(id: string): ManualFinding | null {

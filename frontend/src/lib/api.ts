@@ -1,4 +1,10 @@
 import type {
+  CheckCatalog,
+  CollectedEvidenceKind,
+  PageEvidence,
+  PageReview,
+  Site,
+  SiteDetail,
   Audit,
   AuditWithPages,
   AxeResults,
@@ -78,3 +84,22 @@ export const getHistory = (url: string, include: string | null, screen: ScanScre
 };
 
 export const getScannedUrls = () => apiFetch<ScannedUrl[]>('/history/urls');
+
+export const getChecks = () => apiFetch<CheckCatalog>('/checks');
+
+/** Abrirla crea en la API las propuestas automáticas (needs-review de axe, no aplicables). */
+export const getPageReview = (auditId: string, pageId: string, maxTargets = 10) =>
+  apiFetch<PageReview>(`/audits/${auditId}/pages/${pageId}/review?maxTargets=${maxTargets}`);
+
+export const getPageEvidence = (auditId: string, pageId: string, kinds?: CollectedEvidenceKind[]) =>
+  apiFetch<PageEvidence>(
+    `/audits/${auditId}/pages/${pageId}/evidence${kinds ? `?kinds=${kinds.join(',')}` : ''}`,
+  );
+
+/** Ruta del proxy para una captura de evidencia: el navegador nunca llama a la API directamente. */
+export const evidenceImageHref = (auditId: string, pageId: string, name: string) =>
+  `/api/backend/audits/${auditId}/pages/${pageId}/evidence/files/${encodeURIComponent(name)}`;
+
+export const listSites = () => apiFetch<Site[]>('/sites');
+
+export const getSite = (id: string) => apiFetch<SiteDetail>(`/sites/${id}`);

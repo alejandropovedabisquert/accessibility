@@ -2,6 +2,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type {
   AuditStatus,
+  EarlOutcome,
+  ReviewStatus,
   Compliance,
   Counters,
   Impact,
@@ -15,9 +17,16 @@ import {
   COMPLIANCE_LABEL,
   IMPACT_LABEL,
   LEVEL_LABEL,
+  OUTCOME_LABEL,
   PAGE_STATUS_LABEL,
+  REVIEW_STATUS_LABEL,
   sectionLabel,
 } from '@/lib/format';
+
+/** Clases de los campos de formulario, compartidas por todos los formularios. */
+export const FIELD = 'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm';
+export const LABEL = 'mb-1 block text-sm font-medium';
+export const HINT = 'mt-1 text-xs text-ink-muted';
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -347,5 +356,36 @@ export function ExcludeNotice({ selectors, className = '' }: { selectors: string
         legal y debe revisarse por separado.
       </p>
     </div>
+  );
+}
+
+const OUTCOME_STYLE: Record<EarlOutcome, string> = {
+  passed: 'bg-ok-soft text-ok border-ok/30',
+  failed: 'bg-critical-soft text-critical border-critical/30',
+  cantTell: 'bg-moderate-soft text-moderate border-moderate/30',
+  inapplicable: 'bg-surface-muted text-ink-muted border-line',
+  untested: 'bg-surface text-ink-muted border-line border-dashed',
+};
+
+export function OutcomeBadge({ outcome }: { outcome: EarlOutcome }) {
+  return (
+    <span className={`whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${OUTCOME_STYLE[outcome]}`}>
+      {OUTCOME_LABEL[outcome]}
+    </span>
+  );
+}
+
+const REVIEW_STYLE: Record<ReviewStatus, string> = {
+  proposed: 'bg-accent-soft text-accent border-accent/30',
+  validated: 'bg-ok-soft text-ok border-ok/30',
+  rejected: 'bg-surface-muted text-ink-muted border-line line-through',
+  amended: 'bg-ok-soft text-ok border-ok/30',
+};
+
+export function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
+  return (
+    <span className={`whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${REVIEW_STYLE[status]}`}>
+      {REVIEW_STATUS_LABEL[status]}
+    </span>
   );
 }

@@ -171,6 +171,7 @@ export default async function AuditDetailPage({ params }: Props) {
               <th scope="col" className="px-4 py-3 font-medium">Incumplimientos</th>
               <th scope="col" className="px-4 py-3 text-center font-medium">Cumplimiento legal</th>
               <th scope="col" className="px-4 py-3 font-medium">Duración</th>
+              <th scope="col" className="px-4 py-3 font-medium">Revisión manual</th>
             </tr>
           </thead>
           <tbody>
@@ -207,6 +208,23 @@ export default async function AuditDetailPage({ params }: Props) {
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-ink-muted tabular-nums">
                   {formatDuration(page.durationMs)}
+                </td>
+                <td className="px-4 py-3">
+                  {page.status === 'completed' ? (
+                    <Link
+                      href={`/auditorias/${audit.id}/paginas/${page.id}/revision`}
+                      className="text-accent underline underline-offset-2"
+                    >
+                      Revisar
+                      <span className="sr-only">
+                        {' '}
+                        {displayUrl(page.url)}
+                        {multiScreen ? ` en ${screenLabel(page)}` : ''}
+                      </span>
+                    </Link>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
                 </td>
               </tr>
             ))}

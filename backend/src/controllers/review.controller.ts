@@ -5,6 +5,7 @@ import {
   createSiteSchema,
   evidenceFileSchema,
   evidenceQuerySchema,
+  falsePositiveSchema,
   pageReviewQuerySchema,
   reviewFindingSchema,
   updateFindingSchema,
@@ -61,6 +62,12 @@ export const getEvidenceFile = asyncHandler(
 export const createPageFinding = asyncHandler(async (req: Request<PageParams>, res: Response) => {
   const body = createFindingSchema.parse(req.body);
   const finding = reviewService.createPageFinding(req.params.id, req.params.pageId, body);
+  res.status(201).location(`/api/findings/${finding.id}`).json(finding);
+});
+
+export const createFalsePositive = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  const body = falsePositiveSchema.parse(req.body);
+  const finding = await reviewService.createFalsePositive(req.params.id, req.params.pageId, body);
   res.status(201).location(`/api/findings/${finding.id}`).json(finding);
 });
 

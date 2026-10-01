@@ -51,15 +51,30 @@ export interface FindingReviewInput {
 
 const OUTCOME_ORDER: readonly EarlOutcome[] = ['failed', 'cantTell', 'passed', 'inapplicable', 'untested'];
 
+const isActive = (finding: ManualFinding) => finding.review.status !== 'rejected';
+
+/** Reglas de axe que la capa 3 ha declarado falso positivo para este criterio (y no ha rechazado despues). */
+export const falsePositiveRules = (findings: readonly ManualFinding[]): Set<string> =>
+  new Set(
+    findings.flatMap((finding) =>
+      finding.source.kind === 'axe-false-positive' && isActive(finding) ? [finding.source.ruleId] : [],
+    ),
+  );
+
 /**
  * Estado de un criterio en una pagina. Una violacion de axe basta para darlo por
- * fallado (sus `passes` nunca lo cierran, ver `CheckCoverage`); si no, manda lo
- * peor de los hallazgos que la capa 3 no ha rechazado.
+ * fallado (sus `passes` nunca lo cierran, ver `CheckCoverage`), salvo que la
+ * capa 3 la haya declarado falso positivo. Si no queda ninguna, manda lo peor de
+ * los hallazgos no rechazados. Los falsos positivos no cuentan como resultado:
+ * que una regla de axe se equivoque no dice que el criterio se cumpla.
  */
-export const deriveOutcome = (axeViolation: boolean, findings: readonly ManualFinding[]): EarlOutcome => {
-  if (axeViolation) return 'failed';
+export const deriveOutcome = (axeViolations: readonly string[], findings: readonly ManualFinding[]): EarlOutcome => {
+  const overridden = falsePositiveRules(findings);
+  if (axeViolations.some((rule) => !overridden.has(rule))) return 'failed';
   const outcomes = new Set<EarlOutcome>(
-    findings.filter((finding) => finding.review.status !== 'rejected').map((finding) => finding.outcome),
+    findings
+      .filter((finding) => isActive(finding) && finding.source.kind !== 'axe-false-positive')
+      .map((finding) => finding.outcome),
   );
   return OUTCOME_ORDER.find((outcome) => outcomes.has(outcome)) ?? 'untested';
 };
@@ -146,13 +161,18 @@ class ReviewService {
       .filter((check) => check.scope === 'page')
       .map((check): CheckReview => {
         const own = findings.filter((finding) => finding.source.checkId === check.id);
-        const violations = check.axeRules.filter((rule) => violated.has(rule));
+        const allViolations = check.axeRules.filter((rule) => violated.has(rule));
+        const overridden = falsePositiveRules(own);
         return {
           checkId: check.id,
           criterion: check.criterion,
           name: check.name,
-          outcome: deriveOutcome(violations.length > 0, own),
-          axe: { violations, needsReview: check.axeRules.filter((rule) => needsReview.has(rule)) },
+          outcome: deriveOutcome(allViolations, own),
+          axe: {
+            violations: allViolations.filter((rule) => !overridden.has(rule)),
+            needsReview: check.axeRules.filter((rule) => needsReview.has(rule)),
+            falsePositives: allViolations.filter((rule) => overridden.has(rule)),
+          },
           pendingReview: own.filter((finding) => finding.review.status === 'proposed').length,
           findings: own.map((finding) => limitTargets(finding, maxTargets)),
         };
@@ -203,6 +223,51 @@ class ReviewService {
     if (!reviewRepository.findSite(siteId)) throw notFound('Sitio no encontrado');
     requireCheck(input.checkId, 'site');
     return this.insert({ kind: 'site', siteId }, input);
+  }
+
+  /**
+   * La capa 3 declara que una violacion de axe no lo es para un criterio. Va
+   * validada desde el principio y con justificacion obligatoria; para deshacerlo
+   * se rechaza con la revision normal.
+   */
+  public async createFalsePositive(
+    auditId: string,
+    pageId: string,
+    input: { checkId: string; ruleId: string; by: string; note: string },
+  ): Promise<ManualFinding> {
+    const page = this.requireCompletedPage(auditId, pageId);
+    const check = requireCheck(input.checkId, 'page');
+    const results = await rawStore.readRaw(auditId, pageId);
+    const violation = results?.violations.find((rule) => rule.id === input.ruleId);
+    if (!violation || !check.axeRules.includes(input.ruleId)) {
+      throw badRequest(`La regla ${input.ruleId} no es una violación de axe del criterio ${check.criterion} en esta página`);
+    }
+
+    const id = randomUUID();
+    const at = new Date().toISOString();
+    const inserted = reviewRepository.insertFalsePositive(
+      {
+        id,
+        subject: { kind: 'page', pageId: page.id },
+        source: { kind: 'axe-false-positive', ruleId: input.ruleId, checkId: check.id },
+        outcome: 'passed',
+        targets: violation.nodes.slice(0, MAX_NODES_LIMIT).map((node) => {
+          const { selector, html } = toCompactNode(node);
+          return { selector, html };
+        }),
+        targetCount: violation.nodes.length,
+        description: `Falso positivo de axe (${input.ruleId}) para ${check.criterion}: ${input.note}`,
+        recommendation: null,
+        evidenceRefs: [],
+        assertedBy: { type: 'human', name: input.by, model: null, assistiveTech: null },
+        createdAt: at,
+      },
+      { by: input.by, at, note: input.note },
+    );
+    if (!inserted) {
+      throw conflict('Ya hay un falso positivo para esa regla y criterio: cambia su revisión en vez de crear otro');
+    }
+    return this.getFinding(id);
   }
 
   public getFinding(id: string): ManualFinding {

@@ -1,9 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { CUSTOM_SECTION } from '@/lib/format';
-import type { Audit } from '@/lib/types';
+import { REVIEWER_COOKIE } from '@/lib/reviewer';
+import type { Audit, Site } from '@/lib/types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:3000';
 
@@ -110,6 +112,7 @@ export async function createAuditAction(_prev: FormState, formData: FormData): P
 
   if (label) payload.label = label;
   if (tags.length > 0) payload.tags = tags;
+  if (formData.get('evidence') === 'on') payload.evidence = true;
 
   if (device) {
     payload.device = device;
@@ -162,4 +165,147 @@ export async function rerunAuditAction(formData: FormData): Promise<void> {
   const audit = (await res.json()) as Audit;
   revalidatePath('/');
   redirect(`/auditorias/${audit.id}`);
+}
+
+// ---------------------------------------------------------------- revisión (capa 3)
+
+const text = (formData: FormData, name: string): string => String(formData.get(name) ?? '').trim();
+
+/** Solo rutas internas: el formulario dice qué página refrescar y no hay que fiarse de él. */
+const internalPath = (formData: FormData): string => {
+  const path = text(formData, 'path');
+  return path.startsWith('/') && !path.startsWith('//') ? path : '/';
+};
+
+/** Recuerda quién revisa para no pedirlo en cada formulario. No es autenticación: no la hay. */
+const rememberReviewer = async (name: string) => {
+  (await cookies()).set(REVIEWER_COOKIE, name, { path: '/', maxAge: 60 * 60 * 24 * 180, sameSite: 'lax' });
+};
+
+const send = async (path: string, method: string, body: unknown): Promise<Response> =>
+  fetch(`${API_URL}/api${path}`, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+
+/**
+ * Validar, rechazar o corregir un hallazgo. El estado viene del botón pulsado;
+ * el resultado y la descripción solo se mandan al corregir, porque la API
+ * rechaza cambios en una validación o un rechazo.
+ */
+export async function reviewFindingAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const findingId = text(formData, 'findingId');
+  const status = text(formData, 'status');
+  const by = text(formData, 'by');
+  const note = text(formData, 'note');
+  if (!by) return { error: 'Indica quién revisa.' };
+
+  const body: Record<string, unknown> = { status, by, note: note || null };
+  if (status === 'amended') {
+    body.outcome = text(formData, 'outcome');
+    body.description = text(formData, 'description');
+  }
+
+  try {
+    const res = await send(`/findings/${encodeURIComponent(findingId)}/review`, 'PATCH', body);
+    if (!res.ok) return { error: await readError(res) };
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+
+  await rememberReviewer(by);
+  revalidatePath(internalPath(formData));
+  return { error: null };
+}
+
+export async function falsePositiveAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const auditId = text(formData, 'auditId');
+  const pageId = text(formData, 'pageId');
+  const by = text(formData, 'by');
+  const note = text(formData, 'note');
+  if (!by) return { error: 'Indica quién revisa.' };
+  if (!note) return { error: 'Explica por qué es un falso positivo.' };
+
+  try {
+    const res = await send(
+      `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/false-positives`,
+      'POST',
+      { checkId: text(formData, 'checkId'), ruleId: text(formData, 'ruleId'), by, note },
+    );
+    if (!res.ok) return { error: await readError(res) };
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+
+  await rememberReviewer(by);
+  revalidatePath(internalPath(formData));
+  return { error: null };
+}
+
+export async function createSiteAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const name = text(formData, 'name');
+  const hosts = text(formData, 'hosts')
+    .split(/[\s,;]+/)
+    .map((host) => host.trim())
+    .filter(Boolean);
+  if (!name) return { error: 'Ponle un nombre al sitio.' };
+  if (hosts.length === 0) return { error: 'Indica al menos un host o una URL del sitio.' };
+
+  let site: Site;
+  try {
+    const res = await send('/sites', 'POST', { name, hosts });
+    if (!res.ok) return { error: await readError(res) };
+    site = (await res.json()) as Site;
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+
+  revalidatePath('/sitios');
+  redirect(`/sitios/${site.id}`);
+}
+
+export async function deleteSiteAction(formData: FormData): Promise<void> {
+  const id = text(formData, 'id');
+  const res = await fetch(`${API_URL}/api/sites/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' });
+  if (!res.ok) throw new Error(await readError(res));
+
+  revalidatePath('/sitios');
+  redirect('/sitios');
+}
+
+/**
+ * Resultado que registra una persona (p. ej. tras probar con un lector de
+ * pantalla). Nace propuesto, como todos: se valida después con la revisión.
+ */
+export async function createFindingAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const by = text(formData, 'by');
+  const description = text(formData, 'description');
+  if (!by) return { error: 'Indica quién revisa.' };
+  if (!description) return { error: 'Describe qué has comprobado y qué has visto.' };
+
+  const siteId = text(formData, 'siteId');
+  const target = siteId
+    ? `/sites/${encodeURIComponent(siteId)}/findings`
+    : `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/findings`;
+  const assistiveTech = text(formData, 'assistiveTech');
+  const recommendation = text(formData, 'recommendation');
+
+  try {
+    const res = await send(target, 'POST', {
+      checkId: text(formData, 'checkId'),
+      outcome: text(formData, 'outcome'),
+      description,
+      recommendation: recommendation || null,
+      assertedBy: { type: 'human', name: by, assistiveTech: assistiveTech || null },
+    });
+    if (!res.ok) return { error: await readError(res) };
+  } catch {
+    return { error: `No se pudo conectar con la API en ${API_URL}.` };
+  }
+
+  await rememberReviewer(by);
+  revalidatePath(internalPath(formData));
+  return { error: null };
 }
