@@ -1,6 +1,6 @@
 {
-  "id": "wcag22-aa",
-  "version": 1,
+  "id": "wcag22",
+  "version": 2,
   "wcagVersion": "2.2",
   "checks": [
     {
@@ -76,6 +76,54 @@
       "instructions": "Si el vídeo grabado transmite información visual que no se oye, hay audiodescripción. A diferencia de 1.2.3, una alternativa textual no basta."
     },
     {
+      "id": "sign-language-prerecorded",
+      "criterion": "1.2.6",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Lengua de signos (grabado)",
+      "scope": "page",
+      "evidence": ["media", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "video, iframe[src*=\"youtube\"], iframe[src*=\"vimeo\"]",
+      "instructions": "Los vídeos grabados con audio tienen interpretación en lengua de signos (LSE, o la del público de la web) para el contenido hablado."
+    },
+    {
+      "id": "extended-audio-description-prerecorded",
+      "criterion": "1.2.7",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Audiodescripción ampliada (grabado)",
+      "scope": "page",
+      "evidence": ["media", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "video, iframe[src*=\"youtube\"], iframe[src*=\"vimeo\"]",
+      "instructions": "Si las pausas del audio no bastan para describir la información visual, el vídeo se detiene para dar audiodescripción ampliada."
+    },
+    {
+      "id": "media-alternative-prerecorded",
+      "criterion": "1.2.8",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Medio alternativo (grabado)",
+      "scope": "page",
+      "evidence": ["media", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "video, iframe[src*=\"youtube\"], iframe[src*=\"vimeo\"]",
+      "instructions": "Los vídeos grabados tienen una alternativa textual completa (guion con diálogos y descripción de lo visual). A diferencia de 1.2.3, no basta con la audiodescripción."
+    },
+    {
+      "id": "audio-only-live",
+      "criterion": "1.2.9",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Solo audio (en directo)",
+      "scope": "page",
+      "evidence": ["media", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "audio, video, iframe[src*=\"youtube\"], iframe[src*=\"vimeo\"]",
+      "instructions": "Las emisiones en directo de solo audio (radio, podcasts en directo) tienen una alternativa textual en directo, como subtítulos o transcripción en tiempo real. Si no hay emisiones en directo, no aplica."
+    },
+    {
       "id": "info-and-relationships",
       "criterion": "1.3.1",
       "level": "A",
@@ -136,6 +184,18 @@
       "instructions": "Los campos que piden datos del propio usuario (nombre, email, teléfono, dirección...) llevan el autocomplete correcto."
     },
     {
+      "id": "identify-purpose",
+      "criterion": "1.3.6",
+      "level": "AAA",
+      "introducedIn": "2.1",
+      "name": "Identificar el propósito",
+      "scope": "page",
+      "evidence": ["controls", "landmarks"],
+      "requiresAssistiveTech": true,
+      "appliesWhen": null,
+      "instructions": "El propósito de los componentes, iconos y regiones se puede determinar por programa: regiones con landmarks, iconos con nombre accesible, campos con autocomplete. Hace falta para que los productos de apoyo puedan personalizar la interfaz."
+    },
+    {
       "id": "use-of-color",
       "criterion": "1.4.1",
       "level": "A",
@@ -194,6 +254,54 @@
       "requiresAssistiveTech": false,
       "appliesWhen": null,
       "instructions": "No se usan imágenes para mostrar texto que podría ser texto real. Los logotipos están exentos."
+    },
+    {
+      "id": "contrast-enhanced",
+      "criterion": "1.4.6",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Contraste (mejorado)",
+      "scope": "page",
+      "evidence": ["screenshot"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "El texto tiene al menos 7:1 de contraste con su fondo, y 4,5:1 si es grande (24 px, o 18,66 px en negrita). Revisa también texto sobre imágenes, degradados, hover, foco y placeholders."
+    },
+    {
+      "id": "low-or-no-background-audio",
+      "criterion": "1.4.7",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Sonido de fondo bajo o ausente",
+      "scope": "page",
+      "evidence": ["media", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "audio, video, iframe[src*=\"youtube\"], iframe[src*=\"vimeo\"]",
+      "instructions": "En el audio grabado que es sobre todo voz, no hay sonido de fondo, se puede apagar o está al menos 20 dB por debajo de la voz. No aplica a música ni a logotipos sonoros."
+    },
+    {
+      "id": "visual-presentation",
+      "criterion": "1.4.8",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Presentación visual",
+      "scope": "page",
+      "evidence": ["text-content", "screenshot", "zoom-200"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "En los bloques de texto: el usuario puede elegir colores de texto y fondo, las líneas no pasan de 80 caracteres, el texto no está justificado, el interlineado es al menos 1,5 y el espacio entre párrafos al menos 1,5 veces el interlineado, y al ampliar al 200 % no hace falta desplazarse en horizontal para leer una línea."
+    },
+    {
+      "id": "images-of-text-no-exception",
+      "criterion": "1.4.9",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Imágenes de texto (sin excepciones)",
+      "scope": "page",
+      "evidence": ["images", "screenshot"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "No hay imágenes de texto salvo decorativas o esenciales (logotipos). A diferencia de 1.4.5, no vale la excepción de que se puedan personalizar."
     },
     {
       "id": "reflow",
@@ -268,6 +376,18 @@
       "instructions": "El foco puede entrar y salir de cualquier componente con el teclado (iframes, mapas, reproductores, modales)."
     },
     {
+      "id": "keyboard-no-exception",
+      "criterion": "2.1.3",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Teclado (sin excepciones)",
+      "scope": "page",
+      "evidence": ["focus-sequence", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Todo se puede hacer con teclado, sin la excepción de 2.1.1 para funciones que dependen de la trayectoria del puntero (dibujar a mano alzada, mapas que solo se mueven arrastrando)."
+    },
+    {
       "id": "character-key-shortcuts",
       "criterion": "2.1.4",
       "level": "A",
@@ -304,6 +424,54 @@
       "instructions": "Carruseles, animaciones y contenido que se mueve o se actualiza solo durante más de 5 segundos tienen un control para pausarlo, detenerlo u ocultarlo."
     },
     {
+      "id": "no-timing",
+      "criterion": "2.2.3",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Sin tiempo",
+      "scope": "page",
+      "evidence": ["interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "El tiempo no forma parte esencial de nada, salvo multimedia sincronizada y eventos en tiempo real: no hay sesiones que caduquen, reservas bloqueadas con cuenta atrás ni ofertas que obliguen a decidir en un plazo."
+    },
+    {
+      "id": "interruptions",
+      "criterion": "2.2.4",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Interrupciones",
+      "scope": "page",
+      "evidence": ["interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Las interrupciones (avisos, popups promocionales, chats que se abren solos, actualizaciones automáticas) se pueden posponer o desactivar, salvo las de emergencia."
+    },
+    {
+      "id": "re-authenticating",
+      "criterion": "2.2.5",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Nueva autenticación",
+      "scope": "page",
+      "evidence": ["forms", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "form",
+      "instructions": "Si la sesión caduca, al volver a autenticarse se sigue sin perder datos: el formulario o la reserva a medias se conservan."
+    },
+    {
+      "id": "timeouts",
+      "criterion": "2.2.6",
+      "level": "AAA",
+      "introducedIn": "2.1",
+      "name": "Tiempos de espera",
+      "scope": "page",
+      "evidence": ["forms", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "form",
+      "instructions": "Si la inactividad puede hacer perder datos, se avisa de cuánto tiempo hay, salvo que los datos se conserven más de 20 horas."
+    },
+    {
       "id": "three-flashes-or-below-threshold",
       "criterion": "2.3.1",
       "level": "A",
@@ -314,6 +482,30 @@
       "requiresAssistiveTech": false,
       "appliesWhen": null,
       "instructions": "Nada destella más de tres veces por segundo."
+    },
+    {
+      "id": "three-flashes",
+      "criterion": "2.3.2",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Tres destellos",
+      "scope": "page",
+      "evidence": ["media"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Nada destella más de tres veces por segundo, sin la excepción de 2.3.1 por debajo del umbral de destello general y de rojo."
+    },
+    {
+      "id": "animation-from-interactions",
+      "criterion": "2.3.3",
+      "level": "AAA",
+      "introducedIn": "2.1",
+      "name": "Animación desde interacciones",
+      "scope": "page",
+      "evidence": ["interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Las animaciones de movimiento que provoca una interacción (parallax, zoom al hacer scroll, transiciones grandes) se pueden desactivar, por ejemplo respetando prefers-reduced-motion, salvo que sean esenciales."
     },
     {
       "id": "bypass-blocks",
@@ -400,6 +592,42 @@
       "instructions": "Cada elemento que recibe el foco del teclado muestra un indicador visible."
     },
     {
+      "id": "location",
+      "criterion": "2.4.8",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Ubicación",
+      "scope": "page",
+      "evidence": ["landmarks", "controls"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Se sabe dónde se está dentro del sitio: migas de pan, la página actual marcada en la navegación (aria-current) o un mapa del sitio."
+    },
+    {
+      "id": "link-purpose-link-only",
+      "criterion": "2.4.9",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Propósito de los enlaces (solo enlaces)",
+      "scope": "page",
+      "evidence": ["controls"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "a[href], area[href]",
+      "instructions": "El propósito de cada enlace se entiende solo con su texto (o su nombre accesible), sin el contexto. \"Leer más\" o \"Ver\" repetidos fallan aunque el párrafo los aclare."
+    },
+    {
+      "id": "section-headings",
+      "criterion": "2.4.10",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Encabezados de sección",
+      "scope": "page",
+      "evidence": ["headings"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "El contenido se organiza con encabezados de sección. Aplica a los encabezados dentro del contenido, no a los controles de la interfaz."
+    },
+    {
       "id": "focus-not-obscured-minimum",
       "criterion": "2.4.11",
       "level": "AA",
@@ -410,6 +638,30 @@
       "requiresAssistiveTech": false,
       "appliesWhen": null,
       "instructions": "El elemento enfocado no queda totalmente tapado por contenido del propio autor: cabeceras fijas, banners de cookies, chats."
+    },
+    {
+      "id": "focus-not-obscured-enhanced",
+      "criterion": "2.4.12",
+      "level": "AAA",
+      "introducedIn": "2.2",
+      "name": "Foco no oculto (mejorado)",
+      "scope": "page",
+      "evidence": ["focus-sequence"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Ninguna parte del elemento enfocado queda tapada por contenido del propio autor (cabeceras fijas, banners de cookies, chats). A diferencia de 2.4.11, taparlo en parte también falla."
+    },
+    {
+      "id": "focus-appearance",
+      "criterion": "2.4.13",
+      "level": "AAA",
+      "introducedIn": "2.2",
+      "name": "Apariencia del foco",
+      "scope": "page",
+      "evidence": ["focus-sequence", "screenshot"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "El indicador de foco es al menos tan grande como un contorno de 2 px alrededor del elemento y cambia al menos 3:1 entre el estado con foco y sin foco."
     },
     {
       "id": "pointer-gestures",
@@ -460,6 +712,30 @@
       "instructions": "Lo que se activa moviendo o agitando el dispositivo se puede hacer también con un control de la interfaz, y el movimiento se puede desactivar."
     },
     {
+      "id": "target-size-enhanced",
+      "criterion": "2.5.5",
+      "level": "AAA",
+      "introducedIn": "2.1",
+      "name": "Tamaño del objetivo (mejorado)",
+      "scope": "page",
+      "evidence": ["controls"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Los objetivos táctiles miden al menos 44 × 44 px. Exentos: enlaces dentro de un texto, los que tienen un equivalente que sí cumple y los controles nativos del navegador sin modificar."
+    },
+    {
+      "id": "concurrent-input-mechanisms",
+      "criterion": "2.5.6",
+      "level": "AAA",
+      "introducedIn": "2.1",
+      "name": "Mecanismos de entrada concurrentes",
+      "scope": "page",
+      "evidence": ["interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "No se limita la forma de interactuar a un solo mecanismo: se puede usar teclado, ratón y táctil a la vez y cambiar entre ellos (p. ej. no se desactiva el ratón al detectar pantalla táctil)."
+    },
+    {
       "id": "dragging-movements",
       "criterion": "2.5.7",
       "level": "AA",
@@ -508,6 +784,54 @@
       "instructions": "Los fragmentos en otro idioma (textos del propietario sin traducir, selector de idioma, citas) llevan su propio lang."
     },
     {
+      "id": "unusual-words",
+      "criterion": "3.1.3",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Palabras inusuales",
+      "scope": "page",
+      "evidence": ["text-content"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Las palabras o expresiones de uso restringido (jerga del sector, términos técnicos, modismos) tienen una definición disponible: glosario, enlace o explicación en el propio texto."
+    },
+    {
+      "id": "abbreviations",
+      "criterion": "3.1.4",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Abreviaturas",
+      "scope": "page",
+      "evidence": ["text-content"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Las abreviaturas y siglas se expanden la primera vez, con un glosario o con <abbr title>."
+    },
+    {
+      "id": "reading-level",
+      "criterion": "3.1.5",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Nivel de lectura",
+      "scope": "page",
+      "evidence": ["text-content"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Si un texto exige más nivel de lectura que la educación secundaria inferior, hay un resumen o una versión más sencilla. Mira sobre todo condiciones de reserva, políticas de cancelación y textos legales."
+    },
+    {
+      "id": "pronunciation",
+      "criterion": "3.1.6",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Pronunciación",
+      "scope": "page",
+      "evidence": ["text-content"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Si el significado de una palabra depende de cómo se pronuncia y el contexto no lo aclara, se indica la pronunciación. Es raro que aplique en castellano."
+    },
+    {
       "id": "on-focus",
       "criterion": "3.2.1",
       "level": "A",
@@ -554,6 +878,18 @@
       "requiresAssistiveTech": false,
       "appliesWhen": null,
       "instructions": "Los componentes con la misma función se identifican igual en todas las páginas (mismo texto, mismo icono, mismo nombre accesible)."
+    },
+    {
+      "id": "change-on-request",
+      "criterion": "3.2.5",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Cambios a petición",
+      "scope": "page",
+      "evidence": ["forms", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": null,
+      "instructions": "Los cambios de contexto solo ocurren a petición del usuario o se pueden desactivar: nada de redirecciones o recargas automáticas, ventanas nuevas que se abren solas o enlaces a ventana nueva sin avisar."
     },
     {
       "id": "consistent-help",
@@ -616,6 +952,30 @@
       "instructions": "En compromisos legales o económicos (reservas, pagos) o que modifican datos del usuario, el envío es reversible, se valida o se puede revisar y confirmar antes de enviarlo."
     },
     {
+      "id": "help",
+      "criterion": "3.3.5",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Ayuda",
+      "scope": "page",
+      "evidence": ["forms"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "input, select, textarea",
+      "instructions": "Hay ayuda contextual para rellenar los formularios: instrucciones, ejemplos del formato esperado o enlaces de ayuda junto a los campos que lo necesitan."
+    },
+    {
+      "id": "error-prevention-all",
+      "criterion": "3.3.6",
+      "level": "AAA",
+      "introducedIn": "2.0",
+      "name": "Prevención de errores (todos)",
+      "scope": "page",
+      "evidence": ["forms", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "form",
+      "instructions": "Cualquier envío de datos (no solo los legales o económicos de 3.3.4) es reversible, se valida con opción de corregir o se puede revisar y confirmar antes de enviarlo."
+    },
+    {
       "id": "redundant-entry",
       "criterion": "3.3.7",
       "level": "A",
@@ -638,6 +998,18 @@
       "requiresAssistiveTech": false,
       "appliesWhen": "input[type=\"password\"], input[autocomplete=\"one-time-code\"]",
       "instructions": "Autenticarse no exige una prueba cognitiva (recordar, transcribir, resolver) sin alternativa: se permite pegar y el autocompletado del gestor de contraseñas."
+    },
+    {
+      "id": "accessible-authentication-enhanced",
+      "criterion": "3.3.9",
+      "level": "AAA",
+      "introducedIn": "2.2",
+      "name": "Autenticación accesible (mejorada)",
+      "scope": "page",
+      "evidence": ["forms", "interaction"],
+      "requiresAssistiveTech": false,
+      "appliesWhen": "input[type=\"password\"], input[autocomplete=\"one-time-code\"]",
+      "instructions": "Autenticarse no exige ninguna prueba cognitiva sin alternativa. A diferencia de 3.3.8, tampoco valen reconocer objetos ni contenido personal (los captcha de \"elige las imágenes\" fallan)."
     },
     {
       "id": "name-role-value",

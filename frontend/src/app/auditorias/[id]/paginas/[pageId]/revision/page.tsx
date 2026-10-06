@@ -13,7 +13,7 @@ import { BaselinePanel } from '@/components/BaselinePanel';
 
 interface Props {
   params: Promise<{ id: string; pageId: string }>;
-  searchParams: Promise<{ estado?: string }>;
+  searchParams: Promise<{ estado?: string; nivel?: string }>;
 }
 
 const PRINCIPLES = [
@@ -38,6 +38,21 @@ const parseFilter = (value: string | undefined): Filter => {
 const matches = (check: CheckReview, filter: Filter) =>
   filter === null || (filter === PENDING_FILTER ? check.pendingReview > 0 : check.outcome === filter);
 
+/** AAA bloquea la firma igual que A/AA, pero se revisa en otro momento: por eso se puede separar. */
+const LEVEL_FILTERS = [
+  { value: null, label: 'Todos los niveles' },
+  { value: 'a-aa', label: 'A y AA (legales)' },
+  { value: 'aaa', label: 'AAA' },
+] as const;
+
+type LevelFilter = (typeof LEVEL_FILTERS)[number]['value'];
+
+const parseLevel = (value: string | undefined): LevelFilter =>
+  LEVEL_FILTERS.find((item) => item.value === value)?.value ?? null;
+
+const matchesLevel = (check: CheckReview, level: LevelFilter) =>
+  level === null || (level === 'aaa') === (check.level === 'AAA');
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id, pageId } = await params;
   try {
@@ -51,7 +66,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PageReviewView({ params, searchParams }: Props) {
   const { id, pageId } = await params;
-  const filter = parseFilter((await searchParams).estado);
+  const query = await searchParams;
+  const filter = parseFilter(query.estado);
+  const level = parseLevel(query.nivel);
 
   let review;
   try {
@@ -78,13 +95,25 @@ export default async function PageReviewView({ params, searchParams }: Props) {
       .filter((finding) => finding.source.kind === 'applicability' && finding.review.status === 'proposed')
       .map((finding) => ({ criterion: check.criterion, name: check.name, reason: finding.description })),
   );
-  const visible = review.checks.filter((check) => matches(check, filter));
-  const filterHref = (value: Filter) => (value ? `${path}?estado=${value}` : path);
+  const atLevel = review.checks.filter((check) => matchesLevel(check, level));
+  const visible = atLevel.filter((check) => matches(check, filter));
+  const href = (estado: Filter, nivel: LevelFilter) => {
+    const params = new URLSearchParams();
+    if (estado) params.set('estado', estado);
+    if (nivel) params.set('nivel', nivel);
+    const search = params.toString();
+    return search ? `${path}?${search}` : path;
+  };
 
+  // Los contadores de estado son del nivel elegido, para que cuadren con lo que se ve.
   const filters: Array<{ value: Filter; label: string; count: number }> = [
-    { value: null, label: 'Todos', count: review.checks.length },
-    { value: PENDING_FILTER, label: 'Por validar', count: review.checks.filter((check) => check.pendingReview > 0).length },
-    ...OUTCOMES.map((outcome) => ({ value: outcome, label: OUTCOME_LABEL[outcome], count: review.summary[outcome] })),
+    { value: null, label: 'Todos', count: atLevel.length },
+    { value: PENDING_FILTER, label: 'Por validar', count: atLevel.filter((check) => check.pendingReview > 0).length },
+    ...OUTCOMES.map((outcome) => ({
+      value: outcome,
+      label: OUTCOME_LABEL[outcome],
+      count: atLevel.filter((check) => check.outcome === outcome).length,
+    })),
   ];
 
   return (
@@ -190,12 +219,30 @@ export default async function PageReviewView({ params, searchParams }: Props) {
         />
       </section>
 
+      <nav aria-label="Filtrar por nivel" className="mb-3">
+        <ul className="flex flex-wrap gap-2">
+          {LEVEL_FILTERS.map((item) => (
+            <li key={item.label}>
+              <Link
+                href={href(filter, item.value)}
+                aria-current={level === item.value ? 'true' : undefined}
+                className={`inline-block rounded-full border px-3 py-1 text-sm ${
+                  level === item.value ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface hover:bg-surface-muted'
+                }`}
+              >
+                {item.label} <span className="tabular-nums">({review.checks.filter((check) => matchesLevel(check, item.value)).length})</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
       <nav aria-label="Filtrar criterios" className="mb-4">
         <ul className="flex flex-wrap gap-2">
           {filters.map((item) => (
             <li key={item.label}>
               <Link
-                href={filterHref(item.value)}
+                href={href(item.value, level)}
                 aria-current={filter === item.value ? 'true' : undefined}
                 className={`inline-block rounded-full border px-3 py-1 text-sm ${
                   filter === item.value ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface hover:bg-surface-muted'
@@ -239,7 +286,11 @@ export default async function PageReviewView({ params, searchParams }: Props) {
                           {check.requiresAssistiveTech ? (
                             <p className="mt-2 text-sm font-medium">Hay que probarlo con un lector de pantalla.</p>
                           ) : null}
-                          {check.en301549 === null ? (
+                          {check.level === 'AAA' ? (
+                            <p className="mt-2 text-xs text-ink-muted">
+                              Nivel AAA: no lo exige la ley ni cuenta para la conformidad, pero hay que revisarlo para firmar.
+                            </p>
+                          ) : check.en301549 === null ? (
                             <p className="mt-2 text-xs text-ink-muted">Nuevo en WCAG 2.2: aún no está en EN 301 549 v3.2.1.</p>
                           ) : null}
                         </details>

@@ -7,7 +7,7 @@ import { slugifyUrl } from '../../utils/url';
 import auditRepository from '../../db/audit.repository';
 import reviewRepository from '../../db/review.repository';
 import rawStore from '../storage/rawStore';
-import { catalog } from './catalog';
+import { catalog, checksOfVersion } from './catalog';
 import reviewService, { deriveOutcome } from './review.service';
 import { AppError, badRequest, notFound } from '../../utils/errors';
 import type {
@@ -75,6 +75,15 @@ export const snapshotHash = (snapshot: SignOffSnapshot): string =>
 
 const pageLabel = (page: Pick<AuditPage, 'url'>) => page.url;
 
+type CatalogRef = SignOffSnapshot['catalog'];
+
+/** No aplicable cuenta como cumplido: no hay nada que corregir. */
+const tally = (criteria: readonly CriterionResult[]) => ({
+  passed: criteria.filter((criterion) => criterion.outcome === 'passed' || criterion.outcome === 'inapplicable').length,
+  failed: criteria.filter((criterion) => criterion.outcome === 'failed').length,
+  pending: criteria.filter((criterion) => criterion.outcome === 'cantTell' || criterion.outcome === 'untested').length,
+});
+
 class SignOffService {
   /** Lo que se firmaria con esta muestra y lo que todavia lo impide. */
   public async preview(siteId: string, pageIds: string[]): Promise<SignOffPreview> {
@@ -135,7 +144,8 @@ class SignOffService {
     const site = reviewRepository.findSite(signOff.siteId);
     if (site) {
       try {
-        const current = await this.build(site, signOff.pageIds);
+        // Con el catalogo con el que se firmo: con el de ahora no coincidiria ninguna firma anterior.
+        const current = await this.build(site, signOff.pageIds, { id: signOff.catalogId, version: signOff.catalogVersion });
         const lost = current.blockers.some((blocker) => blocker.kind === 'page');
         stillMatches = lost ? null : snapshotHash(current.snapshot) === signOff.findingsHash;
       } catch {
@@ -173,7 +183,11 @@ class SignOffService {
     return site;
   }
 
-  private async build(site: Site, rawPageIds: string[]): Promise<{ snapshot: SignOffSnapshot; blockers: SignOffBlocker[] }> {
+  private async build(
+    site: Site,
+    rawPageIds: string[],
+    catalogRef: CatalogRef = { id: catalog.id, version: catalog.version },
+  ): Promise<{ snapshot: SignOffSnapshot; blockers: SignOffBlocker[] }> {
     const pageIds = [...new Set(rawPageIds)];
     if (pageIds.length === 0) throw badRequest('Elige al menos una página para la muestra');
     if (pageIds.length > MAX_SAMPLE_PAGES) throw badRequest(`Máximo ${MAX_SAMPLE_PAGES} páginas por muestra`);
@@ -197,7 +211,7 @@ class SignOffService {
     for (const page of pages) reviews.set(page.id, (await reviewService.pageCheckReviews(page)).checks);
     const siteFindings = reviewRepository.findSiteFindings(site.id);
 
-    const criteria = catalog.checks.map((check): CriterionResult => {
+    const criteria = checksOfVersion(catalogRef.version).map((check): CriterionResult => {
       const base = {
         checkId: check.id,
         criterion: check.criterion,
@@ -243,7 +257,7 @@ class SignOffService {
       }
     }
 
-    const newIn22 = criteria.filter((criterion) => !criterion.legal);
+    const newIn22 = criteria.filter((criterion) => !criterion.legal && criterion.level !== 'AAA');
     const snapshot: SignOffSnapshot = {
       site,
       pages: pages.map((page) => ({
@@ -256,14 +270,12 @@ class SignOffService {
         device: page.device,
         finishedAt: page.finishedAt,
       })),
-      catalog: { id: catalog.id, version: catalog.version },
+      catalog: catalogRef,
       criteria,
       conformance: conformanceOf(criteria),
-      wcag22: {
-        passed: newIn22.filter((criterion) => criterion.outcome === 'passed' || criterion.outcome === 'inapplicable').length,
-        failed: newIn22.filter((criterion) => criterion.outcome === 'failed').length,
-        pending: newIn22.filter((criterion) => criterion.outcome === 'cantTell' || criterion.outcome === 'untested').length,
-      },
+      wcag22: tally(newIn22),
+      // Ausente, no a cero, en las firmas v1: un campo de mas cambiaria su hash.
+      ...(catalogRef.version >= 2 ? { aaa: tally(criteria.filter((criterion) => criterion.level === 'AAA')) } : {}),
     };
     return { snapshot, blockers };
   }

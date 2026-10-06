@@ -198,6 +198,7 @@ class ReviewService {
           checkId: check.id,
           criterion: check.criterion,
           name: check.name,
+          level: check.level,
           outcome: deriveOutcome(allViolations, own),
           axe: {
             violations: allViolations.filter((rule) => !overridden.has(rule)),

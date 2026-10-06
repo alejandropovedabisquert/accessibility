@@ -106,9 +106,11 @@ export const buildEarl = (signOff: SignOff, snapshot: SignOffSnapshot, axeVersio
       catalog: snapshot.catalog,
       conformance: snapshot.conformance,
       wcag22: snapshot.wcag22,
+      ...(snapshot.aaa ? { aaa: snapshot.aaa } : {}),
       criteria: snapshot.criteria.map((criterion) => ({
         test: `WCAG22:${criterion.checkId}`,
         criterion: criterion.criterion,
+        level: criterion.level,
         legal: criterion.legal,
         outcome: `earl:${criterion.outcome}`,
       })),

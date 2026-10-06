@@ -339,7 +339,7 @@ export function SignOffForm({
           name="statement"
           required
           rows={4}
-          defaultValue={`Declaro que he evaluado la muestra de páginas de ${siteName} indicada en este informe frente a los criterios A y AA de WCAG 2.2, incluidas pruebas con lectores de pantalla, y que los resultados reflejan esa evaluación.`}
+          defaultValue={`Declaro que he evaluado la muestra de páginas de ${siteName} indicada en este informe frente a los criterios A, AA y AAA de WCAG 2.2, incluidas pruebas con lectores de pantalla, y que los resultados reflejan esa evaluación.`}
           className={FIELD}
         />
         <p className={HINT}>La firma no se puede modificar después. Si cambian los hallazgos, la firma lo indicará.</p>

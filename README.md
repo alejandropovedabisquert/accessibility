@@ -451,11 +451,15 @@ El vocabulario de resultados es el de [EARL](https://www.w3.org/TR/EARL10-Schema
 
 ### Catálogo
 
-`GET /api/checks`: los 55 criterios A/AA de WCAG 2.2, con qué comprobar en cada uno, qué evidencia
-hace falta, si exige lector de pantalla y qué reglas de axe lo tocan (calculadas con la versión de
-axe instalada). Axe toca 29 de los 55 y no cierra ninguno por sí solo: una violación da el criterio
-por fallado, pero que pase sus reglas no basta. Los 6 criterios nuevos de 2.2 no están aún en EN 301
-549 v3.2.1.
+`GET /api/checks`: los 86 criterios de WCAG 2.2 (55 A/AA y 31 AAA), con qué comprobar en cada uno,
+qué evidencia hace falta, si exige lector de pantalla y qué reglas de axe lo tocan (calculadas con la
+versión de axe instalada). Axe toca 29 de los 55 A/AA y 5 de los 31 AAA, y no cierra ninguno por sí
+solo: una violación da el criterio por fallado, pero que pase sus reglas no basta. Las reglas AAA de
+axe solo se ejecutan si la auditoría incluye el tag `wcag2aaa`. Los 6 criterios A/AA nuevos de 2.2
+no están aún en EN 301 549 v3.2.1, y los AAA no están en ninguna versión.
+
+Los AAA se revisan y **bloquean la firma igual que los A/AA**, para que la evaluación sea completa,
+pero no cuentan para el estado de conformidad legal.
 
 ### Evidencia
 
@@ -532,7 +536,7 @@ GET  /api/sign-offs/:id/report.pdf                 Informe firmado
 
 - **El estado de conformidad se calcula**, con los tres valores de la declaración del RD 1112/2018, y
   solo sobre los requisitos legales (WCAG 2.1 A/AA, por EN 301 549 v3.2.1). Los criterios nuevos de
-  WCAG 2.2 se informan aparte. El RD no cuantifica "parcialmente": aquí es **no conforme** si falla la
+  WCAG 2.2 y los AAA se informan aparte. El RD no cuantifica "parcialmente": aquí es **no conforme** si falla la
   mitad o más de los requisitos que aplican, **parcialmente** si falla alguno y **plenamente** si
   ninguno.
 - En la muestra, un criterio toma el peor resultado de sus páginas, y una página sin revisar pesa más

@@ -1,6 +1,6 @@
 ---
 name: revision-manual
-description: Capa 2 de la auditoría de accesibilidad - revisión asistida por IA de los criterios WCAG 2.2 A/AA que axe no resuelve, con la evidencia recogida por la herramienta y el MCP de Playwright para lo interactivo. Úsala cuando pidan revisar a mano una auditoría, una página o una web, cerrar las "revisiones manuales" de axe o preparar una web para su validación y firma.
+description: Capa 2 de la auditoría de accesibilidad - revisión asistida por IA de los criterios WCAG 2.2 A, AA y AAA que axe no resuelve, con la evidencia recogida por la herramienta y el MCP de Playwright para lo interactivo. Úsala cuando pidan revisar a mano una auditoría, una página o una web, cerrar las "revisiones manuales" de axe o preparar una web para su validación y firma.
 ---
 
 # Revisión manual asistida (capa 2)
@@ -22,7 +22,13 @@ exige el navegador, que es mucho más caro. Propón relanzarla con evidencia ant
 
 ## Proceso por página
 
-1. **Lo pendiente.** `get_page_review` con `outcomes: ["untested", "cantTell"]`. Los `failed` por
+El catálogo tiene los 86 criterios de WCAG 2.2: 55 A/AA y 31 AAA. **Los AAA bloquean la firma igual
+que los A/AA**, aunque no cuentan para la conformidad legal. Revisa primero los A/AA
+(`levels: ["A", "AA"]`) y después los AAA (`levels: ["AAA"]`): muchos reaprovechan la evidencia de su
+pareja A/AA (1.4.6 con 1.4.3, 2.4.9 con 2.4.4, 2.4.12 con 2.4.11, 2.5.5 con 2.5.8, 3.3.6 con 3.3.4,
+3.3.9 con 3.3.8), así que juzga cada pareja con la misma evidencia en vez de pedirla dos veces.
+
+1. **Lo pendiente.** `get_page_review` con `outcomes: ["untested", "cantTell"]` y el nivel que toque. Los `failed` por
    violación de axe y los `inapplicable` propuestos ya tienen resultado: no los repitas. Los
    hallazgos con `inherited: true` vienen de una línea base y ya están validados: no los toques.
    Si varias páginas comparten plantilla, revisa a fondo una, y sugiere a la persona que la valide
@@ -75,6 +81,13 @@ exige el navegador, que es mucho más caro. Propón relanzarla con evidencia ant
 | 2.5.3, 2.5.8, 4.1.2 | `controls` | `name` frente a `visibleText`; `box` menor de 24×24 salvo `inline`. |
 | 1.3.1, 2.4.1 | `headings`, `landmarks` | `ariaSnapshot` es el árbol de Chromium: fíate más de él que de `name`. |
 | 2.4.2, 3.1.1, 3.1.2, 1.3.3 | `text-content` | Título, idioma de la página y de las partes, instrucciones sensoriales. |
+| 1.4.6 (AAA) | `screenshot` | 7:1 (4,5:1 en texto grande). axe solo lo mide si la auditoría incluye el tag `wcag2aaa`. |
+| 2.4.12, 2.4.13 (AAA) | `focus-sequence` + `focus-N.jpg` | 2.4.12: cualquier `obscured` distinto de `"none"` falla. 2.4.13: grosor y contraste del indicador en la captura. |
+| 2.5.5 (AAA) | `controls` | `box` menor de 44×44 salvo `inline`. |
+| 2.4.9 (AAA) | `controls` | El texto del enlace solo, sin contexto: "Leer más" repetido falla. |
+| 2.4.10 (AAA) | `headings` | El contenido largo está dividido en secciones con encabezado. |
+| 1.4.8, 3.1.3–3.1.6 (AAA) | `text-content` | Ancho de línea, justificado, interlineado; jerga, siglas sin expandir, nivel de lectura de condiciones y políticas. |
+| 2.4.8 (AAA) | `landmarks`, `controls` | Migas de pan o `aria-current` en la navegación. |
 
 `name` en los elementos es una aproximación calculada en el DOM. Si dudas del nombre accesible,
 manda `landmarks.ariaSnapshot` o un `browser_snapshot`.
@@ -82,8 +95,9 @@ manda `landmarks.ariaSnapshot` o un `browser_snapshot`.
 ## Lo interactivo: Playwright
 
 Para criterios con evidencia `interaction` (1.4.13, 2.1.1, 2.1.4, 2.2.1, 2.2.2, 2.5.1, 2.5.2, 2.5.4,
-2.5.7, 3.2.2, 3.3.1, 3.3.3, 3.3.4, 3.3.7, 3.3.8, 4.1.3, multimedia) y para confirmar lo que la
-evidencia deja en duda.
+2.5.7, 3.2.2, 3.3.1, 3.3.3, 3.3.4, 3.3.7, 3.3.8, 4.1.3, multimedia; y en AAA 2.1.3, 2.2.3–2.2.6,
+2.3.3, 2.5.6, 3.2.5, 3.3.6, 3.3.9) y para confirmar lo que la evidencia deja en duda. Para 2.3.3,
+`browser_emulate_media` con `reducedMotion: "reduce"` y comprueba que las animaciones se apagan.
 
 - `browser_resize` al `viewport` de la página **antes** de `browser_navigate` a su `url`: la
   evidencia es de esa pantalla.
@@ -101,6 +115,6 @@ Si la página es de un sitio, `get_sign_off_preview` con la muestra que te hayan
 páginas que has revisado) dice qué queda para que una persona pueda firmar. Inclúyelo en el resumen.
 Tú no firmas: no hay herramienta para eso.
 
-Resume por página: cuántos criterios has cerrado por resultado, los `failed` con su elemento, los
+Resume por página, separando A/AA de AAA: cuántos criterios has cerrado por resultado, los `failed` con su elemento, los
 `cantTell` con lo que falta, y cuáles necesitan lector de pantalla en la capa 3. No digas que la
 web "cumple": eso solo lo puede decir la firma.

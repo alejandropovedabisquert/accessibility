@@ -4,8 +4,10 @@ import app from '../src/app';
 import { closeDb } from '../src/db/client';
 import browserPool from '../src/services/scanner/browserPool';
 import auditService from '../src/services/audit/audit.service';
+import reviewRepository from '../src/db/review.repository';
+import rawStore from '../src/services/storage/rawStore';
 import { aggregateOutcome, conformanceOf, snapshotHash } from '../src/services/review/signoff.service';
-import type { CriterionResult, PageReview, SignOffDetail, SignOffPreview, SignOffSnapshot } from '../src/types/audit.types';
+import type { CriterionResult, PageReview, SignOff, SignOffDetail, SignOffPreview, SignOffSnapshot } from '../src/types/audit.types';
 import { startFixtureServer, type FixtureServer } from './helpers/fixtureServer';
 import { waitForAudit } from './helpers/waitFor';
 
@@ -90,8 +92,21 @@ describe('vista previa de la firma', () => {
     expect(result.canSign).toBe(false);
     expect(result.blockers.some((blocker) => blocker.kind === 'untested')).toBe(true);
     expect(result.blockers.some((blocker) => blocker.kind === 'pending-review')).toBe(true);
-    expect(result.snapshot.criteria).toHaveLength(55);
+    expect(result.snapshot.criteria).toHaveLength(86);
     expect(result.snapshot.criteria.find((criterion) => criterion.checkId === 'non-text-content')?.outcome).toBe('failed');
+  });
+
+  it('los AAA bloquean la firma, pero no son legales ni cuentan como WCAG 2.2', async () => {
+    const result = await preview([pageId]);
+    expect(result.blockers).toContainEqual(expect.objectContaining({ kind: 'untested', checkId: 'section-headings' }));
+    const aaa = result.snapshot.criteria.filter((criterion) => criterion.level === 'AAA');
+    expect(aaa).toHaveLength(31);
+    expect(aaa.every((criterion) => !criterion.legal)).toBe(true);
+    // Los no aplicables propuestos por la evidencia (sin vídeo, sin formularios...) cuentan como superados.
+    expect(result.snapshot.aaa?.failed).toBe(0);
+    expect((result.snapshot.aaa?.passed ?? 0) + (result.snapshot.aaa?.pending ?? 0)).toBe(31);
+    expect(result.snapshot.aaa?.pending).toBeGreaterThan(0);
+    expect(result.snapshot.wcag22.passed + result.snapshot.wcag22.failed + result.snapshot.wcag22.pending).toBe(6);
   });
 
   it('una pagina de otro host no entra en la muestra', async () => {
@@ -124,6 +139,8 @@ describe('firma', () => {
 
     expect(signOff.conformance).toBe('partial');
     expect(signOff.snapshot.conformance.failed).toBe(1);
+    expect(signOff.snapshot.conformance.applicable + signOff.snapshot.conformance.inapplicable).toBe(49);
+    expect(signOff.snapshot.aaa).toEqual({ passed: 31, failed: 0, pending: 0 });
     expect(signOff.findingsHash).toMatch(/^[0-9a-f]{64}$/);
     expect(signOff.findingsHash).toBe(snapshotHash(signOff.snapshot));
     expect(signOff.stillMatches).toBe(true);
@@ -153,6 +170,28 @@ describe('firma', () => {
     const res = await request(app).get(`/api/sign-offs/${signOff.id}/report.pdf`).expect(200);
     expect(res.headers['content-type']).toBe('application/pdf');
     expect(Buffer.from(res.body).subarray(0, 4).toString()).toBe('%PDF');
+  });
+
+  it('una firma del catalogo v1 (sin AAA) se recalcula con el suyo y sigue coincidiendo', async () => {
+    const snapshot: SignOffSnapshot = {
+      ...signOff.snapshot,
+      catalog: { id: 'wcag22-aa', version: 1 },
+      criteria: signOff.snapshot.criteria.filter((criterion) => criterion.level !== 'AAA'),
+    };
+    delete snapshot.aaa;
+    const old: SignOff = {
+      ...signOff,
+      id: `${signOff.id}-v1`,
+      catalogId: 'wcag22-aa',
+      catalogVersion: 1,
+      findingsHash: snapshotHash(snapshot),
+    };
+    await rawStore.saveSignOffSnapshot(old.id, snapshot);
+    reviewRepository.insertSignOff(old);
+
+    const detail = (await request(app).get(`/api/sign-offs/${old.id}`).expect(200)).body as SignOffDetail;
+    expect(detail.stillMatches).toBe(true);
+    expect(detail.snapshot.criteria).toHaveLength(55);
   });
 
   it('si se corrige un hallazgo despues, la firma lo nota y lo firmado no cambia', async () => {

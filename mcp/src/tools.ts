@@ -35,6 +35,7 @@ const EVIDENCE_KINDS = [
 
 const OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable', 'untested'] as const;
 const FINDING_OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable'] as const;
+const LEVELS = ['A', 'AA', 'AAA'] as const;
 
 // Lo justo de las respuestas de la API que aqui se reorganiza. El resto pasa tal cual.
 interface ApiFinding {
@@ -55,6 +56,7 @@ interface ApiCheckReview {
   checkId: string;
   criterion: string;
   name: string;
+  level: (typeof LEVELS)[number];
   outcome: (typeof OUTCOMES)[number];
   axe: unknown;
   pendingReview: number;
@@ -285,7 +287,13 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
         const preview = await api.get<{
           canSign: boolean;
           blockers: unknown[];
-          snapshot: { conformance: unknown; wcag22: unknown; pages: unknown[]; criteria: Array<{ checkId: string; criterion: string; outcome: string }> };
+          snapshot: {
+            conformance: unknown;
+            wcag22: unknown;
+            aaa?: unknown;
+            pages: unknown[];
+            criteria: Array<{ checkId: string; criterion: string; level: string; outcome: string }>;
+          };
         }>(`/sites/${encodeURIComponent(siteId)}/sign-off-preview`, { pageIds: pageIds.join(',') });
         // Sin los hallazgos de cada criterio: para eso esta get_page_review.
         return json({
@@ -293,8 +301,9 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
           blockers: preview.blockers,
           conformance: preview.snapshot.conformance,
           wcag22: preview.snapshot.wcag22,
+          aaa: preview.snapshot.aaa,
           pages: preview.snapshot.pages,
-          criteria: preview.snapshot.criteria.map(({ checkId, criterion, outcome }) => ({ checkId, criterion, outcome })),
+          criteria: preview.snapshot.criteria.map(({ checkId, criterion, level, outcome }) => ({ checkId, criterion, level, outcome })),
         });
       }),
   );
@@ -303,7 +312,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     'get_checks',
     {
       description:
-        'Catálogo de criterios (WCAG 2.2 A/AA): qué comprobar en cada uno, qué evidencia hace falta y qué reglas de axe lo tocan. Pásale checkIds para no traer los 55.',
+        'Catálogo de criterios (WCAG 2.2 A, AA y AAA): qué comprobar en cada uno, qué evidencia hace falta y qué reglas de axe lo tocan. Pásale checkIds para no traer los 86.',
       inputSchema: z.object({ checkIds: z.array(z.string().min(1)).optional() }),
     },
     ({ checkIds }) =>
@@ -319,21 +328,23 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     'get_page_review',
     {
       description:
-        'Estado de cada criterio en una página y sus hallazgos. Al abrirla se crean las propuestas automáticas (needs-review de axe y no aplicables). Usa outcomes=["untested","cantTell"] para ver solo lo pendiente.',
+        'Estado de cada criterio en una página y sus hallazgos. Al abrirla se crean las propuestas automáticas (needs-review de axe y no aplicables). Usa outcomes=["untested","cantTell"] para ver solo lo pendiente y levels para ir por niveles (los AAA también bloquean la firma).',
       inputSchema: z.object({
         auditId: z.string().min(1),
         pageId: z.string().min(1),
         outcomes: z.array(z.enum(OUTCOMES)).optional().describe('Solo los criterios con estos resultados'),
+        levels: z.array(z.enum(LEVELS)).optional().describe('Solo los criterios de estos niveles WCAG'),
         maxTargets: z.number().int().min(1).max(50).optional().describe('Nodos de ejemplo por hallazgo (5 por defecto)'),
       }),
     },
-    ({ auditId, pageId, outcomes, maxTargets }) =>
+    ({ auditId, pageId, outcomes, levels, maxTargets }) =>
       run(async () => {
         const review = await api.get<ApiPageReview>(
           `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/review`,
           { maxTargets },
         );
         const wanted = outcomes ? new Set<string>(outcomes) : null;
+        const wantedLevels = levels ? new Set<string>(levels) : null;
         return json({
           page: review.page,
           site: review.site,
@@ -341,7 +352,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
           evidence: review.evidence,
           summary: review.summary,
           checks: review.checks
-            .filter((check) => !wanted || wanted.has(check.outcome))
+            .filter((check) => (!wanted || wanted.has(check.outcome)) && (!wantedLevels || wantedLevels.has(check.level)))
             .map((check) => ({ ...check, findings: check.findings.map(compactFinding) })),
         });
       }),

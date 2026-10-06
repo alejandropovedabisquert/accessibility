@@ -94,6 +94,7 @@ export default async function SignOffView({ params }: Props) {
           ['Que no cumplen', snapshot.conformance.failed],
           ['Que no aplican', snapshot.conformance.inapplicable],
           ['WCAG 2.2 que no cumplen', snapshot.wcag22.failed],
+          ...(snapshot.aaa ? [['AAA que no cumplen', snapshot.aaa.failed]] : []),
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg border border-line bg-surface px-3 py-2">
             <dt className="text-xs text-ink-muted">{label}</dt>
@@ -147,7 +148,9 @@ export default async function SignOffView({ params }: Props) {
                 <tr key={criterion.checkId} className="border-t border-line">
                   <th scope="row" className="px-4 py-2 font-normal">
                     {criterion.criterion} {criterion.name}
-                    {criterion.legal ? null : <span className="ml-2 text-xs text-ink-muted">WCAG 2.2</span>}
+                    {criterion.legal ? null : (
+                      <span className="ml-2 text-xs text-ink-muted">{criterion.level === 'AAA' ? 'No exigible' : 'WCAG 2.2'}</span>
+                    )}
                   </th>
                   <td className="px-4 py-2">{criterion.level}</td>
                   <td className="px-4 py-2">

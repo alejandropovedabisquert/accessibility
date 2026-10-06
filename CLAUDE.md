@@ -44,8 +44,9 @@ El frontend sondea `GET /api/audits/:id` mientras el estado sea `queued` o `runn
 ### Revisión manual (capas 2 y 3)
 
 El escaneo es la capa 1. La capa 2 (Claude, vía `mcp/` y la skill `revision-manual`) propone
-resultados para los 55 criterios WCAG 2.2 A/AA del catálogo (`services/review/catalog/`); la capa 3
-(una persona) los valida y firma. Resultados en vocabulario EARL.
+resultados para los 86 criterios WCAG 2.2 A, AA y AAA del catálogo (`services/review/catalog/`); la
+capa 3 (una persona) los valida y firma. Resultados en vocabulario EARL. Los AAA bloquean la firma
+como los demás, pero **nunca cuentan para la conformidad legal** (`legal` = tiene apartado de EN 301 549).
 
 ```
 evidence: true en la auditoría       scan.service → evidenceService.collect() tras axe, misma página
@@ -155,6 +156,11 @@ cada elemento y su landmark con `normalizeHtml` de `fingerprint.ts`. Un hallazgo
 con `inherited_from`; las propuestas de axe resueltas por herencia se modifican en su sitio y
 `clearInheritance` las devuelve a `cantTell` al quitar o recalcular. `reviewFinding` propaga cada
 revisión a las copias (`propagateToCopies`): si añades otra forma de cambiar un hallazgo, propágala.
+
+**Una firma se recalcula con su versión del catálogo, no con la actual.** `stillMatches` rehace el
+snapshot con `checksOfVersion(signOff.catalogVersion)`: la v1 (`wcag22-aa`) no tenía AAA, y sin eso
+todas las firmas anteriores pasarían a `stillMatches: false`. Si una versión nueva cambia textos o
+criterios existentes (no solo añade), `checksOfVersion` ya no basta: hay que conservar la anterior.
 
 **Lo firmado sale de la copia congelada, nunca de la BD.** `signoff.service` guarda el `SignOffSnapshot`
 en `scan-results/sign-offs/<id>.json` y su hash (JSON con claves ordenadas) en `sign_offs`. El PDF y el

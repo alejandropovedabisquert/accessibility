@@ -26,6 +26,10 @@ export const CONFORMANCE_LABEL: Record<ConformanceStatus, string> = {
 const formatDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Madrid' }) : '—';
 
+/** Etiqueta de un criterio que no cuenta para la conformidad legal. */
+const tagOf = (criterion: SignOffSnapshot['criteria'][number]) =>
+  criterion.legal ? '' : ` <span class="tag">${criterion.level === 'AAA' ? 'AAA' : 'WCAG 2.2'}</span>`;
+
 const screen = (page: SignOffSnapshot['pages'][number]) =>
   page.device ?? (page.viewport ? `${page.viewport.width}×${page.viewport.height}` : '');
 
@@ -42,7 +46,7 @@ export const signOffReportHtml = (signOff: SignOff, snapshot: SignOffSnapshot): 
     .map(
       (criterion) => `
       <tr>
-        <th scope="row">${escapeHtml(criterion.criterion)} ${escapeHtml(criterion.name)}${criterion.legal ? '' : ' <span class="tag">WCAG 2.2</span>'}</th>
+        <th scope="row">${escapeHtml(criterion.criterion)} ${escapeHtml(criterion.name)}${tagOf(criterion)}</th>
         <td>${escapeHtml(criterion.level)}</td>
         <td class="o-${criterion.outcome}">${OUTCOME_LABEL[criterion.outcome]}</td>
         <td>${
@@ -116,6 +120,11 @@ export const signOffReportHtml = (signOff: SignOff, snapshot: SignOffSnapshot): 
     Requisitos legales (WCAG 2.1 A y AA, por EN 301 549 v3.2.1): ${conformance.passed} cumplen, ${conformance.failed} no cumplen
     y ${conformance.inapplicable} no aplican, de ${conformance.applicable + conformance.inapplicable}.
     Criterios nuevos de WCAG 2.2, aún no exigibles: ${snapshot.wcag22.passed} cumplen o no aplican, ${snapshot.wcag22.failed} no cumplen.
+    ${
+      snapshot.aaa
+        ? `Criterios AAA, no exigibles legalmente: ${snapshot.aaa.passed} cumplen o no aplican, ${snapshot.aaa.failed} no cumplen.`
+        : ''
+    }
   </p>
   <p class="muted">
     &laquo;No conforme&raquo; significa que falla la mitad o más de los requisitos que aplican; &laquo;parcialmente conforme&raquo;,

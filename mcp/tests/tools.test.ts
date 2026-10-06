@@ -126,6 +126,12 @@ describe('flujo de la capa 2 a traves del MCP', () => {
     expect(contrast?.findings[0]?.review).toBe('proposed');
   });
 
+  it('get_page_review filtra por nivel', async () => {
+    const review = await callJson<{ checks: Array<{ level: string }> }>('get_page_review', { auditId, pageId, levels: ['AAA'] });
+    expect(review.checks.length).toBeGreaterThan(0);
+    expect(review.checks.every((check) => check.level === 'AAA')).toBe(true);
+  });
+
   it('get_checks trae solo los criterios pedidos', async () => {
     const catalog = await callJson<{ checks: Array<{ id: string }> }>('get_checks', { checkIds: ['focus-order', 'reflow'] });
     expect(catalog.checks.map((check) => check.id).sort()).toEqual(['focus-order', 'reflow']);

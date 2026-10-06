@@ -68,8 +68,8 @@ afterAll(async () => {
 describe('GET /api/checks', () => {
   it('publica el catalogo con las reglas de axe ya calculadas', async () => {
     const res = await request(app).get('/api/checks').expect(200);
-    expect(res.body.id).toBe('wcag22-aa');
-    expect(res.body.checks).toHaveLength(55);
+    expect(res.body.id).toBe('wcag22');
+    expect(res.body.checks).toHaveLength(86);
     const contrast = res.body.checks.find((check: { id: string }) => check.id === 'contrast-minimum');
     expect(contrast.axeRules).toContain('color-contrast');
     expect(contrast.coverage).toBe('partial');
@@ -82,8 +82,8 @@ describe('revision de una pagina', () => {
     const review = res.body as PageReview;
 
     expect(review.checks.every((check) => check.checkId !== 'multiple-ways')).toBe(true);
-    expect(review.checks).toHaveLength(51);
-    expect(Object.values(review.summary).reduce((sum, value) => sum + value, 0)).toBe(51);
+    expect(review.checks).toHaveLength(82);
+    expect(Object.values(review.summary).reduce((sum, value) => sum + value, 0)).toBe(82);
 
     const contrast = checkOf(review, 'contrast-minimum');
     expect(contrast.outcome).toBe('cantTell');
@@ -155,7 +155,7 @@ describe('ciclo de un hallazgo: capa 2 propone, capa 3 valida', () => {
 
     expect(res.headers.location).toBe(`/api/findings/${res.body.id}`);
     expect(res.body.review).toEqual({ status: 'proposed', by: null, at: null, note: null });
-    expect(res.body.source).toEqual({ kind: 'check', checkId: 'focus-order', catalogVersion: 1 });
+    expect(res.body.source).toEqual({ kind: 'check', checkId: 'focus-order', catalogVersion: 2 });
     expect(res.body.targetCount).toBe(1);
   });
 

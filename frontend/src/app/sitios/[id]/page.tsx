@@ -214,6 +214,9 @@ export default async function SiteDetail({ params, searchParams }: Props) {
                 {preview.snapshot.conformance.failed} no cumplen, {preview.snapshot.conformance.inapplicable} no aplican.
                 Nuevos de WCAG 2.2 (aún no exigibles): {preview.snapshot.wcag22.failed} no cumplen,{' '}
                 {preview.snapshot.wcag22.pending} pendientes.
+                {preview.snapshot.aaa
+                  ? ` AAA (no exigibles): ${preview.snapshot.aaa.failed} no cumplen, ${preview.snapshot.aaa.pending} pendientes.`
+                  : null}
               </p>
             </div>
 

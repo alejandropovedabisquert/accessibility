@@ -206,8 +206,8 @@ export interface SeriesKey extends ScanScreen {
 // EARL (W3C) para poder exportarlo sin traducciones: ver `services/review/`.
 // ---------------------------------------------------------------------------
 
-/** Nivel de un criterio WCAG del catalogo. El catalogo cerrado solo tiene A y AA. */
-export type WcagLevel = 'A' | 'AA';
+/** Nivel de un criterio WCAG del catalogo. AAA se revisa y bloquea la firma, pero no cuenta para la conformidad legal. */
+export type WcagLevel = 'A' | 'AA' | 'AAA';
 
 /** Version de WCAG que introdujo el criterio. Los de 2.2 aun no estan en EN 301 549 v3.2.1. */
 export type WcagVersion = '2.0' | '2.1' | '2.2';
@@ -352,6 +352,7 @@ export interface CheckReview {
   checkId: string;
   criterion: string;
   name: string;
+  level: WcagLevel;
   outcome: EarlOutcome;
   /** `violations` ya sin las que la capa 3 ha marcado como falso positivo, que van en `falsePositives`. */
   axe: { violations: string[]; needsReview: string[]; falsePositives: string[] };
@@ -403,7 +404,7 @@ export interface CriterionResult {
   name: string;
   level: WcagLevel;
   scope: CheckScope;
-  /** Esta en EN 301 549 v3.2.1 y por tanto cuenta para la conformidad legal. */
+  /** Esta en EN 301 549 v3.2.1 y por tanto cuenta para la conformidad legal. Nunca en AAA. */
   legal: boolean;
   outcome: EarlOutcome;
   /** Resultado en cada pagina de la muestra; vacio en los criterios de sitio. */
@@ -430,8 +431,10 @@ export interface SignOffSnapshot {
   criteria: CriterionResult[];
   /** Solo criterios legales (WCAG 2.1 A/AA via EN 301 549). */
   conformance: ConformanceSummary;
-  /** Los criterios nuevos de WCAG 2.2, que aun no son exigibles. */
+  /** Los criterios A/AA nuevos de WCAG 2.2, que aun no son exigibles. */
   wcag22: { passed: number; failed: number; pending: number };
+  /** Los criterios AAA. No existe en las firmas del catalogo v1, que no los tenia. */
+  aaa?: { passed: number; failed: number; pending: number };
 }
 
 export interface SignOffBlocker {

@@ -2,7 +2,7 @@ import axe from 'axe-core';
 import { z } from 'zod';
 import type { Check, CheckCatalog, EvidenceKind } from '../../types/audit.types';
 import { wcagCriteria } from '../audit/levels';
-import rawCatalog from './catalog/wcag22-aa.v1.json';
+import rawCatalog from './catalog/wcag22.v2.json';
 
 const EVIDENCE_KINDS = [
   'screenshot',
@@ -29,7 +29,7 @@ const catalogSchema = z.object({
     z.object({
       id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
       criterion: z.string().regex(/^\d\.\d\.\d+$/),
-      level: z.enum(['A', 'AA']),
+      level: z.enum(['A', 'AA', 'AAA']),
       introducedIn: z.enum(['2.0', '2.1', '2.2']),
       name: z.string().min(1),
       scope: z.enum(['page', 'site']),
@@ -65,9 +65,9 @@ export const buildCatalog = (raw: unknown): CheckCatalog => {
     const rules = [...(axeRules.get(entry.criterion) ?? [])].sort();
     return {
       ...entry,
-      // EN 301 549 v3.2.1 incorpora WCAG 2.1 en el apartado 9 con la misma
-      // numeracion; lo nuevo de 2.2 aun no tiene apartado.
-      en301549: entry.introducedIn === '2.2' ? null : `9.${entry.criterion}`,
+      // EN 301 549 v3.2.1 incorpora WCAG 2.1 A/AA en el apartado 9 con la misma
+      // numeracion; lo nuevo de 2.2 aun no tiene apartado y AAA no lo exige.
+      en301549: entry.introducedIn === '2.2' || entry.level === 'AAA' ? null : `9.${entry.criterion}`,
       axeRules: rules,
       coverage: rules.length > 0 ? 'partial' : 'manual',
     };
@@ -90,8 +90,18 @@ for (const check of catalog.checks) {
 export const findCheck = (id: string): Check | undefined => CHECK_BY_ID.get(id);
 
 /**
+ * Criterios de una version del catalogo, para recalcular una firma hecha con
+ * ella: si se recalculase con los de ahora, toda firma antigua dejaria de
+ * coincidir. La v1 (`wcag22-aa`) era la actual sin los AAA; la v2 solo anadio
+ * criterios, asi que basta con filtrar. Una version futura que cambie textos o
+ * criterios ya existentes necesitara guardar la anterior.
+ */
+export const checksOfVersion = (version: number): Check[] =>
+  version >= 2 ? catalog.checks : catalog.checks.filter((check) => check.level !== 'AAA');
+
+/**
  * Criterios a los que afecta una regla de axe, en orden de la especificacion.
- * Puede ser mas de uno (`link-name`: 2.4.4 y 4.1.2). Vacio si la regla es AAA
- * o buena practica.
+ * Puede ser mas de uno (`link-name`: 2.4.4 y 4.1.2). Vacio si la regla es
+ * una buena practica.
  */
 export const checksForAxeRule = (ruleId: string): Check[] => CHECKS_BY_RULE.get(ruleId) ?? [];
