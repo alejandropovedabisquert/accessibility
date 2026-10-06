@@ -530,6 +530,7 @@ puede firmar.
 GET  /api/sites/:id/sign-off-preview?pageIds=a,b   Lo que se firmaría y lo que falta
 POST /api/sites/:id/sign-offs                      Firmar (capa 3)
 GET  /api/sign-offs/:id                            La firma, y si lo firmado sigue coincidiendo
+DELETE /api/sign-offs/:id                          Borrar la firma (capa 3)
 GET  /api/sign-offs/:id/earl?download=1            EARL 1.0 en JSON-LD
 GET  /api/sign-offs/:id/report.pdf                 Informe firmado
 ```
@@ -544,7 +545,9 @@ GET  /api/sign-offs/:id/report.pdf                 Informe firmado
 - **Lo firmado se congela** en `scan-results/sign-offs/<id>.json` con su huella SHA-256. El PDF y el
   EARL salen siempre de esa copia. Si después alguien corrige un hallazgo de la muestra, la firma sigue
   igual pero avisa de que ya no coincide con los datos actuales.
-- Un sitio con firmas no se puede borrar.
+- Una firma se puede borrar (`DELETE /api/sign-offs/:id`), y un sitio se borra con todas sus firmas,
+  incluidos la copia congelada y el PDF. Las auditorías y los hallazgos de página se conservan. El MCP
+  no puede borrar nada.
 
 ### MCP para Claude Code
 

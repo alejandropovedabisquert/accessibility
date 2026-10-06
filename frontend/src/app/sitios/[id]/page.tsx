@@ -323,23 +323,24 @@ export default async function SiteDetail({ params, searchParams }: Props) {
         </section>
       ) : null}
 
-      {signOffs.length === 0 ? (
-        <details className="rounded-lg border border-critical/30 bg-surface p-5">
-          <summary className="cursor-pointer text-sm font-medium text-critical">Borrar el sitio</summary>
-          <p className="mt-3 text-sm">
-            Se borran el sitio y sus {site.findings.length} hallazgo(s) de sitio, también los ya validados. Las auditorías,
-            sus páginas y los hallazgos de cada página se conservan.
-          </p>
-          <form action={deleteSiteAction} className="mt-3">
-            <input type="hidden" name="id" value={site.id} />
-            <button type="submit" className={buttonStyles.danger}>
-              Borrar {site.name}
-            </button>
-          </form>
-        </details>
-      ) : (
-        <p className="text-sm text-ink-muted">Este sitio tiene firmas, así que no se puede borrar.</p>
-      )}
+      <details className="rounded-lg border border-critical/30 bg-surface p-5">
+        <summary className="cursor-pointer text-sm font-medium text-critical">Borrar el sitio</summary>
+        <p className="mt-3 text-sm">
+          Se borran el sitio, sus {site.findings.length} hallazgo(s) de sitio (también los ya validados)
+          {signOffs.length > 0 ? (
+            <>
+              {' '}y <strong>sus {signOffs.length} firma(s)</strong>, con sus informes PDF y EARL
+            </>
+          ) : null}
+          . No se puede deshacer. Las auditorías, sus páginas y los hallazgos de cada página se conservan.
+        </p>
+        <form action={deleteSiteAction} className="mt-3">
+          <input type="hidden" name="id" value={site.id} />
+          <button type="submit" className={buttonStyles.danger}>
+            Borrar {site.name}
+          </button>
+        </form>
+      </details>
     </>
   );
 }

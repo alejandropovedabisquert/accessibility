@@ -165,8 +165,11 @@ criterios existentes (no solo añade), `checksOfVersion` ya no basta: hay que co
 **Lo firmado sale de la copia congelada, nunca de la BD.** `signoff.service` guarda el `SignOffSnapshot`
 en `scan-results/sign-offs/<id>.json` y su hash (JSON con claves ordenadas) en `sign_offs`. El PDF y el
 EARL se generan desde esa copia; `stillMatches` recalcula con los datos actuales para avisar si algo
-cambió. Si cambias la forma del snapshot, las firmas antiguas pasarán a `stillMatches: false`. Un sitio
-con firmas no se borra (`sign_offs` sin `ON DELETE CASCADE` a propósito).
+cambió. Si cambias la forma del snapshot, las firmas antiguas pasarán a `stillMatches: false`. Una firma
+se borra sola o con su sitio, pero `sign_offs` no tiene `ON DELETE CASCADE`: su contenido vive en disco,
+así que el borrado va por `reviewRepository.deleteSite`/`deleteSignOff` + `rawStore.removeSignOff`, primero
+la fila y luego los ficheros (un fichero huérfano no lo ve nadie; una fila sin contenido es una firma de
+nada).
 
 **La evidencia, como el JSON de axe, va a disco** (`scan-results/<auditId>/evidence/<pageId>/`), nunca a
 SQLite. Un recolector que falla se anota en `errors` y no tumba ni la evidencia ni el escaneo.

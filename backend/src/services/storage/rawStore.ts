@@ -110,6 +110,14 @@ class RawStore {
   public async removeAudit(auditId: string): Promise<void> {
     await fs.rm(this.auditDir(auditId), { recursive: true, force: true });
   }
+
+  /** La copia congelada y el PDF, si llego a generarse. */
+  public async removeSignOff(id: string): Promise<void> {
+    await Promise.all([
+      fs.rm(path.join(this.signOffDir(), `${path.basename(id)}.json`), { force: true }),
+      fs.rm(this.signOffPdfPath(id), { force: true }),
+    ]);
+  }
 }
 
 export default new RawStore();

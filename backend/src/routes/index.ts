@@ -30,6 +30,7 @@ import {
   createPageFinding,
   createSite,
   createSiteFinding,
+  deleteSignOff,
   deleteSite,
   getChecks,
   getEvidenceFile,
@@ -87,6 +88,8 @@ router.post('/sites/:id/sign-offs', createSignOff);
 router.get('/sites/:id/sign-offs', listSignOffs);
 
 router.get('/sign-offs/:id', getSignOff);
+// Solo capa 3, como firmar: el MCP no lo expone.
+router.delete('/sign-offs/:id', deleteSignOff);
 router.get('/sign-offs/:id/earl', getSignOffEarl);
 router.get('/sign-offs/:id/report.pdf', getSignOffPdf);
 

@@ -40,7 +40,7 @@ export const getSite = asyncHandler(async (req: Request<IdParams>, res: Response
 });
 
 export const deleteSite = asyncHandler(async (req: Request<IdParams>, res: Response) => {
-  reviewService.deleteSite(req.params.id);
+  await reviewService.deleteSite(req.params.id);
   res.status(204).end();
 });
 
@@ -106,6 +106,11 @@ export const listSignOffs = asyncHandler(async (req: Request<IdParams>, res: Res
 
 export const getSignOff = asyncHandler(async (req: Request<IdParams>, res: Response) => {
   res.json(await signOffService.get(req.params.id));
+});
+
+export const deleteSignOff = asyncHandler(async (req: Request<IdParams>, res: Response) => {
+  await signOffService.delete(req.params.id);
+  res.status(204).end();
 });
 
 export const getSignOffEarl = asyncHandler(async (req: Request<IdParams>, res: Response) => {

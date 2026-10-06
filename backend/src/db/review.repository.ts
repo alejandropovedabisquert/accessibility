@@ -181,8 +181,13 @@ class ReviewRepository {
     return row ? this.findSite(row.site_id) : null;
   }
 
+  /** Con sus firmas: `sign_offs` no tiene ON DELETE CASCADE (ver el esquema). */
   deleteSite(id: string): boolean {
-    return getDb().prepare('DELETE FROM sites WHERE id = @id').run({ id }).changes > 0;
+    const db = getDb();
+    return db.transaction(() => {
+      db.prepare('DELETE FROM sign_offs WHERE site_id = @id').run({ id });
+      return db.prepare('DELETE FROM sites WHERE id = @id').run({ id }).changes > 0;
+    })();
   }
 
   insertFinding(finding: NewFinding): void {
@@ -291,11 +296,8 @@ class ReviewRepository {
     return rows.map(toSignOff);
   }
 
-  countSiteSignOffs(siteId: string): number {
-    const row = getDb().prepare('SELECT COUNT(*) AS total FROM sign_offs WHERE site_id = @siteId').get({ siteId }) as {
-      total: number;
-    };
-    return row.total;
+  deleteSignOff(id: string): boolean {
+    return getDb().prepare('DELETE FROM sign_offs WHERE id = @id').run({ id }).changes > 0;
   }
 
   // ------------------------------------------------------------- lineas base

@@ -135,13 +135,16 @@ class ReviewService {
     };
   }
 
-  public deleteSite(id: string): void {
+  /**
+   * Borra el sitio con sus hallazgos de sitio y sus firmas. Primero la BD y
+   * despues los ficheros: un fichero huerfano no lo ve nadie, una fila sin su
+   * contenido seria una firma de nada.
+   */
+  public async deleteSite(id: string): Promise<void> {
     if (!reviewRepository.findSite(id)) throw notFound('Sitio no encontrado');
-    // Borrarlo haria desaparecer lo firmado: una firma es un registro, no un borrador.
-    if (reviewRepository.countSiteSignOffs(id) > 0) {
-      throw conflict('Este sitio tiene firmas: no se puede borrar');
-    }
+    const signOffs = reviewRepository.listSiteSignOffs(id);
     reviewRepository.deleteSite(id);
+    await Promise.all(signOffs.map((signOff) => rawStore.removeSignOff(signOff.id)));
   }
 
   /**

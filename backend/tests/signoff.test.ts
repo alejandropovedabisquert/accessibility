@@ -209,16 +209,37 @@ describe('firma', () => {
     expect(detail.findingsHash).toBe(signOff.findingsHash);
   });
 
-  it('un sitio con firmas no se puede borrar', async () => {
-    const res = await request(app).delete(`/api/sites/${siteId}`).expect(409);
-    expect(res.body.error).toContain('firmas');
-  });
-
   it('valida la entrada', async () => {
     await request(app).post(`/api/sites/${siteId}/sign-offs`).send({ pageIds: [], signer: SIGNER, statement: 'x' }).expect(400);
     await request(app).post(`/api/sites/${siteId}/sign-offs`).send({ pageIds: [pageId], signer: SIGNER }).expect(400);
     await request(app).get(`/api/sites/${siteId}/sign-off-preview`).expect(400);
     await request(app).get('/api/sign-offs/no-existe').expect(404);
+    await request(app).delete('/api/sign-offs/no-existe').expect(404);
+  });
+});
+
+describe('borrado', () => {
+  it('una firma se borra sola, con su copia congelada y su PDF', async () => {
+    const pdf = rawStore.signOffPdfPath(signOff.id);
+    expect(rawStore.exists(pdf)).toBe(true);
+
+    await request(app).delete(`/api/sign-offs/${signOff.id}`).expect(204);
+
+    await request(app).get(`/api/sign-offs/${signOff.id}`).expect(404);
+    expect(await rawStore.readSignOffSnapshot(signOff.id)).toBeNull();
+    expect(rawStore.exists(pdf)).toBe(false);
+    // La otra firma y el sitio siguen.
+    const listed = await request(app).get(`/api/sites/${siteId}/sign-offs`).expect(200);
+    expect(listed.body.map((item: { id: string }) => item.id)).toEqual([`${signOff.id}-v1`]);
+  });
+
+  it('un sitio con firmas se borra con todas ellas', async () => {
+    const remaining = `${signOff.id}-v1`;
+    await request(app).delete(`/api/sites/${siteId}`).expect(204);
+
+    await request(app).get(`/api/sites/${siteId}`).expect(404);
+    await request(app).get(`/api/sign-offs/${remaining}`).expect(404);
+    expect(await rawStore.readSignOffSnapshot(remaining)).toBeNull();
   });
 });
 

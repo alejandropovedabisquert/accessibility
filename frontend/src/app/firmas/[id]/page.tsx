@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { ApiError, getSignOff } from '@/lib/api';
+import { deleteSignOffAction } from '@/app/actions';
 import { CONFORMANCE_LABEL, displayUrl, formatDateTime, screenLabel } from '@/lib/format';
 import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 
@@ -172,6 +173,21 @@ export default async function SignOffView({ params }: Props) {
           </table>
         </Card>
       </section>
+
+      <details className="mt-10 rounded-lg border border-critical/30 bg-surface p-5">
+        <summary className="cursor-pointer text-sm font-medium text-critical">Borrar la firma</summary>
+        <p className="mt-3 text-sm">
+          Se borran la firma, la copia congelada de lo firmado y su informe PDF. No se puede deshacer. Los hallazgos y las
+          auditorías se conservan, así que se puede volver a firmar.
+        </p>
+        <form action={deleteSignOffAction} className="mt-3">
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="siteId" value={snapshot.site.id} />
+          <button type="submit" className={buttonStyles.danger}>
+            Borrar esta firma
+          </button>
+        </form>
+      </details>
     </>
   );
 }

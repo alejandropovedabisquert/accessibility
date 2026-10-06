@@ -275,6 +275,16 @@ export async function deleteSiteAction(formData: FormData): Promise<void> {
   redirect('/sitios');
 }
 
+export async function deleteSignOffAction(formData: FormData): Promise<void> {
+  const id = text(formData, 'id');
+  const siteId = text(formData, 'siteId');
+  const res = await fetch(`${API_URL}/api/sign-offs/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' });
+  if (!res.ok) throw new Error(await readError(res));
+
+  revalidatePath(`/sitios/${siteId}`);
+  redirect(`/sitios/${siteId}`);
+}
+
 /**
  * Resultado que registra una persona (p. ej. tras probar con un lector de
  * pantalla). Nace propuesto, como todos: se valida después con la revisión.

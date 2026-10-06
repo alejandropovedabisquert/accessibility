@@ -138,8 +138,9 @@ CREATE TABLE IF NOT EXISTS page_baselines (
 CREATE INDEX IF NOT EXISTS idx_page_baselines_baseline ON page_baselines (baseline_page_id);
 CREATE INDEX IF NOT EXISTS idx_findings_inherited ON manual_findings (inherited_from);
 
--- Sin ON DELETE CASCADE a proposito: un sitio con firmas no se puede borrar.
--- El contenido firmado vive en disco (scan-results/sign-offs/<id>.json).
+-- Sin ON DELETE CASCADE: las firmas tambien tienen contenido en disco
+-- (scan-results/sign-offs/<id>.json y .pdf), asi que se borran a mano con el
+-- sitio (reviewRepository.deleteSite + rawStore.removeSignOff).
 CREATE TABLE IF NOT EXISTS sign_offs (
   id               TEXT PRIMARY KEY,
   site_id          TEXT NOT NULL REFERENCES sites (id),

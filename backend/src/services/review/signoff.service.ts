@@ -155,6 +155,12 @@ class SignOffService {
     return { ...signOff, snapshot, stillMatches };
   }
 
+  /** Como al borrar el sitio: primero la fila, despues la copia congelada y el PDF. */
+  public async delete(id: string): Promise<void> {
+    if (!reviewRepository.deleteSignOff(id)) throw notFound('Firma no encontrada');
+    await rawStore.removeSignOff(id);
+  }
+
   /** Siempre de la copia firmada, no de los datos actuales. */
   public async earl(id: string) {
     const { snapshot, ...signOff } = await this.frozen(id);
