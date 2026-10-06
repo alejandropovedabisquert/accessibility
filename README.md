@@ -374,7 +374,7 @@ Dos cosas que conviene saber:
 ## Normas que se pueden comprobar
 
 `GET /api/meta` devuelve en `tags` las opciones, que son tags de axe-core. Por defecto se usan
-`wcag2a`, `wcag2aa`, `wcag21a` y `wcag21aa`.
+todas.
 
 | Tag | Qué añade |
 | --- | --- |
@@ -384,8 +384,8 @@ Dos cosas que conviene saber:
 | `wcag2aaa` | WCAG AAA. En axe 4.13 son solo 3 reglas: `color-contrast-enhanced`, `identical-links-same-purpose` y `meta-refresh-no-exceptions` |
 | `best-practice` | Buenas prácticas de Deque que no son criterios WCAG (landmarks, orden de encabezados…) |
 
-`wcag2aaa` y `best-practice` están disponibles en el formulario pero no van marcados por defecto; el
-botón "Marcar todas" sí los activa. Sus reglas nunca cuentan para el cumplimiento legal (ver abajo).
+`wcag2aaa` y `best-practice` también van marcados por defecto, pero sus reglas nunca cuentan para el
+cumplimiento legal (ver abajo).
 
 ## Excluir contenido del análisis
 
@@ -430,8 +430,8 @@ nivel A, es A; y si no tiene ninguno, buena práctica. Cada incumplimiento de
 
 Cada grupo trae `score`, `passes`, `violations`, `violationNodes`, `critical`, `serious`,
 `moderate`, `minor` e `incomplete`. En la auditoría, `score` es la media de sus páginas y el resto
-son sumas. Si en un grupo no se evaluó ninguna regla (con las normas por defecto no se ejecuta
-ninguna mejora), su `score` es `null` y la interfaz lo muestra como "No evaluado", no como 100 %.
+son sumas. Si en un grupo no se evaluó ninguna regla (p. ej. desmarcando AAA y buenas
+prácticas), su `score` es `null` y la interfaz lo muestra como "No evaluado", no como 100 %.
 
 Las auditorías anteriores a este desglose se recalculan solas al arrancar el backend, a partir del
 JSON crudo guardado en disco. Si ese JSON ya no existe, `compliance` queda a `null`.

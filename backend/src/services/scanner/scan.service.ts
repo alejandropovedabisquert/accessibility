@@ -37,7 +37,6 @@ class ScopeError extends Error {}
  */
 type BrowserGlobal = { document: { querySelectorAll(selector: string): { length: number } } };
 
-export const DEFAULT_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 export const AVAILABLE_TAGS = [
   { id: 'wcag2a', label: 'WCAG 2.0 A' },
   { id: 'wcag2aa', label: 'WCAG 2.0 AA' },
@@ -47,6 +46,12 @@ export const AVAILABLE_TAGS = [
   { id: 'wcag22aa', label: 'WCAG 2.2 AA' },
   { id: 'best-practice', label: 'Buenas practicas' },
 ];
+
+/**
+ * Por defecto, todas: AAA y buenas practicas no tocan la metrica legal (van en
+ * `improvements`) y la revision manual cubre los AAA, que aprovechan sus reglas.
+ */
+export const DEFAULT_TAGS = AVAILABLE_TAGS.map((tag) => tag.id);
 
 /**
  * Atajos para las secciones habituales. El valor es CSS puro: se guarda el

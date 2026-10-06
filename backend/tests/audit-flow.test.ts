@@ -347,8 +347,21 @@ describe('cumplimiento legal separado de mejoras', () => {
     expect(levelOf('region')).toBe('best-practice');
   });
 
-  it('con las normas por defecto no evalua mejoras', async () => {
+  it('por defecto evalua todas las normas, mejoras incluidas', async () => {
     const created = await request(app).post('/api/audits').send({ urls: [fixture.url('/correcta')] }).expect(202);
+    const audit = await waitForAudit(app, created.body.id);
+
+    expect(audit.config.tags).toContain('wcag2aaa');
+    expect(audit.config.tags).toContain('best-practice');
+    expect(audit.pages[0].compliance.legal.score).toBe(100);
+    expect(audit.pages[0].compliance.improvements.score).not.toBeNull();
+  });
+
+  it('sin normas de mejora, las mejoras quedan sin evaluar y no a 100', async () => {
+    const created = await request(app)
+      .post('/api/audits')
+      .send({ urls: [fixture.url('/correcta')], tags: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] })
+      .expect(202);
     const audit = await waitForAudit(app, created.body.id);
 
     expect(audit.pages[0].compliance.legal.score).toBe(100);

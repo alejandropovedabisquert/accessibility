@@ -231,7 +231,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
         evidence: z.boolean().default(true).describe('Recoger evidencia para la revisión manual'),
         viewports: z.array(z.object({ width: z.number().int(), height: z.number().int() })).optional(),
         device: z.string().min(1).optional().describe('Dispositivo de Playwright, p. ej. "iPhone 13"'),
-        tags: z.array(z.string().min(1)).optional().describe('Tags de axe; por defecto WCAG 2.1 A/AA'),
+        tags: z.array(z.string().min(1)).optional().describe('Tags de axe; por defecto todos (A, AA, AAA y buenas prácticas)'),
       }),
     },
     (input) =>
