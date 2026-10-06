@@ -13,6 +13,7 @@ import {
   screenLabel,
 } from '@/lib/format';
 import { AutoRefresh } from '@/components/AutoRefresh';
+import { DownloadMenu } from '@/components/DownloadMenu';
 import {
   Card,
   ComplianceSummary,
@@ -82,22 +83,21 @@ export default async function AuditDetailPage({ params }: Props) {
         actions={
           <>
             {audit.completedPages > 0 ? (
-              <>
-                <a
-                  href={`/api/backend/audits/${audit.id}/export?format=compact&detail=legal&download=1`}
-                  className={buttonStyles.secondary}
-                  title="Todas las páginas en un JSON, fallos repetidos agrupados. Detalle de WCAG A/AA; AAA y buenas prácticas, resumidas por regla"
-                >
-                  Descargar JSON para IA
-                </a>
-                <a
-                  href={`/api/backend/audits/${audit.id}/export?format=compact&detail=full&download=1`}
-                  className={buttonStyles.secondary}
-                  title="Igual, pero con el detalle de todos los niveles, incluidas AAA y buenas prácticas"
-                >
-                  JSON para IA completo
-                </a>
-              </>
+              <DownloadMenu
+                label="Descargar JSON"
+                options={[
+                  {
+                    href: `/api/backend/audits/${audit.id}/export?format=compact&detail=legal&download=1`,
+                    label: 'Para IA',
+                    hint: 'Todas las páginas, fallos repetidos agrupados. Detalle de WCAG A/AA; AAA y buenas prácticas, resumidas por regla',
+                  },
+                  {
+                    href: `/api/backend/audits/${audit.id}/export?format=compact&detail=full&download=1`,
+                    label: 'Para IA, completo',
+                    hint: 'Igual, con el detalle de todos los niveles, incluidas AAA y buenas prácticas',
+                  },
+                ]}
+              />
             ) : null}
             <form action={rerunAuditAction}>
               <input type="hidden" name="id" value={audit.id} />

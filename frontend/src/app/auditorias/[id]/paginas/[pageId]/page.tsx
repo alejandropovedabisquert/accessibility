@@ -13,6 +13,7 @@ import {
 } from '@/lib/format';
 import { ViolationList } from '@/components/ViolationList';
 import { DiffPanel } from '@/components/DiffPanel';
+import { DownloadMenu } from '@/components/DownloadMenu';
 import { HistoryChart } from '@/components/HistoryChart';
 import { Card, ComplianceSummary, ExcludeNotice, PageHeader, buttonStyles } from '@/components/ui';
 
@@ -106,16 +107,17 @@ export default async function PageDetail({ params }: Props) {
             <a href={pdfHref} className={buttonStyles.secondary}>
               Descargar PDF
             </a>
-            <a href={jsonHref} className={buttonStyles.secondary}>
-              Descargar JSON
-            </a>
-            <a
-              href={aiJsonHref}
-              className={buttonStyles.secondary}
-              title="Solo incumplimientos y revisiones manuales, con 5 elementos de ejemplo por regla"
-            >
-              Descargar JSON para IA
-            </a>
+            <DownloadMenu
+              label="Descargar JSON"
+              options={[
+                { href: jsonHref, label: 'Resultado completo de axe', hint: 'El JSON crudo, con todas las reglas y todos los elementos' },
+                {
+                  href: aiJsonHref,
+                  label: 'Para IA',
+                  hint: 'Solo incumplimientos y revisiones manuales, con 5 elementos de ejemplo por regla',
+                },
+              ]}
+            />
           </>
         }
       />
