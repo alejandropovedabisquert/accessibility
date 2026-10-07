@@ -67,6 +67,15 @@ export const buildCatalog = (raw: unknown): CheckCatalog => {
       ...entry,
       // EN 301 549 v3.2.1 incorpora WCAG 2.1 A/AA en el apartado 9 con la misma
       // numeracion; lo nuevo de 2.2 aun no tiene apartado y AAA no lo exige.
+      // TODO: cuando EN 301 549 v4.1.1 (WCAG 2.2, publicada por ETSI en 09/2026) se
+      // cite en el DOUE:
+      //  1. Los seis criterios nuevos de WCAG 2.2 A/AA pasan a legales.
+      //  2. El 4.1.1 Parsing deja de serlo.
+      //  3. Version nueva del catalogo. Esto se calcula al cargar y no se guarda por
+      //     version, asi que `checksOfVersion` tiene que conservar el criterio legal
+      //     de la v2, o las firmas antiguas pasaran a `stillMatches: false`.
+      // Revisar tambien si el OAW publica metodologia nueva y si cambia la regla de
+      // `conformanceOf`, y los textos "WCAG 2.1 ... EN 301 549 v3.2.1" del PDF y la UI.
       en301549: entry.introducedIn === '2.2' || entry.level === 'AAA' ? null : `9.${entry.criterion}`,
       axeRules: rules,
       coverage: rules.length > 0 ? 'partial' : 'manual',

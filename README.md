@@ -543,9 +543,12 @@ GET  /api/sign-offs/:id/report.pdf                 Informe firmado
 
 - **El estado de conformidad se calcula**, con los tres valores de la declaración del RD 1112/2018, y
   solo sobre los requisitos legales (WCAG 2.1 A/AA, por EN 301 549 v3.2.1). Los criterios nuevos de
-  WCAG 2.2 y los AAA se informan aparte. El RD no cuantifica "parcialmente": aquí es **no conforme** si falla la
-  mitad o más de los requisitos que aplican, **parcialmente** si falla alguno y **plenamente** si
-  ninguno.
+  WCAG 2.2 y los AAA se informan aparte. El modelo de declaración (Decisión de Ejecución (UE)
+  2018/1523) solo habla de "la mayoría de los requisitos"; se usa la misma regla que la metodología de
+  seguimiento simplificado del Observatorio de Accesibilidad Web (UNE-EN 301549:2022): **no conforme**
+  si falla la mitad o más de los requisitos que aplican (conformes ≤ no conformes), **parcialmente** si
+  falla alguno y **plenamente** si ninguno. WCAG-EM no define estas categorías: para WCAG la
+  conformidad es binaria.
 - En la muestra, un criterio toma el peor resultado de sus páginas, y una página sin revisar pesa más
   que otra que cumple: el criterio no está evaluado en la web.
 - **Lo firmado se congela** en `scan-results/sign-offs/<id>.json` con su huella SHA-256. El PDF y el

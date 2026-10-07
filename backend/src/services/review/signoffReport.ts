@@ -128,7 +128,9 @@ export const signOffReportHtml = (signOff: SignOff, snapshot: SignOffSnapshot): 
   </p>
   <p class="muted">
     &laquo;No conforme&raquo; significa que falla la mitad o más de los requisitos que aplican; &laquo;parcialmente conforme&raquo;,
-    que falla alguno pero menos de la mitad.
+    que falla alguno pero menos de la mitad. Es la regla de la metodología de seguimiento simplificado del Observatorio
+    de Accesibilidad Web, que concreta la &laquo;mayoría de los requisitos&raquo; del modelo de declaración
+    (Decisión de Ejecución (UE) 2018/1523).
   </p>
 
   <h2>Muestra evaluada</h2>

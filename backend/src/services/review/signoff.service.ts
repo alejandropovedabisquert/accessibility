@@ -42,10 +42,13 @@ export const aggregateOutcome = (outcomes: readonly EarlOutcome[]): EarlOutcome 
 };
 
 /**
- * Estado de conformidad del RD 1112/2018 sobre los criterios legales. El RD no
- * cuantifica "parcialmente": aqui es no conforme si falla la mitad o mas de los
- * criterios que aplican. Es una decision nuestra, y por eso se calcula y se
- * documenta en vez de dejarla al gusto de quien firma.
+ * Estado de conformidad del RD 1112/2018 sobre los criterios legales. El modelo de
+ * declaracion (Decision de Ejecucion UE 2018/1523) solo dice "la mayoria de los
+ * requisitos"; la metodologia de seguimiento simplificado del Observatorio de
+ * Accesibilidad Web lo concreta como no conforme si conformes <= no conformes, y aqui
+ * se aplica igual, empate incluido. Ellos cuentan sus verificaciones automaticas;
+ * nosotros, criterios revisados a mano. Se calcula en vez de dejarlo al gusto de
+ * quien firma.
  */
 export const conformanceOf = (criteria: readonly CriterionResult[]): ConformanceSummary => {
   const legal = criteria.filter((criterion) => criterion.legal);
