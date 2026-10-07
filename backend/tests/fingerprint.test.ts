@@ -13,6 +13,18 @@ describe('huella de un nodo', () => {
     expect(fingerprint('link-name', a)).toBe(fingerprint('link-name', b));
   });
 
+  it('el mismo menu de WordPress casa en todas las paginas, este donde este la pagina actual', () => {
+    const home =
+      '<ul class="elementor-nav-menu" data-smartmenus-id="17912913674625872">' +
+      '<li class="menu-item current-menu-item current_page_item page-item-2500 page_item"><a aria-current="page" class="elementor-item elementor-item-active" href="/">Inicio</a></li>' +
+      '<li class="menu-item"><a class="elementor-item" href="/nosotros/">Nosotros</a></li></ul>';
+    const nosotros =
+      '<ul class="elementor-nav-menu" data-smartmenus-id="17912913758776484">' +
+      '<li class="menu-item"><a class="elementor-item" href="/">Inicio</a></li>' +
+      '<li class="menu-item current-menu-item current_page_item page-item-1365 page_item"><a aria-current="page" class="elementor-item elementor-item-active" href="/nosotros/">Nosotros</a></li></ul>';
+    expect(normalizeHtml(home)).toBe(normalizeHtml(nosotros));
+  });
+
   it('sustituye el id generado de un campo y sus referencias', () => {
     const html = '<label for="e-form-input-31a11f8">Email</label><input id="e-form-input-31a11f8" aria-describedby="e-form-input-31a11f8-help">';
     expect(normalizeHtml(html)).toBe(

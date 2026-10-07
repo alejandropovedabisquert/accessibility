@@ -12,7 +12,8 @@ const GIF = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICT
 
 /**
  * Misma plantilla: cabecera con un texto sobre degradado (needs-review de axe
- * en 1.4.3) y pie con un enlace. Cambia el contenido principal.
+ * en 1.4.3), pie con un enlace y un banner de cookies colgado de body, fuera de
+ * todo landmark (como los de verdad). Cambia el contenido principal.
  */
 const page = (title: string, main: string) => `<!doctype html>
 <html lang="es">
@@ -24,6 +25,7 @@ const page = (title: string, main: string) => `<!doctype html>
     </header>
     <main>${main}</main>
     <footer><a href="/aviso">Aviso legal</a></footer>
+    <div class="cookies"><p>Usamos cookies</p><button type="button">Aceptar</button></div>
   </body>
 </html>`;
 
@@ -85,6 +87,18 @@ beforeAll(async () => {
     targets: [{ selector: 'footer > a' }],
   });
   await decide(ids.base, { checkId: 'page-titled', outcome: 'passed', description: 'El título identifica la ficha' });
+  await decide(ids.base, {
+    checkId: 'reflow',
+    outcome: 'failed',
+    description: 'El banner de cookies se corta a 320 px',
+    targets: [{ selector: 'body > div.cookies' }],
+  });
+  await decide(ids.base, {
+    checkId: 'headings-and-labels',
+    outcome: 'failed',
+    description: 'El enlace del pie y el h1 no describen su destino ni su tema',
+    targets: [{ selector: 'footer > a' }, { selector: 'main > h1' }],
+  });
 });
 
 afterAll(async () => {
@@ -98,7 +112,7 @@ describe('candidatas a linea base', () => {
   it('son las de la misma pantalla, con cuantos hallazgos decididos tienen', async () => {
     const res = await request(app).get(`/api/audits/${auditId}/pages/${ids.other}/baseline-candidates`).expect(200);
     const base = res.body.find((item: { page: { id: string } }) => item.page.id === ids.base);
-    expect(base.decidedFindings).toBe(4);
+    expect(base.decidedFindings).toBe(6);
     expect(res.body.some((item: { page: { id: string } }) => item.page.id === ids.other)).toBe(false);
   });
 });
@@ -111,7 +125,7 @@ describe('herencia', () => {
     expect(status).toMatchObject({ banner: 'same', contentinfo: 'same', main: 'changed' });
     expect(report.wholePageMatch).toBe(false);
 
-    expect(report.inherited.map((item) => item.checkId).sort()).toEqual(['contrast-minimum', 'focus-visible']);
+    expect(report.inherited.map((item) => item.checkId).sort()).toEqual(['contrast-minimum', 'focus-visible', 'headings-and-labels', 'reflow']);
     expect(Object.fromEntries(report.notInherited.map((item) => [item.checkId, item.reason]))).toMatchObject({
       'non-text-content': 'targets-changed',
       'page-titled': 'page-changed',
@@ -129,6 +143,30 @@ describe('herencia', () => {
     expect(focus?.review.status).toBe('validated');
     expect(focus?.review.note).toContain('/base');
     expect(checkOf(review, 'page-titled').outcome).toBe('untested');
+
+    // El banner de cookies no esta en ningun landmark y aun asi casa: su region es el bloque hijo de body.
+    expect(checkOf(review, 'reflow').outcome).toBe('failed');
+    // Un fallo que mezcla pie y contenido propio se hereda solo con lo comun.
+    expect(report.inherited.find((item) => item.checkId === 'headings-and-labels')?.partial).toEqual({ kept: 1, of: 2 });
+    const headings = checkOf(review, 'headings-and-labels').findings[0];
+    expect(headings?.targets.map((target) => target.selector)).toEqual(['footer > a']);
+    expect(headings?.description).toMatch(/^Heredado solo para los elementos comunes/);
+  });
+
+  it('lo propio de la pagina convive con lo heredado si mira otros elementos', async () => {
+    await decide(ids.other, {
+      checkId: 'headings-and-labels',
+      outcome: 'passed',
+      description: 'El h1 del listado describe la página',
+      targets: [{ selector: 'main > h1' }],
+    });
+    await decide(ids.other, { checkId: 'reflow', outcome: 'passed', description: 'Sin desplazamiento horizontal' });
+
+    const report = await link(ids.other);
+    // headings: el propio mira main > h1 y el heredado footer > a. reflow: el propio es de toda la pagina.
+    expect(report.inherited.map((item) => item.checkId)).toContain('headings-and-labels');
+    expect(report.notInherited).toContainEqual(expect.objectContaining({ checkId: 'reflow', reason: 'already-reviewed' }));
+    expect(checkOf(await reviewOf(ids.other), 'headings-and-labels').findings).toHaveLength(2);
   });
 
   it('una pagina gemela (otros textos, misma estructura) lo hereda todo', async () => {
@@ -137,9 +175,12 @@ describe('herencia', () => {
     expect(report.inherited.map((item) => item.checkId).sort()).toEqual([
       'contrast-minimum',
       'focus-visible',
+      'headings-and-labels',
       'non-text-content',
       'page-titled',
+      'reflow',
     ]);
+    expect(report.inherited.every((item) => !item.partial)).toBe(true);
     expect(report.focusSequence).toBe('same');
   });
 

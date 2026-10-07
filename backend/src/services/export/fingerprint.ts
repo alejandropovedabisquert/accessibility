@@ -40,6 +40,25 @@ export const FINGERPRINT_PATTERNS: FingerprintPattern[] = [
     why: 'Destino, imagen y textos de cada instancia; la estructura del componente es la misma',
   },
 
+  // ---- WordPress: el menu marca la pagina en la que se esta. El mismo menu es
+  // distinto en cada pagina, y sin esto la cabecera y el pie nunca casan entre
+  // paginas (lineas base) ni se agrupan en la exportacion.
+  {
+    kind: 'class',
+    pattern: /^(current[-_](menu|page)[-_](item|parent|ancestor)|page[-_]item(-\d+)?|elementor-item-active)$/,
+    why: 'WordPress/Elementor: elemento de menu de la pagina actual (current-menu-item, current_page_item, page-item-1365, elementor-item-active)',
+  },
+  {
+    kind: 'attribute',
+    pattern: /^aria-current$/,
+    why: 'Pagina actual en el menu: cambia de enlace en cada pagina. Va con las clases de arriba; que se marque bien es cosa de 2.4.8, no de la huella',
+  },
+  {
+    kind: 'attribute',
+    pattern: /^data-smartmenus-id$/,
+    why: 'SmartMenus (menus de Elementor): id aleatorio en cada carga de la pagina',
+  },
+
   // ---- Elementor
   {
     kind: 'class',

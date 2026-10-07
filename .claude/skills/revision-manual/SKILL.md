@@ -50,6 +50,11 @@ pareja A/AA (1.4.6 con 1.4.3, 2.4.9 con 2.4.4, 2.4.12 con 2.4.11, 2.5.5 con 2.5.
 - **Criterios de sitio** (`multiple-ways`, `consistent-navigation`, `consistent-identification`,
   `consistent-help`): una vez por sitio con `create_site_finding`, comparando la evidencia
   `landmarks`/`controls` de varias páginas del sitio (`get_site` para verlas).
+- **Un hallazgo por región, no uno por criterio**, si el criterio toca elementos compartidos
+  (cabecera, pie, banner de cookies, chat) y contenido propio de la página: p. ej. en 1.1.1, uno para
+  los logos del pie y otro para las imágenes del contenido. Las demás páginas solo heredan de la línea
+  base los hallazgos cuyos elementos existen también en ellas; un `passed` que mezcla regiones no se
+  hereda nunca, y un `failed` se hereda recortado a lo común.
 - Siempre: `description` en castellano diciendo **qué has comprobado y qué has visto**, no solo el
   veredicto; `evidenceRefs` con lo que la sostiene (`focus-sequence#4`, `reflow-320.jpg`);
   `targets` con unos pocos elementos de ejemplo y `targetCount` si hay más; `recommendation` en los

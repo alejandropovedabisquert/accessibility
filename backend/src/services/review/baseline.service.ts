@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'crypto';
 import auditRepository from '../../db/audit.repository';
 import reviewRepository from '../../db/review.repository';
-import browserPool from '../scanner/browserPool';
 import rawStore from '../storage/rawStore';
 import { normalizeHtml } from '../export/fingerprint';
 import { MAX_NODES_LIMIT, nodeSelector, toCompactNode } from '../export/compact';
+import browserPool from '../scanner/browserPool';
 import { EVIDENCE_LIMITS, installScript, probe } from '../evidence/evidence.service';
 import { findCheck } from './catalog';
 import reviewService from './review.service';
@@ -14,6 +14,7 @@ import type {
   AxeResults,
   BaselineRegion,
   BaselineReport,
+  ManualFinding,
   NotInheritedReason,
   PageEvidence,
 } from '../../types/audit.types';
@@ -146,16 +147,17 @@ class BaselineService {
 
     const [inBaseline, inPage] = [await resolveDom(baselineDom, selectors), await resolveDom(pageDom, selectors)];
     const wholePageMatch = inBaseline.body !== '' && inBaseline.body === inPage.body;
+    /** Huella de un elemento si es igual (el y su region) en las dos paginas. */
+    const matchOne = (selector: string): string | null => {
+      const a = inBaseline.targets.get(selector);
+      const b = inPage.targets.get(selector);
+      return a && b && a.element === b.element && a.region === b.region ? `${a.region}:${a.element}` : null;
+    };
+    const hashOf = (parts: string[]) => createHash('sha256').update([...new Set(parts)].sort().join('|')).digest('hex').slice(0, 16);
     /** Huella de lo que se ha comparado para heredar; null si algun elemento no coincide. */
     const match = (targetSelectors: string[]): string | null => {
-      const parts: string[] = [];
-      for (const selector of targetSelectors) {
-        const a = inBaseline.targets.get(selector);
-        const b = inPage.targets.get(selector);
-        if (!a || !b || a.element !== b.element || a.region !== b.region) return null;
-        parts.push(`${a.region}:${a.element}`);
-      }
-      return createHash('sha256').update([...new Set(parts)].sort().join('|')).digest('hex').slice(0, 16);
+      const parts = targetSelectors.map(matchOne);
+      return parts.every((part): part is string => part !== null) ? hashOf(parts) : null;
     };
 
     const at = new Date().toISOString();
@@ -251,31 +253,66 @@ class BaselineService {
       }
 
       // Resultado de una revision (IA o persona) sobre un criterio de pagina.
-      const ownReview = own.some(
-        (finding) =>
-          finding.source.kind === 'check' && finding.source.checkId === checkId && finding.review.status !== 'rejected' && !finding.inheritedFrom,
-      );
-      if (ownReview) {
-        skip('already-reviewed');
-        continue;
-      }
-      const fingerprint =
+      let copy: ManualFinding = original;
+      let fingerprint =
         original.targets.length > 0
           ? match(original.targets.map((target) => target.selector))
           : wholePageMatch
             ? `body:${inPage.body.slice(0, 16)}`
             : null;
+      // Un fallo se puede heredar a trozos: cada elemento que falla en la linea
+      // base y es igual aqui falla tambien aqui. Un "cumple" no: dice algo de
+      // toda la pagina, y lo que no casa puede incumplir.
+      if (!fingerprint && original.outcome === 'failed' && original.targets.length > 0) {
+        const kept = original.targets.filter((target) => matchOne(target.selector) !== null);
+        if (kept.length > 0) {
+          fingerprint = hashOf(kept.map((target) => matchOne(target.selector) ?? ''));
+          copy = {
+            ...original,
+            targets: kept,
+            targetCount: kept.length,
+            description: `Heredado solo para los elementos comunes con la línea base (${kept.length} de ${original.targets.length}): ${kept
+              .map((target) => target.selector)
+              .join(', ')}. ${original.description}`,
+          };
+        }
+      }
+
+      // Lo propio de la pagina manda si mira lo mismo que se heredaria: sin
+      // elementos (toda la pagina) o alguno en comun. Si no, conviven: lo
+      // heredado suele ser la cabecera o el pie, y lo propio, el contenido.
+      const inheritedSelectors = new Set(copy.targets.map((target) => target.selector));
+      const ownReview = own.some(
+        (finding) =>
+          finding.source.kind === 'check' &&
+          finding.source.checkId === checkId &&
+          finding.review.status !== 'rejected' &&
+          !finding.inheritedFrom &&
+          (finding.targets.length === 0 ||
+            inheritedSelectors.size === 0 ||
+            finding.targets.some((target) => inheritedSelectors.has(target.selector))),
+      );
+      if (ownReview) {
+        skip('already-reviewed');
+        continue;
+      }
       if (!fingerprint) {
         skip(original.targets.length > 0 ? 'targets-changed' : 'page-changed');
         continue;
       }
       const id = randomUUID();
       reviewRepository.insertInherited(
-        { ...original, id, subject: { kind: 'page', pageId: page.id }, createdAt: at },
+        { ...copy, id, subject: { kind: 'page', pageId: page.id }, createdAt: at },
         review,
         { findingId: original.id, fingerprint },
       );
-      report.inherited.push({ findingId: id, fromFindingId: original.id, checkId, criterion });
+      report.inherited.push({
+        findingId: id,
+        fromFindingId: original.id,
+        checkId,
+        criterion,
+        ...(copy !== original ? { partial: { kept: copy.targets.length, of: original.targets.length } } : {}),
+      });
     }
 
     reviewRepository.saveBaseline(report);

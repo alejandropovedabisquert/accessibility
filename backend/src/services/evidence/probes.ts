@@ -134,7 +134,7 @@ export interface ProbeApi {
   /**
    * Para la herencia de lineas base, sobre un DOM guardado: cada selector con
    * el HTML de su elemento y el indice de su region (el landmark que lo
-   * contiene, o el body si no hay). El HTML de cada region va una sola vez.
+   * contiene o, si no hay, el bloque hijo de body). El HTML de cada region va una sola vez.
    */
   resolveTargets(selectors: string[]): {
     targets: Array<{ selector: string; found: boolean; html: string; region: number }>;
@@ -640,8 +640,16 @@ export const installProbes = (options: ProbeOptions): void => {
 
     resolveTargets(selectors) {
       const regionElements: ProbeElement[] = [];
+      // Fuera de un landmark, la region es el bloque hijo de body que lo contiene:
+      // banners de cookies, chats y modales globales suelen colgar de body, y con
+      // body entero (distinto en cada pagina) nunca casarian entre paginas.
+      const topBlock = (element: ProbeElement): ProbeElement | null => {
+        let current: ProbeElement | null = element;
+        while (current && current.parentElement && current.parentElement !== doc.body) current = current.parentElement;
+        return current && current.parentElement === doc.body ? current : null;
+      };
       const regionOf = (element: ProbeElement): number => {
-        const region = element.closest(LANDMARKS) ?? doc.body ?? doc.documentElement;
+        const region = element.closest(LANDMARKS) ?? topBlock(element) ?? doc.body ?? doc.documentElement;
         let index = regionElements.indexOf(region);
         if (index === -1) {
           regionElements.push(region);

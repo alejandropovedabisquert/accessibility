@@ -478,7 +478,8 @@ export interface BaselineReport {
   /** Todas las regiones iguales y ninguna de mas o de menos. */
   wholePageMatch: boolean;
   focusSequence: 'same' | 'different' | 'unavailable';
-  inherited: Array<{ findingId: string; fromFindingId: string; checkId: string; criterion: string }>;
+  /** `partial`: fallo heredado solo con los elementos que casan (`kept` de `of`). */
+  inherited: Array<{ findingId: string; fromFindingId: string; checkId: string; criterion: string; partial?: { kept: number; of: number } }>;
   notInherited: Array<{ fromFindingId: string; checkId: string; criterion: string; reason: NotInheritedReason }>;
 }
 

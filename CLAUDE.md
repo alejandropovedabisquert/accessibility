@@ -152,7 +152,11 @@ construyendo código en la página (`new Function`): el CSP de muchas webs lo bl
 
 **La herencia de líneas base compara DOMs guardados, no la web en vivo.** `baseline.service` carga el
 `dom.html` de la evidencia de cada página sin red y sin `<script>` (podrían rehacer el DOM) y compara
-cada elemento y su landmark con `normalizeHtml` de `fingerprint.ts`. Un hallazgo heredado es una copia
+cada elemento y su región con `normalizeHtml` de `fingerprint.ts`. La región es el landmark más cercano
+o, fuera de ellos, el bloque hijo de `body` (banners de cookies, chats): nunca `body`, que cambia en cada
+página. Si cabecera y pie salen `changed` entre páginas de la misma web, casi siempre falta un patrón en
+`FINGERPRINT_PATTERNS` (ids aleatorios, marcas de "página actual" del menú). Un `failed` se hereda
+recortado a los elementos que casan (`partial`); un `passed`, solo entero. Un hallazgo heredado es una copia
 con `inherited_from`; las propuestas de axe resueltas por herencia se modifican en su sitio y
 `clearInheritance` las devuelve a `cantTell` al quitar o recalcular. `reviewFinding` propaga cada
 revisión a las copias (`propagateToCopies`): si añades otra forma de cambiar un hallazgo, propágala.
