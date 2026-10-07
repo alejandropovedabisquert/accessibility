@@ -4,8 +4,8 @@ import reviewRepository from '../../db/review.repository';
 import rawStore from '../storage/rawStore';
 import { normalizeHtml } from '../export/fingerprint';
 import { MAX_NODES_LIMIT, nodeSelector, toCompactNode } from '../export/compact';
-import browserPool from '../scanner/browserPool';
-import { EVIDENCE_LIMITS, installScript, probe } from '../evidence/evidence.service';
+import { probe } from '../evidence/evidence.service';
+import { withStoredDom } from '../evidence/storedDom';
 import { findCheck } from './catalog';
 import reviewService from './review.service';
 import { badRequest, conflict, notFound } from '../../utils/errors';
@@ -37,45 +37,28 @@ interface ResolvedDom {
 }
 
 /**
- * Carga un DOM guardado sin red ni scripts y resuelve en el los selectores.
- * Se trabaja sobre lo que se escaneo, no sobre la web de ahora: los hallazgos
- * de la linea base se decidieron con ese estado.
+ * Resuelve los selectores en un DOM guardado: los hallazgos de la linea base se
+ * decidieron con ese estado, no con la web de ahora.
  */
-const resolveDom = async (html: string, selectors: string[]): Promise<ResolvedDom> => {
-  const browser = await browserPool.acquire('chromium');
-  try {
-    const context = await browser.newContext();
-    try {
-      const page = await context.newPage();
-      await page.route('**/*', (route) => route.abort());
-      // Sin los scripts de la pagina: podrian rehacer el DOM al cargarlo.
-      await page.setContent(html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, ''), { waitUntil: 'domcontentloaded' });
-      await page.evaluate(
-        installScript({ scope: { include: null, exclude: null }, maxItems: EVIDENCE_LIMITS.maxItems, maxTextLength: 0 }),
-      );
-      const resolved = await probe(page, 'resolveTargets', ['body', ...selectors]);
-      const regions = await probe(page, 'regionsHtml');
+const resolveDom = (html: string, selectors: string[]): Promise<ResolvedDom> =>
+  withStoredDom(html, async (page) => {
+    const resolved = await probe(page, 'resolveTargets', ['body', ...selectors]);
+    const regions = await probe(page, 'regionsHtml');
 
-      const regionHashes = resolved.regions.map((region) => structuralHash(region.html));
-      const targets = new Map<string, { element: string; region: string } | null>();
-      for (const target of resolved.targets) {
-        targets.set(
-          target.selector,
-          target.found ? { element: structuralHash(target.html), region: regionHashes[target.region] ?? '' } : null,
-        );
-      }
-      return {
-        targets,
-        regions: new Map(regions.map((region) => [region.selector, { role: region.role, hash: structuralHash(region.html) }])),
-        body: targets.get('body')?.element ?? '',
-      };
-    } finally {
-      await context.close().catch(() => undefined);
+    const regionHashes = resolved.regions.map((region) => structuralHash(region.html));
+    const targets = new Map<string, { element: string; region: string } | null>();
+    for (const target of resolved.targets) {
+      targets.set(
+        target.selector,
+        target.found ? { element: structuralHash(target.html), region: regionHashes[target.region] ?? '' } : null,
+      );
     }
-  } finally {
-    browserPool.release('chromium');
-  }
-};
+    return {
+      targets,
+      regions: new Map(regions.map((region) => [region.selector, { role: region.role, hash: structuralHash(region.html) }])),
+      body: targets.get('body')?.element ?? '',
+    };
+  });
 
 const ruleNodes = (results: AxeResults, kind: 'violations' | 'incomplete', ruleId: string) =>
   results[kind].find((rule) => rule.id === ruleId)?.nodes ?? [];

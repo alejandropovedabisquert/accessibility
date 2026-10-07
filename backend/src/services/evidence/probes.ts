@@ -142,6 +142,11 @@ export interface ProbeApi {
   };
   /** Todas las regiones del documento con su HTML, para comparar dos paginas. */
   regionsHtml(): Array<{ selector: string; role: string | null; html: string }>;
+  /**
+   * Para filtrar evidencia sobre un DOM guardado: si cada selector esta dentro
+   * de algo que casa con `exclude`. null si `exclude` no es un selector valido.
+   */
+  insideAny(selectors: string[], exclude: string): boolean[] | null;
 }
 
 export const installProbes = (options: ProbeOptions): void => {
@@ -601,12 +606,23 @@ export const installProbes = (options: ProbeOptions): void => {
         return false;
       };
       const overflows = (element: ProbeElement) => element.getBoundingClientRect().right + win.scrollX > viewportWidth + 1;
+      // Textos solo para lectores de pantalla (sr-only, screen-reader-text): 1x1 px
+      // con overflow oculto a proposito. Siempre "se cortan" y no dicen nada de 1.4.10/1.4.12.
+      const visuallyHidden = (element: ProbeElement) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width <= 1 || rect.height <= 1;
+      };
 
       // Solo la raiz de cada desbordamiento: si el padre ya se sale, el hijo no aporta.
       const overflowing = all.filter(
-        (element) => overflows(element) && !(element.parentElement && overflows(element.parentElement)) && !insideScroller(element),
+        (element) =>
+          !visuallyHidden(element) &&
+          overflows(element) &&
+          !(element.parentElement && overflows(element.parentElement)) &&
+          !insideScroller(element),
       );
       const clipped = all.filter((element) => {
+        if (visuallyHidden(element)) return false;
         const style = win.getComputedStyle(element);
         const hides = (value: string) => value === 'hidden' || value === 'clip';
         const cutX = hides(style.overflowX) && element.scrollWidth > element.clientWidth + 1;
@@ -673,6 +689,23 @@ export const installProbes = (options: ProbeOptions): void => {
         targets,
         regions: regionElements.map((region) => ({ selector: selectorOf(region), role: roleOf(region), html: outer(region) })),
       };
+    },
+
+    insideAny(selectors, exclude) {
+      try {
+        doc.querySelector(exclude);
+      } catch {
+        return null;
+      }
+      return selectors.map((selector) => {
+        let element: ProbeElement | null = null;
+        try {
+          element = doc.querySelector(selector);
+        } catch {
+          element = null;
+        }
+        return element !== null && element.closest(exclude) !== null;
+      });
     },
 
     regionsHtml() {

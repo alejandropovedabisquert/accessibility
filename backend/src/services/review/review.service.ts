@@ -4,6 +4,8 @@ import reviewRepository, { type NewFinding } from '../../db/review.repository';
 import rawStore from '../storage/rawStore';
 import { MAX_HTML_LENGTH, MAX_NODES_LIMIT, toCompactNode, truncate } from '../export/compact';
 import { catalog, checksForAxeRule, findCheck } from './catalog';
+import { probe } from '../evidence/evidence.service';
+import { withStoredDom } from '../evidence/storedDom';
 import { normalizeHost } from '../../utils/url';
 import { badRequest, conflict, notFound } from '../../utils/errors';
 import type {
@@ -216,17 +218,66 @@ class ReviewService {
     return { checks, evidence };
   }
 
-  /** Evidencia de una pagina, opcionalmente solo de algunos tipos para no mandar de mas. */
-  public async getPageEvidence(auditId: string, pageId: string, kinds?: CollectedEvidenceKind[]): Promise<PageEvidence> {
-    this.requireCompletedPage(auditId, pageId);
+  /**
+   * Evidencia de una pagina, opcionalmente solo de algunos tipos y sin los
+   * elementos que esten dentro de `exclude` (p. ej. la cabecera y el pie ya
+   * juzgados en la linea base), para no mandar de mas a quien la lee.
+   */
+  public async getPageEvidence(
+    auditId: string,
+    pageId: string,
+    kinds?: CollectedEvidenceKind[],
+    exclude?: string,
+  ): Promise<PageEvidence & { excluded?: number }> {
+    const page = this.requireCompletedPage(auditId, pageId);
     const evidence = await rawStore.readEvidence(auditId, pageId);
     if (!evidence) throw notFound('Esta página no tiene evidencia: la auditoría no la pidió (evidence: true)');
-    if (!kinds) return evidence;
 
-    const wanted = new Set<string>(kinds);
+    const wanted = kinds ? new Set<string>(kinds) : null;
     const pick = <T extends object>(record: T): Partial<T> =>
-      Object.fromEntries(Object.entries(record).filter(([kind]) => wanted.has(kind))) as Partial<T>;
-    return { ...evidence, items: pick(evidence.items), errors: pick(evidence.errors) };
+      wanted ? (Object.fromEntries(Object.entries(record).filter(([kind]) => wanted.has(kind))) as Partial<T>) : record;
+    const picked = { ...evidence, items: pick(evidence.items), errors: pick(evidence.errors) };
+    return exclude ? this.excludeFromEvidence(page, picked, exclude) : picked;
+  }
+
+  /**
+   * Quita de cada lista de la evidencia los elementos dentro de `exclude`. Se
+   * resuelve sobre el DOM guardado, asi que vale para auditorias ya hechas. Lo
+   * que no es una lista de elementos (texto, arbol de accesibilidad, capturas)
+   * se queda como esta: no se puede partir por region.
+   */
+  private async excludeFromEvidence(page: AuditPage, evidence: PageEvidence, exclude: string): Promise<PageEvidence & { excluded: number }> {
+    const html = evidence.domSnapshot ? await rawStore.readEvidenceText(page.auditId, page.id, evidence.domSnapshot) : null;
+    if (!html) throw conflict('Esta página no tiene el DOM guardado: no se puede filtrar la evidencia por región');
+
+    type Listed = { selector: string };
+    const isElementList = (value: unknown): value is Listed[] =>
+      Array.isArray(value) && value.length > 0 && value.every((item) => typeof (item as Partial<Listed>)?.selector === 'string');
+    const lists = Object.values(evidence.items).flatMap((item) =>
+      item && typeof item === 'object' ? Object.values(item).filter(isElementList) : [],
+    );
+    const selectors = [...new Set(lists.flat().map((item) => item.selector))];
+
+    const inside = await withStoredDom(html, (dom) => probe(dom, 'insideAny', selectors, exclude));
+    if (!inside) throw badRequest(`exclude no es un selector CSS válido: ${exclude}`);
+    const dropped = new Set(selectors.filter((_, index) => inside[index]));
+
+    let excluded = 0;
+    const items = Object.fromEntries(
+      Object.entries(evidence.items).map(([kind, item]) => {
+        if (!item || typeof item !== 'object') return [kind, item];
+        const filtered = Object.fromEntries(
+          Object.entries(item).map(([key, value]) => {
+            if (!isElementList(value)) return [key, value];
+            const kept = value.filter((element) => !dropped.has(element.selector));
+            excluded += value.length - kept.length;
+            return [key, kept];
+          }),
+        );
+        return [kind, filtered];
+      }),
+    ) as PageEvidence['items'];
+    return { ...evidence, items, excluded };
   }
 
   public evidenceFile(auditId: string, pageId: string, name: string): string {

@@ -130,6 +130,40 @@ const compactFinding = (finding: ApiFinding) => ({
   ...(finding.inheritedFrom ? { inherited: true } : {}),
 });
 
+/**
+ * Lo minimo de un hallazgo que no hay que trabajar (ya decidido, heredado) o
+ * de uno recien escrito: quien lo lee ya sabe lo que mando, y cada respuesta se
+ * queda en su contexto para el resto de la sesion.
+ */
+const findingRef = (finding: ApiFinding) => ({
+  id: finding.id,
+  outcome: finding.outcome,
+  review: finding.review.status,
+  by: `${finding.assertedBy.type}:${finding.assertedBy.name}`,
+  ...(finding.inheritedFrom ? { inherited: true } : {}),
+});
+
+const PENDING_OUTCOMES = new Set<string>(['untested', 'cantTell']);
+
+/** Un criterio por trabajar: sin resultado, sin decidir o con propuestas sin cerrar. */
+const isOpen = (check: ApiCheckReview) =>
+  PENDING_OUTCOMES.has(check.outcome) || check.findings.some((finding) => finding.review.status === 'proposed');
+
+/**
+ * Por defecto, el detalle solo de lo que hay que trabajar; de lo cerrado, el
+ * resultado y de donde sale. Lo heredado o ya revisado por una persona va en
+ * corto incluso dentro de un criterio abierto: no hay que tocarlo.
+ */
+const compactCheck = (check: ApiCheckReview, full: boolean) => {
+  const { findings, ...rest } = check;
+  if (full) return { ...rest, findings: findings.map(compactFinding) };
+  const work = (finding: ApiFinding) => finding.review.status === 'proposed';
+  if (!isOpen(check)) {
+    return { checkId: check.checkId, criterion: check.criterion, level: check.level, outcome: check.outcome, axe: check.axe, findings: findings.map(findingRef) };
+  }
+  return { ...rest, findings: findings.map((finding) => (work(finding) ? compactFinding(finding) : findingRef(finding))) };
+};
+
 const compactPage = (page: ApiAuditPage) => ({
   id: page.id,
   url: page.url,
@@ -157,7 +191,8 @@ const targetSchema = z.object({
   html: z.string().optional().describe('Fragmento de HTML para reconocerlo; se recorta al guardar'),
 });
 
-const findingContent = {
+/** Lo que describe un hallazgo. `model` va aparte: en los lotes es uno para todos. */
+const findingFields = {
   outcome: z.enum(FINDING_OUTCOMES).describe('Resultado EARL. cantTell solo si de verdad no se puede decidir con la evidencia'),
   description: z.string().min(1).describe('Qué se ha comprobado y qué se ha visto, en castellano'),
   recommendation: z.string().min(1).optional().describe('Cómo corregirlo, si es un fallo'),
@@ -168,7 +203,32 @@ const findingContent = {
     .max(50)
     .optional()
     .describe('Evidencia en la que se apoya: capturas (focus-3.jpg) o apartados (focus-sequence#3)'),
+};
+
+const findingContent = {
+  ...findingFields,
   model: z.string().min(1).optional().describe('Modelo que hace la evaluación, si no es el configurado en el servidor'),
+};
+
+/** Lo que cabe en una llamada por lotes: de sobra para los criterios de una pagina. */
+const MAX_BATCH = 60;
+
+/**
+ * Uno detras de otro y sin parar en el primer error: un hallazgo mal formado no
+ * debe tirar los demas. La API no tiene escritura por lotes; lo que se ahorra es
+ * el ida y vuelta con el modelo, que es lo caro.
+ */
+const inBatch = async <T, R>(items: T[], write: (item: T) => Promise<R>) => {
+  const done: R[] = [];
+  const errors: Array<{ index: number; error: string }> = [];
+  for (const [index, item] of items.entries()) {
+    try {
+      done.push(await write(item));
+    } catch (error) {
+      errors.push({ index, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { done, ...(errors.length > 0 ? { errors } : {}) };
 };
 
 export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpServer => {
@@ -328,16 +388,17 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     'get_page_review',
     {
       description:
-        'Estado de cada criterio en una página y sus hallazgos. Al abrirla se crean las propuestas automáticas (needs-review de axe y no aplicables). Usa outcomes=["untested","cantTell"] para ver solo lo pendiente y levels para ir por niveles (los AAA también bloquean la firma).',
+        'Estado de cada criterio en una página y sus hallazgos. Al abrirla se crean las propuestas automáticas (needs-review de axe y no aplicables). Por defecto trae el detalle solo de lo que hay que trabajar (sin resultado, sin decidir o con propuestas abiertas); de lo cerrado y lo heredado, solo el resultado. Usa outcomes y levels para acotar más (los AAA también bloquean la firma), y detail="full" solo si necesitas releer hallazgos ya cerrados.',
       inputSchema: z.object({
         auditId: z.string().min(1),
         pageId: z.string().min(1),
         outcomes: z.array(z.enum(OUTCOMES)).optional().describe('Solo los criterios con estos resultados'),
         levels: z.array(z.enum(LEVELS)).optional().describe('Solo los criterios de estos niveles WCAG'),
         maxTargets: z.number().int().min(1).max(50).optional().describe('Nodos de ejemplo por hallazgo (5 por defecto)'),
+        detail: z.enum(['work', 'full']).optional().describe('work (por defecto): detalle solo de lo pendiente; full: todo'),
       }),
     },
-    ({ auditId, pageId, outcomes, levels, maxTargets }) =>
+    ({ auditId, pageId, outcomes, levels, maxTargets, detail }) =>
       run(async () => {
         const review = await api.get<ApiPageReview>(
           `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/review`,
@@ -345,15 +406,17 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
         );
         const wanted = outcomes ? new Set<string>(outcomes) : null;
         const wantedLevels = levels ? new Set<string>(levels) : null;
+        const checks = review.checks.filter(
+          (check) => (!wanted || wanted.has(check.outcome)) && (!wantedLevels || wantedLevels.has(check.level)),
+        );
         return json({
           page: review.page,
           site: review.site,
           catalog: review.catalog,
           evidence: review.evidence,
           summary: review.summary,
-          checks: review.checks
-            .filter((check) => (!wanted || wanted.has(check.outcome)) && (!wantedLevels || wantedLevels.has(check.level)))
-            .map((check) => ({ ...check, findings: check.findings.map(compactFinding) })),
+          open: checks.filter(isOpen).length,
+          checks: checks.map((check) => compactCheck(check, detail === 'full')),
         });
       }),
   );
@@ -362,18 +425,24 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     'get_evidence',
     {
       description:
-        'Evidencia recogida en la página (secuencia de foco, reflujo, imágenes, formularios...). Pide solo los tipos que necesites: cada uno puede ser grande. Las capturas que nombra se ven con get_evidence_image.',
+        'Evidencia recogida en la página (secuencia de foco, reflujo, imágenes, formularios...). Pide solo los tipos que necesites: cada uno puede ser grande. Con exclude quitas los elementos de zonas ya juzgadas (p. ej. la cabecera, el pie y el banner de cookies heredados de la línea base). Las capturas que nombra se ven con get_evidence_image.',
       inputSchema: z.object({
         auditId: z.string().min(1),
         pageId: z.string().min(1),
         kinds: z.array(z.enum(EVIDENCE_KINDS)).min(1),
+        exclude: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Selector CSS de las zonas a quitar, p. ej. "header, footer, .banner-cookies". No recorta texto, árbol de accesibilidad ni capturas'),
       }),
     },
-    ({ auditId, pageId, kinds }) =>
+    ({ auditId, pageId, kinds, exclude }) =>
       run(async () =>
         json(
           await api.get(`/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/evidence`, {
             kinds: kinds.join(','),
+            exclude,
           }),
         ),
       ),
@@ -413,12 +482,43 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ auditId, pageId, model, ...finding }) =>
       run(async () =>
         json(
-          compactFinding(
+          findingRef(
             await api.post<ApiFinding>(
               `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/findings`,
               { ...finding, assertedBy: author(model) },
             ),
           ),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'create_findings',
+    {
+      description:
+        'Registra varios resultados de criterios de una página de una vez (capa 2): mejor que create_finding uno a uno. Cada uno queda propuesto. Si alguno falla, los demás se guardan igual y el error dice cuál.',
+      inputSchema: z.object({
+        auditId: z.string().min(1),
+        pageId: z.string().min(1),
+        findings: z
+          .array(z.object({ checkId: z.string().min(1), ...findingFields }))
+          .min(1)
+          .max(MAX_BATCH),
+        model: findingContent.model,
+      }),
+    },
+    ({ auditId, pageId, findings, model }) =>
+      run(async () =>
+        json(
+          await inBatch(findings, async (finding) => ({
+            checkId: finding.checkId,
+            ...findingRef(
+              await api.post<ApiFinding>(
+                `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/findings`,
+                { ...finding, assertedBy: author(model) },
+              ),
+            ),
+          })),
         ),
       ),
   );
@@ -437,7 +537,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ siteId, model, ...finding }) =>
       run(async () =>
         json(
-          compactFinding(
+          findingRef(
             await api.post<ApiFinding>(`/sites/${encodeURIComponent(siteId)}/findings`, {
               ...finding,
               assertedBy: author(model),
@@ -462,11 +562,43 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ findingId, model, ...changes }) =>
       run(async () =>
         json(
-          compactFinding(
+          findingRef(
             await api.patch<ApiFinding>(`/findings/${encodeURIComponent(findingId)}`, {
               ...changes,
               assertedBy: author(model),
             }),
+          ),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'update_findings',
+    {
+      description:
+        'Cierra o corrige varios hallazgos propuestos de una vez (p. ej. las propuestas cantTell de axe de una página). Si alguno falla, los demás se guardan igual y el error dice cuál.',
+      inputSchema: z.object({
+        updates: z
+          .array(
+            z.object({
+              findingId: z.string().min(1),
+              ...findingFields,
+              outcome: findingFields.outcome.optional(),
+              description: findingFields.description.optional(),
+            }),
+          )
+          .min(1)
+          .max(MAX_BATCH),
+        model: findingContent.model,
+      }),
+    },
+    ({ updates, model }) =>
+      run(async () =>
+        json(
+          await inBatch(updates, async ({ findingId, ...changes }) =>
+            findingRef(
+              await api.patch<ApiFinding>(`/findings/${encodeURIComponent(findingId)}`, { ...changes, assertedBy: author(model) }),
+            ),
           ),
         ),
       ),

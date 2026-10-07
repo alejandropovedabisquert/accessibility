@@ -47,6 +47,7 @@ const EVIDENCE_PAGE = `<!doctype html>
       <img id="decorativa" src="${GIF}" alt="" width="40" height="40">
       <div id="ancho">Bloque de ancho fijo</div>
       <div id="caja">Texto que cabe justo en una linea</div>
+      <span id="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap">Solo para lectores de pantalla</span>
     </main>
   </body>
 </html>`;
@@ -133,6 +134,8 @@ describe('recoleccion de evidencia', () => {
   it('espaciado de texto: detecta el texto que se corta', () => {
     const spacing = evidence.items['text-spacing'];
     expect(spacing?.clipped.map((element) => element.selector)).toContain('#caja');
+    // Un texto sr-only (1x1 px, overflow oculto a proposito) no es texto cortado.
+    expect(spacing?.clipped.map((element) => element.selector)).not.toContain('#sr-only');
   });
 
   it('imagenes: distingue sin alt de alt vacio', () => {
@@ -171,6 +174,20 @@ describe('recoleccion de evidencia', () => {
     const res = await request(app).get(`${base()}/evidence?kinds=images,headings`).expect(200);
     expect(Object.keys(res.body.items).sort()).toEqual(['headings', 'images']);
     await request(app).get(`${base()}/evidence?kinds=telepatia`).expect(400);
+  });
+
+  it('?exclude= quita los elementos de esas zonas, resolviendolos en el DOM guardado', async () => {
+    const all = (await request(app).get(`${base()}/evidence?kinds=controls`).expect(200)).body as PageEvidence;
+    const res = await request(app).get(`${base()}/evidence?kinds=controls,headings&exclude=${encodeURIComponent('header, #tapado')}`).expect(200);
+    const hrefs = (res.body as PageEvidence).items.controls?.items.map((item) => item.href) ?? [];
+
+    expect(all.items.controls?.items.map((item) => item.href)).toContain('/uno');
+    expect(hrefs).not.toContain('/uno');
+    expect(hrefs).not.toContain('#principal');
+    expect(res.body.excluded).toBe(3);
+    // Lo de fuera de la zona sigue, y lo que no son listas de elementos tambien.
+    expect(res.body.items.headings.items.length).toBeGreaterThan(0);
+    await request(app).get(`${base()}/evidence?exclude=${encodeURIComponent('[[')}`).expect(400);
   });
 });
 

@@ -471,8 +471,14 @@ unos segundos por página.
 
 ```
 GET /api/audits/:id/pages/:pageId/evidence?kinds=focus-sequence,images
+GET /api/audits/:id/pages/:pageId/evidence?kinds=controls&exclude=header,%20footer
 GET /api/audits/:id/pages/:pageId/evidence/files/focus-3.jpg
 ```
+
+`exclude` (un selector CSS) quita de las listas de elementos los que están dentro de esas zonas, por
+ejemplo la cabecera y el pie ya juzgados en la línea base. Se resuelve sobre el DOM guardado, así que
+vale también para auditorías ya hechas; el texto, el árbol de accesibilidad y las capturas no se
+recortan. La respuesta dice cuántos quitó en `excluded`.
 
 ### Revisión y hallazgos
 
@@ -555,6 +561,12 @@ GET  /api/sign-offs/:id/report.pdf                 Informe firmado
 levantado y `make install` (que compila `mcp/`), una sesión de Claude Code en este repo puede hacer la
 capa 2 con la skill `revision-manual`. El servidor `accessibility` **no expone ninguna herramienta
 para validar**: eso es de la capa 3, a propósito.
+
+Está pensado para gastar pocos tokens, porque cada respuesta se queda en el contexto del modelo y se
+relee en cada paso: `get_page_review` da el detalle solo de lo pendiente, `get_evidence` admite
+`exclude`, las escrituras devuelven solo id y resultado, y `create_findings` / `update_findings`
+registran varios hallazgos en una llamada. Con varias páginas, la skill lanza un subagente por
+página para que ninguno arrastre el contexto de las anteriores.
 
 Para usarlo desde otro proyecto, apunta a la API con `A11Y_API_URL`:
 

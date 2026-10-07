@@ -20,6 +20,27 @@ evidencia va activada por defecto) y espera con `get_audit` a que esté `complet
 Si la auditoría tiene `evidence: false`, avisa: sin evidencia casi todo acaba en `cantTell` o
 exige el navegador, que es mucho más caro. Propón relanzarla con evidencia antes de seguir.
 
+## Varias páginas: un subagente por página
+
+El coste no lo marca el trabajo sino el contexto: en cada paso el modelo relee todo lo acumulado.
+Un solo agente que revisa cinco páginas seguidas arrastra las cuatro primeras mientras hace la
+quinta (en una prueba real, 595 K de contexto y el 80 % del coste). Por eso, **si hay más de una
+página, tú no revisas: orquestas.**
+
+1. **Línea base primero.** Si varias páginas comparten plantilla, elige una representativa
+   (normalmente la home) y revísala sola, en un subagente. Después **para y pide a la persona** que
+   valide al menos lo de las zonas comunes (cabecera, pie, banner de cookies) y la enlace como línea
+   base de las demás desde «Línea base» en su revisión. Solo se hereda lo validado.
+2. **Un subagente por página, uno detrás de otro** (herramienta Agent, `general-purpose`). Nunca en
+   paralelo: el navegador de Playwright es uno y se pisarían. Pásale en el prompt todo lo que
+   necesita, porque empieza sin contexto: que invoque esta skill, `auditId`, `pageId`, URL, viewport,
+   el selector de las zonas heredadas para `exclude` (p. ej. `header, footer, .banner-cookies`) y
+   que revise también el contenido propio de los criterios que estén en `failed` solo por herencia.
+3. **Los criterios de sitio, en otro subagente al final**, con todas las páginas.
+4. **Pide a cada subagente un resumen corto** (recuentos por resultado, fallos nuevos en una línea
+   cada uno, `cantTell` con lo que falta). Lo que te devuelve se queda en tu contexto: si te manda
+   su informe entero, vuelves a acumular.
+
 ## Proceso por página
 
 El catálogo tiene los 86 criterios de WCAG 2.2: 55 A/AA y 31 AAA. **Los AAA bloquean la firma igual
@@ -28,7 +49,9 @@ que los A/AA**, aunque no cuentan para la conformidad legal. Revisa primero los 
 pareja A/AA (1.4.6 con 1.4.3, 2.4.9 con 2.4.4, 2.4.12 con 2.4.11, 2.5.5 con 2.5.8, 3.3.6 con 3.3.4,
 3.3.9 con 3.3.8), así que juzga cada pareja con la misma evidencia en vez de pedirla dos veces.
 
-1. **Lo pendiente.** `get_page_review` con `outcomes: ["untested", "cantTell"]` y el nivel que toque. Los `failed` por
+1. **Lo pendiente.** `get_page_review` con el nivel que toque. Por defecto ya trae el detalle solo de
+   lo que hay que trabajar; de lo cerrado y lo heredado, solo el resultado (`detail: "full"` si de
+   verdad necesitas releerlo). Los `failed` por
    violación de axe y los `inapplicable` propuestos ya tienen resultado: no los repitas. Los
    hallazgos con `inherited: true` vienen de una línea base y ya están validados: no los toques.
    Si varias páginas comparten plantilla, revisa a fondo una, y sugiere a la persona que la valide
@@ -36,7 +59,9 @@ pareja A/AA (1.4.6 con 1.4.3, 2.4.9 con 2.4.4, 2.4.12 con 2.4.11, 2.5.5 con 2.5.
 2. **Qué mirar.** `get_checks` con los `checkIds` pendientes, **una vez por sesión**: trae las
    instrucciones de cada criterio, la evidencia que necesita y si exige lector de pantalla.
 3. **La evidencia justa.** `get_evidence` pidiendo solo los `kinds` de los criterios que vas a
-   juzgar ahora. Cada tipo puede ocupar mucho; no pidas todos "por si acaso". Las capturas, con
+   juzgar ahora. Cada tipo puede ocupar mucho; no pidas todos "por si acaso". Si la página tiene
+   línea base, pásale `exclude` con las zonas heredadas (`header, footer, .banner-cookies`): ya están
+   juzgadas y en una home son la mitad de los controles y del recorrido del foco. Las capturas, con
    `get_evidence_image` y solo cuando la decisión dependa de verla (indicador de foco, alt de una
    imagen concreta, reflujo con elementos desbordados).
 4. **Decide y registra** (ver abajo).
@@ -44,9 +69,12 @@ pareja A/AA (1.4.6 con 1.4.3, 2.4.9 con 2.4.4, 2.4.12 con 2.4.11, 2.5.5 con 2.5.
 
 ### Cómo registrar
 
+- **Por lotes.** Registra con `create_findings` y cierra con `update_findings`, varios a la vez (por
+  ejemplo todos los A/AA de una tanda), no uno a uno: cada llamada es un paso más releyendo todo el
+  contexto. Si uno falla, los demás se guardan y el error dice cuál.
 - **Propuesta de axe (`source.kind: "axe-needs-review"`) o de no aplicable (`"applicability"`)**:
-  ciérrala con `update_finding` sobre ese hallazgo. No crees otro para el mismo criterio.
-- **Criterio sin hallazgos**: `create_finding` con su `checkId`.
+  ciérrala actualizando ese hallazgo. No crees otro para el mismo criterio.
+- **Criterio sin hallazgos**: créalo con su `checkId`.
 - **Criterios de sitio** (`multiple-ways`, `consistent-navigation`, `consistent-identification`,
   `consistent-help`): una vez por sitio con `create_site_finding`, comparando la evidencia
   `landmarks`/`controls` de varias páginas del sitio (`get_site` para verlas).
@@ -109,6 +137,9 @@ Para criterios con evidencia `interaction` (1.4.13, 2.1.1, 2.1.4, 2.2.1, 2.2.2, 
 - `browser_snapshot` es caro (árbol entero). Úsalo para orientarte una vez; luego `browser_press_key`
   (Tab, Escape, Enter), `browser_hover`, `browser_fill_form`, `browser_click` y otra snapshot solo
   si la página cambió. `browser_take_screenshot` cuando haya que ver algo.
+- `browser_run_code_unsafe` agrupa muchas comprobaciones en una visita, pero su respuesta repite el
+  código entero: escribe scripts compactos y devuelve solo datos ya resumidos (selector, valor,
+  veredicto), nunca HTML ni listas largas.
 - Formularios: envíalos vacíos y con datos erróneos para ver mensajes de error (3.3.1, 3.3.3) y si
   se anuncian (`role="alert"`, `aria-live`: 4.1.3). **Nunca completes un pago, una reserva ni nada
   que cree datos reales**: en 3.3.4 basta con llegar al paso de revisión/confirmación.

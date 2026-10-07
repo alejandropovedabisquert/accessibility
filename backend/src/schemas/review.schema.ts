@@ -106,8 +106,12 @@ const EVIDENCE_KINDS = [
   'text-content',
 ] as const satisfies readonly CollectedEvidenceKind[];
 
-/** `kinds=focus-sequence,images`: solo esos tipos. Sin `kinds`, todos. */
+/**
+ * `kinds=focus-sequence,images`: solo esos tipos. Sin `kinds`, todos.
+ * `exclude=header, footer, .banner-cookies`: sin los elementos de esas zonas (un selector CSS).
+ */
 export const evidenceQuerySchema = z.object({
+  exclude: z.string().trim().min(1).max(500).optional(),
   kinds: z
     .string()
     .trim()

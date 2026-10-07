@@ -55,8 +55,8 @@ export const getPageReview = asyncHandler(async (req: Request<PageParams>, res: 
 });
 
 export const getPageEvidence = asyncHandler(async (req: Request<PageParams>, res: Response) => {
-  const { kinds } = evidenceQuerySchema.parse(req.query);
-  res.json(await reviewService.getPageEvidence(req.params.id, req.params.pageId, kinds));
+  const { kinds, exclude } = evidenceQuerySchema.parse(req.query);
+  res.json(await reviewService.getPageEvidence(req.params.id, req.params.pageId, kinds, exclude));
 });
 
 export const getEvidenceFile = asyncHandler(
