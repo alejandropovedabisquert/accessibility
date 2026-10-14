@@ -29,8 +29,8 @@ página, tú no revisas: orquestas.**
 
 1. **Línea base primero.** Si varias páginas comparten plantilla, elige una representativa
    (normalmente la home) y revísala sola, en un subagente (`revisor-accesibilidad`, como todos los
-   de esta skill: solo carga las herramientas de la revisión, y en una prueba real releyó un 22 %
-   menos que `general-purpose`). Después **para y pide a la persona** que
+   de esta skill: solo carga las herramientas de la revisión, y en una revisión real cada llamada
+   releyó un 14 % menos que con `general-purpose`). Después **para y pide a la persona** que
    valide al menos lo de las zonas comunes (cabecera, pie, banner de cookies) y la enlace como línea
    base de las demás desde «Línea base» en su revisión. Solo se hereda lo validado.
 2. **Un subagente por página, uno detrás de otro** (herramienta Agent, `revisor-accesibilidad`). Nunca en
@@ -73,7 +73,8 @@ pareja A/AA (1.4.6 con 1.4.3, 2.4.9 con 2.4.4, 2.4.12 con 2.4.11, 2.5.5 con 2.5.
 
 - **Por lotes.** Registra con `create_findings` y cierra con `update_findings`, varios a la vez (por
   ejemplo todos los A/AA de una tanda), no uno a uno: cada llamada es un paso más releyendo todo el
-  contexto. Si uno falla, los demás se guardan y el error dice cuál.
+  contexto. Lo normal es un `create_findings` y un `update_findings` por nivel. Si uno falla, los
+  demás se guardan y el error dice cuál.
 - **Propuesta de axe (`source.kind: "axe-needs-review"`) o de no aplicable (`"applicability"`)**:
   ciérrala actualizando ese hallazgo. No crees otro para el mismo criterio.
 - **Criterio sin hallazgos**: créalo con su `checkId`.
@@ -139,9 +140,31 @@ Para criterios con evidencia `interaction` (1.4.13, 2.1.1, 2.1.4, 2.2.1, 2.2.2, 
 - `browser_snapshot` es caro (árbol entero). Úsalo para orientarte una vez; luego `browser_press_key`
   (Tab, Escape, Enter), `browser_hover`, `browser_fill_form`, `browser_click` y otra snapshot solo
   si la página cambió. `browser_take_screenshot` cuando haya que ver algo.
-- `browser_run_code_unsafe` agrupa muchas comprobaciones en una visita, pero su respuesta repite el
-  código entero: escribe scripts compactos y devuelve solo datos ya resumidos (selector, valor,
-  veredicto), nunca HTML ni listas largas.
+- **Planifica antes de abrir el navegador y mídelo todo en una batería.** El coste de una página lo
+  marca el número de llamadas, no lo que hace cada una: en una revisión real, las subpáginas con 8
+  scripts releyeron 1,7 M y las de 16–22 scripts, 3–4 M. Así que:
+  1. Con la evidencia ya juzgada, apunta **todo** lo que necesita navegador: los criterios
+     interactivos que te tocan y cada duda concreta que la evidencia no cerró.
+  2. Escribe **un solo** `browser_run_code_unsafe` que lo mida todo y devuelva un JSON compacto por
+     criterio (selector, valor, veredicto), nunca HTML ni listas largas. Su respuesta repite el código
+     entero: compacto, sin comentarios.
+  3. Como mucho, una o dos llamadas más para lo que la batería no pudo cerrar.
+  **Presupuesto: 5 llamadas que ejecuten código (`browser_run_code_unsafe` o `browser_evaluate`) en
+  una subpágina, 8 en la línea base.** Si lo pasas, deja `cantTell` diciendo qué falta en vez de
+  seguir probando.
+- **El orden dentro de la batería importa: lo que depende del tiempo va primero, con la página
+  recién cargada.** Un `hover`, un foco, un clic o `reducedMotion: "reduce"` paran los carruseles
+  (Swiper se pausa al interactuar), y una batería que mide el autoplay después dio 2.2.2 por
+  superado en una web cuyo carrusel avanza cada 5 s. Mide 2.2.1/2.2.2/2.2.4 nada más cargar y sin
+  tocar nada; si luego necesitas otra medida limpia, recarga (`page.reload()`).
+- Dentro de la batería: quita el banner de cookies una vez al principio (salvo que lo estés
+  juzgando); mide todos los contrastes sobre imagen de una pasada; el formulario, vacío y con datos
+  erróneos en la misma llamada, devolviendo mensajes, `aria-invalid` y si están en `role="alert"` o
+  `aria-live`; el foco, comparando capturas de elemento dentro del script en vez de una
+  `browser_take_screenshot` por control. Para el contraste, copia esta función en vez de rehacerla:
+  `const L=c=>{const[r,g,b]=c.match(/[\d.]+/g).map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4});return .2126*r+.7152*g+.0722*b},cr=(a,b)=>{const x=L(a),y=L(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05)}`
+- **No rehagas en el navegador lo que ya está en la evidencia** (`text-spacing`, `reflow-320`,
+  `zoom-200`, `focus-sequence`, `forms`, `controls`): solo para una duda concreta sobre un elemento.
 - Formularios: envíalos vacíos y con datos erróneos para ver mensajes de error (3.3.1, 3.3.3) y si
   se anuncian (`role="alert"`, `aria-live`: 4.1.3). **Nunca completes un pago, una reserva ni nada
   que cree datos reales**: en 3.3.4 basta con llegar al paso de revisión/confirmación.
