@@ -28,10 +28,12 @@ quinta (en una prueba real, 595 K de contexto y el 80 % del coste). Por eso, **s
 página, tú no revisas: orquestas.**
 
 1. **Línea base primero.** Si varias páginas comparten plantilla, elige una representativa
-   (normalmente la home) y revísala sola, en un subagente. Después **para y pide a la persona** que
+   (normalmente la home) y revísala sola, en un subagente (`revisor-accesibilidad`, como todos los
+   de esta skill: solo carga las herramientas de la revisión, y en una prueba real releyó un 22 %
+   menos que `general-purpose`). Después **para y pide a la persona** que
    valide al menos lo de las zonas comunes (cabecera, pie, banner de cookies) y la enlace como línea
    base de las demás desde «Línea base» en su revisión. Solo se hereda lo validado.
-2. **Un subagente por página, uno detrás de otro** (herramienta Agent, `general-purpose`). Nunca en
+2. **Un subagente por página, uno detrás de otro** (herramienta Agent, `revisor-accesibilidad`). Nunca en
    paralelo: el navegador de Playwright es uno y se pisarían. Pásale en el prompt todo lo que
    necesita, porque empieza sin contexto: que invoque esta skill, `auditId`, `pageId`, URL, viewport,
    el selector de las zonas heredadas para `exclude` (p. ej. `header, footer, .banner-cookies`) y
