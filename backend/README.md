@@ -18,7 +18,7 @@ src/
 ├── services/
 │   ├── audit/                Orquestación de la auditoría y cálculo de métricas
 │   ├── scanner/              Pool de navegadores y ejecución de axe
-│   ├── report/               Generación de PDF (perezosa) y HTML del informe
+│   ├── report/               PDF de la auditoría (perezoso) y estilos comunes con el de la firma
 │   ├── storage/              JSON crudo de axe en disco
 │   └── shared/               Cola con límite de concurrencia
 └── types/                    Tipos compartidos
@@ -34,6 +34,11 @@ cierra solo tras `BROWSER_IDLE_TIMEOUT_MS` sin trabajo.
 **PDF bajo demanda** (`services/report/pdf.service.ts`). Antes se generaba un PDF por URL en cada
 escaneo, arrancando un Chromium dedicado para cada informe. La mayoría no se descargaba nunca. Ahora
 se genera la primera vez que se pide y se cachea en disco (172 ms la primera vez, 9 ms después).
+Es uno por auditoría (`scan-results/<auditId>/report.pdf`), no por URL: el mismo fallo de la cabecera
+salía en cada PDF y había que abrir N ficheros para ver la web. Las incidencias se agrupan con lo
+mismo que la exportación agregada (`buildAuditExport` + `summarizeByRule`). No se invalida nunca
+porque una auditoría terminada no cambia: «volver a lanzar» crea otra. A propósito no da estado de
+conformidad: con lo que detecta axe no se puede decir y contradiría al de la firma.
 
 **El JSON de axe no va en la base de datos** (`services/storage/rawStore.ts`). Solo contadores y
 metadatos, que es lo que se necesita para listar, filtrar y comparar. El resultado completo vive en

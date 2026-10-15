@@ -26,7 +26,9 @@ compararla con escaneos anteriores y descargar el informe.
   selector y el enlace a la documentación de Deque.
 - **Compara cada escaneo con el anterior de la misma URL, sección y resolución**: qué se ha resuelto,
   qué es nuevo y qué ha cambiado de volumen.
-- Genera el informe **PDF bajo demanda** y lo cachea; también se puede descargar el JSON de axe.
+- Genera un informe **PDF por auditoría** bajo demanda y lo cachea, con la estructura de los informes
+  automáticos del OAW: muestra, resumen, matriz criterio × página e incidencias agrupadas entre páginas.
+  También se puede descargar el JSON de axe.
 
 ## Arquitectura
 
@@ -38,7 +40,7 @@ accessibility/
 └── docker-compose.yml
 ```
 
-Los metadatos y contadores viven en SQLite (`backend/data/audits.db`); el JSON crudo de axe y los PDFs
+Los metadatos y contadores viven en SQLite (`backend/data/audits.db`); el JSON crudo de axe y el PDF
 se guardan en disco (`backend/scan-results/<auditId>/`), porque el array `passes` de una sola página
 puede pesar varios MB y no tiene sentido meterlo en la base de datos.
 
@@ -92,12 +94,12 @@ Base: `http://localhost:3000/api`
 | `GET` | `/audits/:id` | Auditoría con el estado de cada página |
 | `POST` | `/audits/:id/rerun` | Relanza con la misma configuración |
 | `GET` | `/audits/:id/export?format=compact` | Informe agregado de toda la auditoría para IA, con deduplicación entre URLs (`detail=full\|legal`) |
+| `GET` | `/audits/:id/report.pdf` | Informe PDF de la auditoría (se genera la primera vez y se cachea; 409 si sigue en curso) |
 | `DELETE` | `/audits/:id` | Borra la auditoría y sus ficheros |
 | `GET` | `/audits/:id/pages/:pageId` | Resumen e incumplimientos de una página |
 | `GET` | `/audits/:id/pages/:pageId/results` | JSON completo de axe (`?download=1` para descargar) |
 | `GET` | `/audits/:id/pages/:pageId/results?format=compact` | JSON compacto para análisis con IA (`maxNodes`, `download=1`) |
 | `GET` | `/audits/:id/pages/:pageId/diff` | Comparación con el escaneo anterior de esa URL, sección y pantalla |
-| `GET` | `/audits/:id/pages/:pageId/report.pdf` | Informe PDF (se genera la primera vez y se cachea) |
 | `GET` | `/history?url=&include=&viewport=&device=` | Serie temporal de una URL, sección y pantalla |
 | `GET` | `/history/urls` | Series auditadas (URL + sección + pantalla) con su número de ejecuciones |
 | `GET` | `/health` | Estado del servicio |
@@ -191,7 +193,8 @@ espacios:
 Los componentes comunes (cabecera, menú, pie, banner de cookies) generan los mismos errores en todas
 las URLs. `GET /api/audits/:id/export?format=compact` junta todas las páginas en un solo informe,
 agrupando los fallos repetidos. En el detalle de la auditoría hay dos botones: **Descargar JSON para
-IA** (`detail=legal`) y **JSON para IA completo** (`detail=full`).
+IA** (`detail=legal`) y **JSON para IA completo** (`detail=full`). El **PDF** de la auditoría
+(`GET /api/audits/:id/report.pdf`, botón **Descargar PDF**) agrupa las incidencias igual.
 
 Parámetros: `format=compact` (obligatorio), `detail=full|legal` (por defecto `full`), `maxNodes`
 (1–50, por defecto 5) y `download=1`.
@@ -330,7 +333,7 @@ todas. `GET /api/meta` devuelve en `viewports` los atajos del formulario (escrit
   que entonces era única. Si no tenía ni resolución ni dispositivo, recibe 1366×768, que es con la que
   se escaneaba siempre por defecto. Así sus series continúan con los escaneos nuevos de esa misma
   resolución.
-- El viewport aparece en el detalle, en el PDF y en `page.viewport` de la exportación compacta.
+- El viewport aparece en el detalle, en la muestra del PDF y en `page.viewport` de la exportación compacta.
 
 ## Configuración
 
@@ -401,7 +404,7 @@ Por eso:
 
 - El formulario muestra un aviso en cuanto se escribe un selector de exclusión, y el detalle de la
   página y el de la auditoría indican qué se excluyó.
-- El PDF lo recoge en la cabecera, con la advertencia de revisarlo aparte.
+- El PDF lo recoge en la muestra y en «Límites de este análisis», con la advertencia de revisarlo aparte.
 - La exportación compacta por página lleva `page.exclude` y un aviso en `warnings`. La agregada lleva
   `excluded: [{ selector, pages }]` y los mismos avisos. Un modelo que lea el JSON no puede tomar lo
   excluido por "sin fallos".

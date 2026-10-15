@@ -60,7 +60,6 @@ export default async function PageDetail({ params }: Props) {
   const legalViolations = results.violations.filter((rule) => isLegal(rule.tags));
   const improvementViolations = results.violations.filter((rule) => !isLegal(rule.tags));
 
-  const pdfHref = `/api/backend/audits/${id}/pages/${pageId}/report.pdf`;
   const jsonHref = `/api/backend/audits/${id}/pages/${pageId}/results?download=1`;
   const aiJsonHref = `/api/backend/audits/${id}/pages/${pageId}/results?format=compact&download=1`;
 
@@ -104,9 +103,6 @@ export default async function PageDetail({ params }: Props) {
             <Link href={`/auditorias/${id}/paginas/${pageId}/revision`} className={buttonStyles.primary}>
               Revisión manual
             </Link>
-            <a href={pdfHref} className={buttonStyles.secondary}>
-              Descargar PDF
-            </a>
             <DownloadMenu
               label="Descargar JSON"
               options={[

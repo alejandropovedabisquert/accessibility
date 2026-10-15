@@ -82,6 +82,11 @@ export default async function AuditDetailPage({ params }: Props) {
         }
         actions={
           <>
+            {!inProgress && audit.completedPages > 0 ? (
+              <a href={`/api/backend/audits/${audit.id}/report.pdf`} className={buttonStyles.secondary}>
+                Descargar PDF
+              </a>
+            ) : null}
             {audit.completedPages > 0 ? (
               <DownloadMenu
                 label="Descargar JSON"

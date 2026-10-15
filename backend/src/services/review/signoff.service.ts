@@ -170,11 +170,15 @@ class SignOffService {
     return { signOff, siteName: snapshot.site.name, earl: buildEarl(signOff, snapshot, axe.version) };
   }
 
-  /** PDF perezoso y cacheado, como el de las paginas: una firma no cambia. */
+  /** PDF perezoso y cacheado, como el de las auditorias: una firma no cambia. */
   public async pdf(id: string): Promise<{ filePath: string; fileName: string }> {
     const { snapshot, ...signOff } = await this.frozen(id);
     const filePath = rawStore.signOffPdfPath(id);
-    if (!rawStore.exists(filePath)) await htmlToPdf(signOffReportHtml(signOff, snapshot), filePath);
+    if (!rawStore.exists(filePath)) {
+      await htmlToPdf(signOffReportHtml(signOff, snapshot), filePath, {
+        footer: `Informe de accesibilidad firmado · ${snapshot.site.name}`,
+      });
+    }
     return { filePath, fileName: `firma-accesibilidad-${slugifyUrl(snapshot.site.name)}-${signOff.signedAt.slice(0, 10)}.pdf` };
   }
 
