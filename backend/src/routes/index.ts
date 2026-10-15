@@ -7,7 +7,7 @@ import {
   getHistory,
   getPage,
   getPageDiff,
-  getPagePdf,
+  getAuditPdf,
   getPageResults,
   getScannedUrls,
   listAudits,
@@ -57,11 +57,11 @@ router.get('/audits/:id', getAudit);
 router.delete('/audits/:id', deleteAudit);
 router.post('/audits/:id/rerun', rerunAudit);
 router.get('/audits/:id/export', exportAudit);
+router.get('/audits/:id/report.pdf', getAuditPdf);
 
 router.get('/audits/:id/pages/:pageId', getPage);
 router.get('/audits/:id/pages/:pageId/results', getPageResults);
 router.get('/audits/:id/pages/:pageId/diff', getPageDiff);
-router.get('/audits/:id/pages/:pageId/report.pdf', getPagePdf);
 router.get('/audits/:id/pages/:pageId/review', getPageReview);
 router.post('/audits/:id/pages/:pageId/findings', createPageFinding);
 // Solo capa 3: el MCP no lo expone.

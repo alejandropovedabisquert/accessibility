@@ -20,8 +20,9 @@ class RawStore {
     return path.join(this.auditDir(auditId), `${path.basename(pageId)}.json`);
   }
 
-  public pdfPath(auditId: string, pageId: string): string {
-    return path.join(this.auditDir(auditId), `${path.basename(pageId)}.pdf`);
+  /** Informe de toda la auditoria. Se borra con el resto de su carpeta en `removeAudit`. */
+  public auditPdfPath(auditId: string): string {
+    return path.join(this.auditDir(auditId), 'report.pdf');
   }
 
   public async saveRaw(auditId: string, pageId: string, results: AxeResults): Promise<void> {

@@ -6,7 +6,7 @@ import { buildPageExport, type CompactPageExport, type CompactPageInfo } from '.
 import { buildAuditExport, type AggregatedExport, type ExportDetail } from './aggregate';
 import type { Audit, AuditPage, AxeResults } from '../../types/audit.types';
 
-const pageInfo = (page: AuditPage, audit: Audit, scannedAt: string | null): CompactPageInfo => ({
+export const pageInfo = (page: AuditPage, audit: Audit, scannedAt: string | null): CompactPageInfo => ({
   url: page.url,
   include: page.include,
   exclude: page.exclude,

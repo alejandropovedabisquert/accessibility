@@ -1,12 +1,5 @@
+import { BASE_STYLES, escapeHtml, formatDate } from '../report/reportBase';
 import type { ConformanceStatus, EarlOutcome, SignOff, SignOffSnapshot } from '../../types/audit.types';
-
-const escapeHtml = (value: unknown): string =>
-  String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 const OUTCOME_LABEL: Record<EarlOutcome, string> = {
   passed: 'Cumple',
@@ -22,9 +15,6 @@ export const CONFORMANCE_LABEL: Record<ConformanceStatus, string> = {
   partial: 'Parcialmente conforme',
   'non-conformant': 'No conforme',
 };
-
-const formatDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Madrid' }) : '—';
 
 /** Etiqueta de un criterio que no cuenta para la conformidad legal. */
 const tagOf = (criterion: SignOffSnapshot['criteria'][number]) =>
@@ -88,28 +78,7 @@ export const signOffReportHtml = (signOff: SignOff, snapshot: SignOffSnapshot): 
 <head>
 <meta charset="utf-8">
 <title>Informe de accesibilidad · ${escapeHtml(snapshot.site.name)}</title>
-<style>
-  body { font-family: "Trebuchet MS", "Lucida Sans Unicode", sans-serif; color: #16191d; font-size: 11px; line-height: 1.45; margin: 0; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 15px; margin: 22px 0 8px; border-bottom: 1px solid #e2e5ea; padding-bottom: 4px; }
-  h3 { font-size: 12px; margin: 12px 0 4px; }
-  .muted { color: #5b626c; }
-  .status { display: inline-block; font-size: 16px; font-weight: bold; padding: 6px 12px; border-radius: 6px; margin: 8px 0; }
-  .s-full { background: #e6f4ec; color: #1d6340; }
-  .s-partial { background: #fbf5df; color: #6b5500; }
-  .s-non-conformant { background: #fdeaec; color: #a4192b; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #e2e5ea; vertical-align: top; }
-  thead th { font-size: 10px; color: #5b626c; text-transform: uppercase; }
-  tbody th { font-weight: normal; }
-  .o-failed { color: #a4192b; font-weight: bold; }
-  .o-passed { color: #1d6340; }
-  .o-inapplicable { color: #5b626c; }
-  .tag { font-size: 9px; color: #5b626c; border: 1px solid #e2e5ea; border-radius: 8px; padding: 0 4px; }
-  .failure { page-break-inside: avoid; }
-  code { font-family: Consolas, "Courier New", monospace; font-size: 10px; word-break: break-all; }
-  .signature { margin-top: 24px; border: 1px solid #e2e5ea; border-radius: 6px; padding: 10px 12px; page-break-inside: avoid; }
-</style>
+<style>${BASE_STYLES}</style>
 </head>
 <body>
   <h1>Informe de accesibilidad: ${escapeHtml(snapshot.site.name)}</h1>

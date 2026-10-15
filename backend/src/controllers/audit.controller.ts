@@ -85,8 +85,8 @@ export const getPageDiff = asyncHandler(async (req: Request<PageParams>, res: Re
   res.json(auditService.getPageDiff(req.params.id, req.params.pageId));
 });
 
-export const getPagePdf = asyncHandler(async (req: Request<PageParams>, res: Response) => {
-  const { filePath, fileName } = await pdfService.getOrCreate(req.params.id, req.params.pageId);
+export const getAuditPdf = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+  const { filePath, fileName } = await pdfService.getOrCreate(req.params.id);
   res.download(filePath, fileName);
 });
 

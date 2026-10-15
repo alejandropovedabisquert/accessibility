@@ -121,7 +121,11 @@ const byPriorityThenReach = <T extends Pick<CompactFinding, 'status' | 'level' |
   (a: T, b: T) =>
     compareFindingPriority(a, b) || reach(b) - reach(a) || b.count - a.count || a.rule.localeCompare(b.rule) || tieBreak(a, b);
 
-const summarizeImprovements = (findings: AggregatedFinding[], maxNodes: number): ImprovementSummary[] => {
+/**
+ * Junta los grupos de una misma regla y estado: una entrada por regla, con las
+ * paginas donde aparece y un ejemplo por grupo hasta `maxExamples`.
+ */
+export const summarizeByRule = (findings: AggregatedFinding[], maxExamples: number): ImprovementSummary[] => {
   const byRule = new Map<string, ImprovementSummary & { pageSet: Set<number> }>();
 
   for (const finding of findings) {
@@ -148,7 +152,7 @@ const summarizeImprovements = (findings: AggregatedFinding[], maxNodes: number):
     for (const [index] of finding.pages) entry.pageSet.add(index);
     // Un ejemplo por grupo antes que varios del mismo: asi se ven elementos distintos.
     const example = finding.nodes[0];
-    if (example && entry.nodes.length < Math.min(MAX_IMPROVEMENT_EXAMPLES, maxNodes)) entry.nodes.push(example);
+    if (example && entry.nodes.length < maxExamples) entry.nodes.push(example);
   }
 
   return [...byRule.values()]
@@ -225,7 +229,7 @@ export const buildAuditExport = (input: AggregateInput): AggregatedExport => {
       groups: all.length,
     },
     ...(detail === 'legal'
-      ? { findings: all.filter(isLegal), improvements: summarizeImprovements(all.filter((f) => !isLegal(f)), maxNodes) }
+      ? { findings: all.filter(isLegal), improvements: summarizeByRule(all.filter((f) => !isLegal(f)), Math.min(MAX_IMPROVEMENT_EXAMPLES, maxNodes)) }
       : { findings: all }),
   };
 };

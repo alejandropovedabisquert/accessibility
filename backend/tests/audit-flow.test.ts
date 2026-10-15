@@ -64,6 +64,9 @@ describe('ciclo completo de una auditoria', () => {
     expect(res.body.label).toBe('Auditoria de prueba');
     expect(res.headers.location).toBe(`/api/audits/${res.body.id}`);
     auditId = res.body.id;
+
+    // El informe es de la auditoria entera: hasta que termine no hay nada que cachear.
+    await request(app).get(`/api/audits/${auditId}/report.pdf`).expect(409);
   });
 
   it('termina y agrega los contadores de las dos paginas', async () => {
@@ -116,23 +119,23 @@ describe('ciclo completo de una auditoria', () => {
     expect(rawStore.exists(rawStore.rawPath(auditId, brokenPageId))).toBe(true);
   });
 
-  it('genera el PDF bajo demanda y lo cachea', async () => {
-    const pdfPath = rawStore.pdfPath(auditId, brokenPageId);
+  it('genera el PDF de toda la auditoria bajo demanda y lo cachea', async () => {
+    const pdfPath = rawStore.auditPdfPath(auditId);
     expect(rawStore.exists(pdfPath)).toBe(false);
 
-    const res = await request(app)
-      .get(`/api/audits/${auditId}/pages/${brokenPageId}/report.pdf`)
-      .expect(200);
+    const res = await request(app).get(`/api/audits/${auditId}/report.pdf`).expect(200);
 
     expect(res.headers['content-type']).toContain('pdf');
-    expect(res.headers['content-disposition']).toContain('informe-accesibilidad-');
+    expect(res.headers['content-disposition']).toContain('informe-accesibilidad-auditoria-de-prueba-');
     expect(res.body.subarray(0, 4).toString()).toBe('%PDF');
     expect(rawStore.exists(pdfPath)).toBe(true);
 
     const mtime = fs.statSync(pdfPath).mtimeMs;
-    await request(app).get(`/api/audits/${auditId}/pages/${brokenPageId}/report.pdf`).expect(200);
+    await request(app).get(`/api/audits/${auditId}/report.pdf`).expect(200);
     // La segunda descarga reutiliza el fichero, no lo regenera.
     expect(fs.statSync(pdfPath).mtimeMs).toBe(mtime);
+
+    await request(app).get(`/api/audits/${auditId}/pages/${brokenPageId}/report.pdf`).expect(404);
   });
 
   it('no encuentra diferencias cuando es el primer escaneo de la URL', async () => {
@@ -388,11 +391,6 @@ describe('cumplimiento legal separado de mejoras', () => {
     const detail = await request(app).get(`/api/audits/${auditId}/pages/${pageId}`).expect(200);
     const imageAlt = detail.body.issues.find((i: { ruleId: string }) => i.ruleId === 'image-alt');
     expect(imageAlt.level).toBe('A');
-  });
-
-  it('incluye el bloque legal antes que el de mejoras en el PDF', async () => {
-    const res = await request(app).get(`/api/audits/${auditId}/pages/${pageId}/report.pdf`).expect(200);
-    expect(res.body.subarray(0, 4).toString()).toBe('%PDF');
   });
 });
 
