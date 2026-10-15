@@ -193,7 +193,8 @@ espacios:
 Los componentes comunes (cabecera, menú, pie, banner de cookies) generan los mismos errores en todas
 las URLs. `GET /api/audits/:id/export?format=compact` junta todas las páginas en un solo informe,
 agrupando los fallos repetidos. En el detalle de la auditoría hay dos botones: **Descargar JSON para
-IA** (`detail=legal`) y **JSON para IA completo** (`detail=full`).
+IA** (`detail=legal`) y **JSON para IA completo** (`detail=full`). El **PDF** de la auditoría
+(`GET /api/audits/:id/report.pdf`, botón **Descargar PDF**) agrupa las incidencias igual.
 
 Parámetros: `format=compact` (obligatorio), `detail=full|legal` (por defecto `full`), `maxNodes`
 (1–50, por defecto 5) y `download=1`.

@@ -128,6 +128,14 @@ BD solo contadores y metadatos; el crudo va a `scan-results/<auditId>/<pageId>.j
 (`report/pdf.service.ts`): antes se generaba un PDF por URL en cada escaneo y casi ninguno se
 descargaba.
 
+**El PDF es uno por auditoría y su caché no se invalida nunca** (`scan-results/<auditId>/report.pdf`).
+Vale porque una auditoría terminada no cambia: «volver a lanzar» crea otra. Si algún día se reescanea
+una página en su sitio, borra ese fichero. Las incidencias se agrupan con `buildAuditExport` +
+`summarizeByRule`, igual que la exportación agregada: si cambias la agrupación, cambian los dos.
+**No le añadas un estado de conformidad** ("parcialmente conforme"): axe no lo puede decir y contradiría
+al de la firma. Los estilos son comunes con el PDF de la firma (`report/reportBase.ts`) para que se
+sigan pareciendo.
+
 **No lances un navegador por escaneo.** Usa `browserPool.acquire()/release()`. Arrancar uno por URL
 costaba ~175 ms extra por URL.
 
