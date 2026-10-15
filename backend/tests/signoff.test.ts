@@ -6,10 +6,12 @@ import browserPool from '../src/services/scanner/browserPool';
 import auditService from '../src/services/audit/audit.service';
 import reviewRepository from '../src/db/review.repository';
 import rawStore from '../src/services/storage/rawStore';
+import { catalog } from '../src/services/review/catalog';
 import { aggregateOutcome, conformanceOf, snapshotHash } from '../src/services/review/signoff.service';
 import type { CriterionResult, PageReview, SignOff, SignOffDetail, SignOffPreview, SignOffSnapshot } from '../src/types/audit.types';
 import { startFixtureServer, type FixtureServer } from './helpers/fixtureServer';
 import { waitForAudit } from './helpers/waitFor';
+import { importWcagEm } from './helpers/wcagEmImport';
 
 /** Una imagen sin alt: 1.1.1 falla por axe y la web no puede salir plenamente conforme. */
 const PAGE = `<!doctype html>
@@ -149,21 +151,51 @@ describe('firma', () => {
     expect(listed.body.map((item: { id: string }) => item.id)).toEqual([signOff.id]);
   });
 
-  it('EARL: una asercion por hallazgo y por violacion de axe, con su modo', async () => {
+  it('EARL: lo abre el WCAG-EM Report Tool del W3C con todos los criterios y paginas', async () => {
     const res = await request(app).get(`/api/sign-offs/${signOff.id}/earl?download=1`).expect(200);
     expect(res.headers['content-type']).toContain('application/ld+json');
-    expect(res.headers['content-disposition']).toContain('.jsonld');
+    expect(res.headers['content-disposition']).toContain('evaluacion-wcag-em-');
     const earl = JSON.parse(res.text);
-
-    expect(earl['@context'].earl).toBe('http://www.w3.org/ns/earl#');
-    const assertions = earl['@graph'] as Array<Record<string, any>>;
-    const axeFail = assertions.find(
-      (item) => item['earl:test']['@id'] === 'WCAG22:non-text-content' && item['earl:mode']['@id'] === 'earl:automatic',
-    );
-    expect(axeFail?.['earl:result']['earl:outcome']['@id']).toBe('earl:failed');
-    expect(assertions.some((item) => item['earl:mode']['@id'] === 'earl:manual')).toBe(true);
-    expect(assertions.every((item) => item['earl:subject'])).toBe(true);
     expect(earl['a11y:signOff'].findingsHash).toBe(signOff.findingsHash);
+
+    const imported = await importWcagEm(earl, new Set(catalog.checks.map((check) => check.id)));
+
+    expect(imported.language).toBe('en');
+    expect(imported.wcagVersion).toBe('2.2');
+    expect(imported.conformanceTarget).toBe('AA');
+    expect(imported.date).toBe(signOff.signedAt.slice(0, 10));
+    expect(imported.evaluator).toBe(`${SIGNER} (IAAP WAS)`);
+    expect(imported.summary).toContain('Parcialmente conforme');
+    expect(imported.sample).toHaveLength(1);
+
+    // Una del sitio por criterio (su resumen solo cuenta esas) y una por pagina en los de pagina.
+    const site = imported.assertions.filter((assertion) => assertion.subject === 'website');
+    expect(site).toHaveLength(catalog.checks.length);
+    const pageScoped = catalog.checks.filter((check) => check.scope === 'page').length;
+    expect(imported.assertions.filter((assertion) => assertion.subject === imported.sample[0]?.title)).toHaveLength(pageScoped);
+
+    for (const criterion of signOff.snapshot.criteria) {
+      expect(site.find((assertion) => assertion.criterion === criterion.checkId)?.outcome).toBe(`earl:${criterion.outcome}`);
+    }
+
+    // La violacion de axe sale en la observacion de la pagina, con su regla.
+    const imageAlt = imported.assertions.find(
+      (assertion) => assertion.criterion === 'non-text-content' && assertion.subject !== 'website',
+    );
+    expect(imageAlt?.outcome).toBe('earl:failed');
+    expect(imageAlt?.description).toContain('axe-core');
+  });
+
+  it('EARL: con target=AAA la herramienta muestra y cuenta tambien los AAA', async () => {
+    const res = await request(app).get(`/api/sign-offs/${signOff.id}/earl?download=1&target=AAA`).expect(200);
+    expect(res.headers['content-disposition']).toContain('-aaa.json');
+
+    const imported = await importWcagEm(JSON.parse(res.text), new Set(catalog.checks.map((check) => check.id)));
+    expect(imported.conformanceTarget).toBe('AAA');
+    const aaa = catalog.checks.find((check) => check.level === 'AAA');
+    expect(imported.assertions.some((assertion) => assertion.subject === 'website' && assertion.criterion === aaa?.id)).toBe(true);
+
+    await request(app).get(`/api/sign-offs/${signOff.id}/earl?target=A`).expect(400);
   });
 
   it('el PDF se genera desde lo firmado', async () => {
@@ -192,6 +224,9 @@ describe('firma', () => {
     const detail = (await request(app).get(`/api/sign-offs/${old.id}`).expect(200)).body as SignOffDetail;
     expect(detail.stillMatches).toBe(true);
     expect(detail.snapshot.criteria).toHaveLength(55);
+    // Sin AAA que enseñar, el EARL con objetivo AAA los pintaria todos como "Not checked".
+    await request(app).get(`/api/sign-offs/${old.id}/earl?target=AAA`).expect(400);
+    await request(app).get(`/api/sign-offs/${old.id}/earl`).expect(200);
   });
 
   it('si se corrige un hallazgo despues, la firma lo nota y lo firmado no cambia', async () => {

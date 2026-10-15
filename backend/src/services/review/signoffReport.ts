@@ -1,7 +1,7 @@
 import { BASE_STYLES, escapeHtml, formatDate } from '../report/reportBase';
 import type { ConformanceStatus, EarlOutcome, SignOff, SignOffSnapshot } from '../../types/audit.types';
 
-const OUTCOME_LABEL: Record<EarlOutcome, string> = {
+export const OUTCOME_LABEL: Record<EarlOutcome, string> = {
   passed: 'Cumple',
   failed: 'No cumple',
   cantTell: 'Sin decidir',

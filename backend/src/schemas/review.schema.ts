@@ -173,3 +173,12 @@ export const bulkValidateSchema = z
 export const pageReviewQuerySchema = z.object({
   maxTargets: z.coerce.number().int().min(1).max(MAX_NODES_LIMIT).default(DEFAULT_MAX_NODES),
 });
+
+/**
+ * Objetivo de conformidad del EARL (WCAG-EM). AA por defecto: es lo que cuenta
+ * para la conformidad legal. Con AAA el WCAG-EM Report Tool enseña y cuenta
+ * tambien los AAA.
+ */
+export const earlQuerySchema = z.object({
+  target: z.enum(['AA', 'AAA'], { message: 'target debe ser AA o AAA' }).default('AA'),
+});
