@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'crypto';
 import axe from 'axe-core';
-import { buildEarl } from './earl';
+import { buildEarl, type EarlTarget } from './earl';
 import { signOffReportHtml } from './signoffReport';
 import { htmlToPdf } from '../report/pdf.service';
 import { slugifyUrl } from '../../utils/url';
@@ -165,9 +165,11 @@ class SignOffService {
   }
 
   /** Siempre de la copia firmada, no de los datos actuales. */
-  public async earl(id: string) {
+  public async earl(id: string, target: EarlTarget = 'AA') {
     const { snapshot, ...signOff } = await this.frozen(id);
-    return { signOff, siteName: snapshot.site.name, earl: buildEarl(signOff, snapshot, axe.version) };
+    // Las firmas del catalogo v1 no tienen AAA: la herramienta los pintaria todos como "Not checked".
+    if (target === 'AAA' && !snapshot.aaa) throw badRequest('Esta firma es de un catalogo sin criterios AAA');
+    return { signOff, siteName: snapshot.site.name, earl: buildEarl(signOff, snapshot, axe.version, target) };
   }
 
   /** PDF perezoso y cacheado, como el de las auditorias: una firma no cambia. */

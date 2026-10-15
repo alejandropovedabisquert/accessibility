@@ -16,6 +16,7 @@ import {
   signOffPreviewQuerySchema,
   signOffSchema,
   updateFindingSchema,
+  earlQuerySchema,
 } from '../schemas/review.schema';
 import { asyncHandler } from '../middlewares/asyncHandler';
 
@@ -114,9 +115,14 @@ export const deleteSignOff = asyncHandler(async (req: Request<IdParams>, res: Re
 });
 
 export const getSignOffEarl = asyncHandler(async (req: Request<IdParams>, res: Response) => {
-  const { signOff, siteName, earl } = await signOffService.earl(req.params.id);
+  const { target } = earlQuerySchema.parse(req.query);
+  const { signOff, siteName, earl } = await signOffService.earl(req.params.id, target);
   if (req.query.download === '1') {
-    res.setHeader('Content-Disposition', `attachment; filename="earl-${slugifyUrl(siteName)}-${signOff.signedAt.slice(0, 10)}.jsonld"`);
+    const suffix = target === 'AAA' ? '-aaa' : '';
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="evaluacion-wcag-em-${slugifyUrl(siteName)}-${signOff.signedAt.slice(0, 10)}${suffix}.json"`,
+    );
   }
   res.type('application/ld+json').send(JSON.stringify(earl, null, 2));
 });

@@ -540,7 +540,7 @@ GET  /api/sites/:id/sign-off-preview?pageIds=a,b   Lo que se firmaría y lo que 
 POST /api/sites/:id/sign-offs                      Firmar (capa 3)
 GET  /api/sign-offs/:id                            La firma, y si lo firmado sigue coincidiendo
 DELETE /api/sign-offs/:id                          Borrar la firma (capa 3)
-GET  /api/sign-offs/:id/earl?download=1            EARL 1.0 en JSON-LD
+GET  /api/sign-offs/:id/earl?download=1&target=AA  EARL 1.0 en JSON-LD, como evaluación WCAG-EM (AA o AAA)
 GET  /api/sign-offs/:id/report.pdf                 Informe firmado
 ```
 
@@ -557,6 +557,15 @@ GET  /api/sign-offs/:id/report.pdf                 Informe firmado
 - **Lo firmado se congela** en `scan-results/sign-offs/<id>.json` con su huella SHA-256. El PDF y el
   EARL salen siempre de esa copia. Si después alguien corrige un hallazgo de la muestra, la firma sigue
   igual pero avisa de que ya no coincide con los datos actuales.
+- **El EARL se abre en el [WCAG-EM Report Tool](https://www.w3.org/WAI/eval/report-tool/) del W3C**
+  («Open report» y después «View report»). Es EARL con la forma de una evaluación WCAG-EM: alcance,
+  muestra (P1…Pn), un resultado por criterio para el sitio y otro por página, y en cada observación
+  quién evaluó qué (axe, IA o persona), los selectores y quién lo validó. Lo firmado (huella, firmante)
+  va además en `a11y:signOff`, que la herramienta ignora. Su interfaz no está en castellano (inglés,
+  neerlandés, francés o polaco): los nombres de los criterios salen en inglés y nuestros textos tal
+  cual. El objetivo de conformidad es AA por defecto, y su resumen cuenta los 55 criterios A/AA de
+  WCAG 2.2, no los 49 legales del nuestro. Con `target=AAA` (opción «Objetivo AAA» del botón) enseña y
+  cuenta también los AAA, los 86; no existe en las firmas del catálogo v1, que no los tenían.
 - Una firma se puede borrar (`DELETE /api/sign-offs/:id`), y un sitio se borra con todas sus firmas,
   incluidos la copia congelada y el PDF. Las auditorías y los hallazgos de página se conservan. El MCP
   no puede borrar nada.

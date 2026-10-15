@@ -174,6 +174,13 @@ snapshot con `checksOfVersion(signOff.catalogVersion)`: la v1 (`wcag22-aa`) no t
 todas las firmas anteriores pasarían a `stillMatches: false`. Si una versión nueva cambia textos o
 criterios existentes (no solo añade), `checksOfVersion` ya no basta: hay que conservar la anterior.
 
+**El EARL de la firma tiene que poder abrirlo el WCAG-EM Report Tool del W3C**, y su importador
+falla en silencio: si algo no le cuadra, no importa o se queda a medias sin avisar. Lo que exige
+está en la cabecera de `services/review/earl.ts` (páginas emparejadas por título, `WCAG22:<ancla>`
+sin definir el prefijo, fecha como literal tipado, `language: en`…). `tests/helpers/wcagEmImport.ts`
+reproduce su `open()` con su misma versión de jsonld (3.2.0, solo en dev) y lanza donde él fallaría:
+si cambias la forma del EARL, ese test tiene que seguir pasando.
+
 **Lo firmado sale de la copia congelada, nunca de la BD.** `signoff.service` guarda el `SignOffSnapshot`
 en `scan-results/sign-offs/<id>.json` y su hash (JSON con claves ordenadas) en `sign_offs`. El PDF y el
 EARL se generan desde esa copia; `stillMatches` recalcula con los datos actuales para avisar si algo

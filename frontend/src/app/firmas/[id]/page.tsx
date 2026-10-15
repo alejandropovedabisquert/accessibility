@@ -5,6 +5,7 @@ import { ApiError, getSignOff } from '@/lib/api';
 import { deleteSignOffAction } from '@/app/actions';
 import { CONFORMANCE_LABEL, displayUrl, formatDateTime, screenLabel } from '@/lib/format';
 import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
+import { DownloadMenu } from '@/components/DownloadMenu';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -67,12 +68,42 @@ export default async function SignOffView({ params }: Props) {
             <a href={`/api/backend/sign-offs/${id}/report.pdf`} className={buttonStyles.primary}>
               Descargar informe PDF
             </a>
-            <a href={`/api/backend/sign-offs/${id}/earl?download=1`} className={buttonStyles.secondary}>
-              Descargar EARL (JSON-LD)
-            </a>
+            <DownloadMenu
+              label="Descargar EARL (WCAG-EM)"
+              options={[
+                {
+                  href: `/api/backend/sign-offs/${id}/earl?download=1`,
+                  label: 'Objetivo AA',
+                  hint: 'Lo que cuenta para la conformidad legal: criterios A y AA',
+                },
+                // Las firmas del catálogo v1 no tienen AAA.
+                ...(snapshot.aaa
+                  ? [
+                      {
+                        href: `/api/backend/sign-offs/${id}/earl?download=1&target=AAA`,
+                        label: 'Objetivo AAA',
+                        hint: 'Muestra y cuenta también los AAA, que no son exigibles legalmente',
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </>
         }
       />
+
+      <p className="mb-4 text-sm text-ink-muted">
+        El EARL se abre con «Open report» en el{' '}
+        <a
+          href="https://www.w3.org/WAI/eval/report-tool/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent underline underline-offset-2"
+        >
+          WCAG-EM Report Tool del W3C <span className="sr-only">(se abre en una pestaña nueva)</span>
+        </a>
+        , que lo muestra como informe de evaluación.
+      </p>
 
       {signOff.stillMatches === false ? (
         <p role="note" className="mb-6 rounded-md border border-moderate/30 bg-moderate-soft px-4 py-3 text-sm text-moderate">
