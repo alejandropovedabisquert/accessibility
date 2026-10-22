@@ -89,6 +89,22 @@ export const screenLabel = ({ viewport, device }: ScanScreen): string => {
   return size ?? '—';
 };
 
+/**
+ * Escaneos agrupados por página: URL + sección + pantalla, la misma clave que el
+ * histórico y el diff. Conserva el orden de entrada, así que con escaneos del
+ * más reciente al más antiguo el primero de cada grupo es el último.
+ */
+export const groupByPage = <T extends ScanScreen & { url: string; include: string | null }>(
+  scans: readonly T[],
+): Array<{ key: string; latest: T; previous: T[] }> => {
+  const groups = new Map<string, T[]>();
+  for (const scan of scans) {
+    const key = JSON.stringify([scan.url, scan.include, scan.viewport, scan.device]);
+    groups.set(key, [...(groups.get(key) ?? []), scan]);
+  }
+  return [...groups].flatMap(([key, [latest, ...previous]]) => (latest ? [{ key, latest, previous }] : []));
+};
+
 /** Parámetros de consulta de `/api/history` que identifican la pantalla de una serie. */
 export const screenQuery = ({ viewport, device }: ScanScreen): Record<string, string> => ({
   ...(viewport ? { viewport: `${viewport.width}x${viewport.height}` } : {}),

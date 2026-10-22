@@ -157,6 +157,15 @@ export async function deleteAuditAction(formData: FormData): Promise<void> {
   redirect('/');
 }
 
+export async function deleteAuditGroupAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('id'));
+  const res = await fetch(`${API_URL}/api/audit-groups/${id}`, { method: 'DELETE', cache: 'no-store' });
+  if (!res.ok) throw new Error(await readError(res));
+
+  revalidatePath('/');
+  redirect('/');
+}
+
 export async function rerunAuditAction(formData: FormData): Promise<void> {
   const id = String(formData.get('id'));
   const res = await fetch(`${API_URL}/api/audits/${id}/rerun`, { method: 'POST', cache: 'no-store' });

@@ -4,6 +4,7 @@ import { DEFAULT_VIEWPORT } from '../types/audit.types';
 import type {
   Audit,
   AuditConfig,
+  AuditGroup,
   AuditPage,
   AuditStatus,
   AuditWithPages,
@@ -26,6 +27,7 @@ import type {
 
 interface AuditRow {
   id: string;
+  group_id: string;
   label: string | null;
   status: string;
   created_at: string;
@@ -138,6 +140,7 @@ const toViewports = (row: AuditRow): Viewport[] => {
 
 const toAudit = (row: AuditRow): Audit => ({
   id: row.id,
+  groupId: row.group_id,
   label: row.label,
   status: row.status as AuditStatus,
   createdAt: row.created_at,
@@ -207,6 +210,7 @@ const seriesParams = (series: SeriesKey) => ({
 class AuditRepository {
   createAudit(audit: {
     id: string;
+    groupId: string;
     label: string | null;
     createdAt: string;
     config: AuditConfig;
@@ -214,10 +218,10 @@ class AuditRepository {
   }): void {
     const db = getDb();
     const insertAudit = db.prepare(`
-      INSERT INTO audits (id, label, status, created_at, browser, device, viewport_width,
+      INSERT INTO audits (id, group_id, label, status, created_at, browser, device, viewport_width,
                           viewport_height, viewports, wait_until, timeout_ms, tags, evidence,
                           total_pages)
-      VALUES (@id, @label, 'queued', @createdAt, @browser, @device, @viewportWidth,
+      VALUES (@id, @groupId, @label, 'queued', @createdAt, @browser, @device, @viewportWidth,
               @viewportHeight, @viewports, @waitUntil, @timeoutMs, @tags, @evidence, @totalPages)
     `);
     const insertPage = db.prepare(`
@@ -230,6 +234,7 @@ class AuditRepository {
     db.transaction(() => {
       insertAudit.run({
         id: audit.id,
+        groupId: audit.groupId,
         label: audit.label,
         createdAt: audit.createdAt,
         browser: audit.config.browser,
@@ -448,6 +453,78 @@ class AuditRepository {
     };
   }
 
+  /**
+   * Grupos de lanzamientos, por su lanzamiento mas reciente. El estado se
+   * filtra sobre ese; la busqueda, sobre cualquiera del grupo.
+   */
+  listGroups(query: ListAuditsQuery): Paginated<AuditGroup> {
+    const db = getDb();
+    const where: string[] = ['a.group_rank = 1'];
+    const params: Record<string, unknown> = {};
+
+    if (query.status) {
+      where.push('a.status = @status');
+      params.status = query.status;
+    }
+    if (query.search) {
+      where.push(`EXISTS (
+        SELECT 1 FROM audits g WHERE g.group_id = a.group_id AND (
+          g.label LIKE @search
+          OR EXISTS (SELECT 1 FROM audit_pages p WHERE p.audit_id = g.id AND p.url LIKE @search)
+        )
+      )`);
+      params.search = `%${query.search}%`;
+    }
+
+    const latest = `
+      WITH ranked AS (
+        SELECT audits.*, audits.rowid AS row_order,
+               ROW_NUMBER() OVER (PARTITION BY group_id ORDER BY created_at DESC, rowid DESC) AS group_rank
+        FROM audits
+      )
+      SELECT * FROM ranked a WHERE ${where.join(' AND ')}
+    `;
+    const { total } = db.prepare(`SELECT COUNT(*) AS total FROM (${latest})`).get(params) as { total: number };
+    const rows = db
+      .prepare(`${latest} ORDER BY a.created_at DESC, a.row_order DESC LIMIT @limit OFFSET @offset`)
+      .all({ ...params, limit: query.pageSize, offset: (query.page - 1) * query.pageSize }) as AuditRow[];
+
+    const runs = this.findGroupRuns(rows.map((row) => row.group_id));
+    return {
+      items: rows.map((row) => ({
+        id: row.group_id,
+        latest: toAudit(row),
+        previous: (runs.get(row.group_id) ?? []).filter((run) => run.id !== row.id),
+      })),
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
+    };
+  }
+
+  findGroup(groupId: string): AuditGroup | null {
+    const [latest, ...previous] = this.findGroupRuns([groupId]).get(groupId) ?? [];
+    return latest ? { id: groupId, latest, previous } : null;
+  }
+
+  /** Lanzamientos de cada grupo, del mas reciente al mas antiguo. */
+  private findGroupRuns(groupIds: string[]): Map<string, Audit[]> {
+    const rows = getDb()
+      .prepare(`
+        SELECT * FROM audits WHERE group_id IN (SELECT value FROM json_each(@groupIds))
+        ORDER BY created_at DESC, rowid DESC
+      `)
+      .all({ groupIds: JSON.stringify(groupIds) }) as AuditRow[];
+    const byGroup = new Map<string, Audit[]>();
+    for (const row of rows) {
+      const list = byGroup.get(row.group_id) ?? [];
+      list.push(toAudit(row));
+      byGroup.set(row.group_id, list);
+    }
+    return byGroup;
+  }
+
   findAudit(id: string): Audit | null {
     const row = getDb().prepare('SELECT * FROM audits WHERE id = @id').get({ id }) as AuditRow | undefined;
     return row ? toAudit(row) : null;
@@ -594,6 +671,10 @@ class AuditRepository {
 
   deleteAudit(id: string): boolean {
     return getDb().prepare('DELETE FROM audits WHERE id = @id').run({ id }).changes > 0;
+  }
+
+  deleteGroup(groupId: string): number {
+    return getDb().prepare('DELETE FROM audits WHERE group_id = @groupId').run({ groupId }).changes;
   }
 
   stats(): { audits: number; pages: number; urls: number } {

@@ -2,14 +2,17 @@ import { Router } from 'express';
 import {
   createAudit,
   deleteAudit,
+  deleteAuditGroup,
   exportAudit,
   getAudit,
+  getAuditGroup,
   getHistory,
   getPage,
   getPageDiff,
   getAuditPdf,
   getPageResults,
   getScannedUrls,
+  listAuditGroups,
   listAudits,
   rerunAudit,
 } from '../controllers/audit.controller';
@@ -58,6 +61,11 @@ router.delete('/audits/:id', deleteAudit);
 router.post('/audits/:id/rerun', rerunAudit);
 router.get('/audits/:id/export', exportAudit);
 router.get('/audits/:id/report.pdf', getAuditPdf);
+
+// Una auditoria con todos sus lanzamientos («volver a lanzar» no crea otra).
+router.get('/audit-groups', listAuditGroups);
+router.get('/audit-groups/:id', getAuditGroup);
+router.delete('/audit-groups/:id', deleteAuditGroup);
 
 router.get('/audits/:id/pages/:pageId', getPage);
 router.get('/audits/:id/pages/:pageId/results', getPageResults);

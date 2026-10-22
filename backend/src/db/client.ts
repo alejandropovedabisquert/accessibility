@@ -200,6 +200,11 @@ const migrate = (instance: Db): void => {
   addColumn('manual_findings', 'source_selector', 'TEXT');
   backfillPageScreens(instance);
 
+  // Lanzamientos de una misma auditoria: «volver a lanzar» hereda el de la original.
+  addColumn('audits', 'group_id', 'TEXT');
+  backfillAuditGroups(instance);
+  instance.exec('CREATE INDEX IF NOT EXISTS idx_audits_group ON audits (group_id, created_at DESC)');
+
   // El historico y el diff van por URL + seccion + pantalla, no solo por URL.
   instance.exec(`
     DROP INDEX IF EXISTS idx_pages_url;
@@ -246,6 +251,46 @@ const backfillPageScreens = (instance: Db): void => {
     const viewport = devices[device]?.viewport ?? null;
     update.run({ device, width: viewport?.width ?? null, height: viewport?.height ?? null });
   }
+};
+
+/**
+ * Agrupa las auditorias anteriores a los grupos. «Volver a lanzar» copiaba el
+ * nombre y las paginas (URL + seccion + pantalla), asi que se agrupan las que
+ * coinciden en eso; el grupo toma el id de la mas antigua.
+ *
+ * Solo toca filas sin grupo, que desde este cambio ya no se crean, asi que es
+ * idempotente.
+ */
+const backfillAuditGroups = (instance: Db): void => {
+  const audits = instance
+    .prepare('SELECT id, label FROM audits WHERE group_id IS NULL ORDER BY created_at ASC, rowid ASC')
+    .all() as Array<{ id: string; label: string | null }>;
+  if (audits.length === 0) return;
+
+  const pages = instance
+    .prepare(`
+      SELECT audit_id, url, include_selector, exclude_selector, viewport_width, viewport_height, device
+      FROM audit_pages WHERE audit_id IN (SELECT id FROM audits WHERE group_id IS NULL)
+    `)
+    .all() as Array<{ audit_id: string } & Record<string, unknown>>;
+  const pagesByAudit = new Map<string, string[]>();
+  for (const { audit_id: auditId, ...page } of pages) {
+    const list = pagesByAudit.get(auditId) ?? [];
+    list.push(JSON.stringify(Object.values(page)));
+    pagesByAudit.set(auditId, list);
+  }
+
+  const groupByKey = new Map<string, string>();
+  const update = instance.prepare('UPDATE audits SET group_id = @groupId WHERE id = @id');
+  instance.transaction(() => {
+    for (const audit of audits) {
+      const signature = [...new Set(pagesByAudit.get(audit.id) ?? [])].sort();
+      const key = JSON.stringify([audit.label, signature]);
+      const groupId = groupByKey.get(key) ?? audit.id;
+      groupByKey.set(key, groupId);
+      update.run({ groupId, id: audit.id });
+    }
+  })();
 };
 
 export type Db = Database.Database;

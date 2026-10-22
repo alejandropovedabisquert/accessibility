@@ -85,6 +85,8 @@ export interface AuditPage extends Counters, ScanScope, ScanScreen {
 
 export interface Audit extends Counters {
   id: string;
+  /** Lanzamientos de la misma auditoria: «volver a lanzar» conserva el de la original. */
+  groupId: string;
   label: string | null;
   status: AuditStatus;
   createdAt: string;
@@ -97,6 +99,14 @@ export interface Audit extends Counters {
   score: number | null;
   compliance: Compliance | null;
   error: string | null;
+}
+
+/** Una auditoria con todos sus lanzamientos. */
+export interface AuditGroup {
+  id: string;
+  latest: Audit;
+  /** Lanzamientos anteriores, del mas reciente al mas antiguo. */
+  previous: Audit[];
 }
 
 export interface AuditWithPages extends Audit {
@@ -429,7 +439,7 @@ export interface SignOffSnapshot {
 }
 
 export interface SignOffBlocker {
-  kind: 'pending-review' | 'undecided' | 'untested' | 'page';
+  kind: 'pending-review' | 'undecided' | 'untested' | 'page' | 'duplicate-page';
   checkId: string | null;
   pageId: string | null;
   message: string;

@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getAudit, getMeta } from '@/lib/api';
+import { getAudit, getAuditGroup, getMeta } from '@/lib/api';
 import { ApiError } from '@/lib/api';
-import { deleteAuditAction, rerunAuditAction } from '@/app/actions';
+import { deleteAuditAction, deleteAuditGroupAction, rerunAuditAction } from '@/app/actions';
 import {
   displayUrl,
   formatDateTime,
@@ -52,8 +52,14 @@ export default async function AuditDetailPage({ params }: Props) {
     throw error;
   }
 
-  // Solo sirve para poner nombre bonito a los selectores de sección: si falla, se enseña el CSS.
-  const meta = await getMeta().catch(() => null);
+  const [meta, group] = await Promise.all([
+    // Solo sirve para poner nombre bonito a los selectores de sección: si falla, se enseña el CSS.
+    getMeta().catch(() => null),
+    // Sin los demás lanzamientos la página sigue sirviendo: solo falta la navegación entre ellos.
+    getAuditGroup(audit.groupId).catch(() => null),
+  ]);
+  // Del más antiguo al más reciente: el número de lanzamiento es su posición.
+  const runs = group ? [group.latest, ...group.previous].reverse() : [audit];
 
   const screensLabel =
     audit.config.device ?? (audit.config.viewports.map(formatViewport).join(', ') || 'Por defecto');
@@ -113,12 +119,33 @@ export default async function AuditDetailPage({ params }: Props) {
             <form action={deleteAuditAction}>
               <input type="hidden" name="id" value={audit.id} />
               <button type="submit" className={buttonStyles.danger}>
-                Borrar
+                {runs.length > 1 ? 'Borrar este lanzamiento' : 'Borrar'}
               </button>
             </form>
           </>
         }
       />
+
+      {runs.length > 1 ? (
+        <nav aria-label="Lanzamientos de esta auditoría" className="mb-5 text-sm">
+          <ol className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {runs.map((run, index) => (
+              <li key={run.id}>
+                {run.id === audit.id ? (
+                  <span aria-current="page" className="font-semibold">
+                    Lanzamiento {index + 1} de {runs.length}
+                  </span>
+                ) : (
+                  <Link href={`/auditorias/${run.id}`} className="text-accent underline-offset-2 hover:underline">
+                    <span className="sr-only">Lanzamiento {index + 1}, del </span>
+                    {formatDateTime(run.createdAt)}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      ) : null}
 
       <div className="mb-5 flex flex-wrap items-center gap-4">
         <StatusBadge status={audit.status} />
@@ -262,6 +289,22 @@ export default async function AuditDetailPage({ params }: Props) {
           </div>
         </dl>
       </details>
+
+      {runs.length > 1 ? (
+        <details className="mt-10 rounded-lg border border-critical/30 bg-surface p-5">
+          <summary className="cursor-pointer text-sm font-medium text-critical">Borrar todos los lanzamientos</summary>
+          <p className="mt-3 text-sm">
+            Se borran los {runs.length} lanzamientos de esta auditoría, con sus resultados, su evidencia y los hallazgos de
+            revisión manual de sus páginas. No se puede deshacer. Las firmas ya hechas se conservan: guardan su propia copia.
+          </p>
+          <form action={deleteAuditGroupAction} className="mt-3">
+            <input type="hidden" name="id" value={audit.groupId} />
+            <button type="submit" className={buttonStyles.danger}>
+              Borrar los {runs.length} lanzamientos
+            </button>
+          </form>
+        </details>
+      ) : null}
     </>
   );
 }

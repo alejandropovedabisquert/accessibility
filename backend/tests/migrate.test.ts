@@ -56,3 +56,48 @@ describe('migracion de pantallas de auditorias antiguas', () => {
     expect(pageScreen(db, 'resolucion')).toEqual({ width: 800, height: 600, device: null });
   });
 });
+
+describe('migracion de lanzamientos de auditorias antiguas', () => {
+  const db = new Database(':memory:');
+  applySchema(db);
+  // Sin grupo, como quedan las filas de antes de anadir la columna.
+  const insert = (id: string, createdAt: string, label: string | null, urls: string[]) => {
+    db.prepare(`
+      INSERT INTO audits (id, label, status, created_at, browser, wait_until, timeout_ms, tags, total_pages)
+      VALUES (?, ?, 'completed', ?, 'chromium', 'load', 30000, '["wcag2a"]', ?)
+    `).run(id, label, createdAt, urls.length);
+    urls.forEach((url, position) =>
+      db.prepare(`
+        INSERT INTO audit_pages (id, audit_id, position, url, host, status, viewport_width, viewport_height)
+        VALUES (?, ?, ?, ?, 'web.test', 'completed', 1366, 768)
+      `).run(`${id}-${position}`, id, position, url),
+    );
+  };
+  insert('original', '2026-01-01T00:00:00.000Z', 'Web', ['https://web.test/', 'https://web.test/b']);
+  // Mismas paginas en otro orden: es un «volver a lanzar».
+  insert('relanzada', '2026-02-01T00:00:00.000Z', 'Web', ['https://web.test/b', 'https://web.test/']);
+  insert('otro-nombre', '2026-03-01T00:00:00.000Z', 'Otra', ['https://web.test/', 'https://web.test/b']);
+  insert('otras-urls', '2026-04-01T00:00:00.000Z', 'Web', ['https://web.test/']);
+  insert('sin-nombre-1', '2026-05-01T00:00:00.000Z', null, ['https://web.test/c']);
+  insert('sin-nombre-2', '2026-06-01T00:00:00.000Z', null, ['https://web.test/c']);
+  db.prepare('UPDATE audits SET group_id = NULL').run();
+  applySchema(db);
+
+  const groupOf = (id: string) => (db.prepare('SELECT group_id FROM audits WHERE id = ?').get(id) as { group_id: string }).group_id;
+
+  it('agrupa las que tienen el mismo nombre y las mismas paginas, con el id de la mas antigua', () => {
+    expect(groupOf('original')).toBe('original');
+    expect(groupOf('relanzada')).toBe('original');
+    expect(groupOf('sin-nombre-2')).toBe('sin-nombre-1');
+  });
+
+  it('no agrupa si cambia el nombre o las paginas', () => {
+    expect(groupOf('otro-nombre')).toBe('otro-nombre');
+    expect(groupOf('otras-urls')).toBe('otras-urls');
+  });
+
+  it('es idempotente', () => {
+    applySchema(db);
+    expect(groupOf('relanzada')).toBe('original');
+  });
+});
