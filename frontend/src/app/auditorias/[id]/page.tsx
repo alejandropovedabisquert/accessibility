@@ -27,6 +27,7 @@ import {
   StatusBadge,
   buttonStyles,
 } from '@/components/ui';
+import { FileIcon, RefreshIcon } from '@/components/icons';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -91,6 +92,7 @@ export default async function AuditDetailPage({ params }: Props) {
           <>
             {!inProgress && audit.completedPages > 0 ? (
               <a href={`/api/backend/audits/${audit.id}/report.pdf`} className={buttonStyles.secondary}>
+                <FileIcon />
                 Descargar PDF
               </a>
             ) : null}
@@ -114,6 +116,7 @@ export default async function AuditDetailPage({ params }: Props) {
             <form action={rerunAuditAction}>
               <input type="hidden" name="id" value={audit.id} />
               <button type="submit" className={buttonStyles.secondary}>
+                <RefreshIcon />
                 Volver a lanzar
               </button>
             </form>

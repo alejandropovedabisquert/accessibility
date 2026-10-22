@@ -15,6 +15,7 @@ import { ViolationList } from '@/components/ViolationList';
 import { DiffPanel } from '@/components/DiffPanel';
 import { DownloadMenu } from '@/components/DownloadMenu';
 import { HistoryChart } from '@/components/HistoryChart';
+import { ClipboardCheckIcon } from '@/components/icons';
 import { Card, ComplianceSummary, ExcludeNotice, PageHeader, buttonStyles } from '@/components/ui';
 
 interface Props {
@@ -101,6 +102,7 @@ export default async function PageDetail({ params }: Props) {
         actions={
           <>
             <Link href={`/auditorias/${id}/paginas/${pageId}/revision`} className={buttonStyles.primary}>
+              <ClipboardCheckIcon />
               Revisión manual
             </Link>
             <DownloadMenu

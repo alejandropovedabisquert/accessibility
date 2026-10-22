@@ -3,6 +3,7 @@
 import { useId, useRef, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import { buttonStyles } from '@/components/ui';
+import { TrashIcon } from '@/components/icons';
 
 /**
  * Botón de borrar que pide confirmación antes de enviar su formulario.
@@ -38,13 +39,14 @@ export function ConfirmDelete({
           cancel.current?.focus();
         }}
       >
+        <TrashIcon />
         {label}
       </button>
       <dialog
         ref={dialog}
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="m-auto w-full max-w-md rounded-lg border border-line bg-surface p-5 text-ink shadow-lg backdrop:bg-black/50"
+        className="m-auto w-full max-w-md rounded-lg border border-line bg-surface p-5 text-ink shadow-pop"
       >
         <h2 id={titleId} className="text-lg font-semibold">
           {title}
@@ -66,7 +68,8 @@ export function ConfirmDelete({
 function ConfirmButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={buttonStyles.danger}>
+    <button type="submit" disabled={pending} className={buttonStyles.destructive}>
+      <TrashIcon />
       {pending ? 'Borrando…' : label}
     </button>
   );

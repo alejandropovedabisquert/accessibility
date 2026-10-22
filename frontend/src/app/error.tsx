@@ -1,6 +1,7 @@
 'use client';
 
 import { buttonStyles } from '@/components/ui';
+import { RefreshIcon } from '@/components/icons';
 
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
   return (
@@ -11,6 +12,7 @@ export default function Error({ error, reset }: { error: Error; reset: () => voi
         Comprueba que la API está levantada y vuelve a intentarlo.
       </p>
       <button type="button" onClick={reset} className={`${buttonStyles.secondary} mt-5`}>
+        <RefreshIcon />
         Reintentar
       </button>
     </div>

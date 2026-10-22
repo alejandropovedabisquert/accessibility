@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PlusIcon } from '@/components/icons';
 import type { ReactNode } from 'react';
 import type {
   AuditStatus,
@@ -24,13 +25,14 @@ import {
 } from '@/lib/format';
 
 /** Clases de los campos de formulario, compartidas por todos los formularios. */
-export const FIELD = 'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm';
+export const FIELD =
+  'w-full rounded-md border border-field-line bg-field px-3 py-2 text-sm shadow-[inset_0_1px_2px_rgb(0_0_0/0.06)] transition-[border-color,box-shadow] duration-150 placeholder:text-ink-muted/80 hover:border-ink-muted focus:border-accent';
 export const LABEL = 'mb-1 block text-sm font-medium';
 export const HINT = 'mt-1 text-xs text-ink-muted';
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-lg border border-line bg-surface ${className}`}>{children}</div>
+    <div className={`rounded-lg border border-line bg-surface shadow-soft ${className}`}>{children}</div>
   );
 }
 
@@ -44,23 +46,33 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description ? <p className="mt-1 text-sm text-ink-muted">{description}</p> : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {/* Siempre debajo del texto: en todas las páginas las acciones quedan en el mismo sitio. */}
+      {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
     </div>
   );
 }
 
+// Al pulsarlo se hunde un poco. `not-disabled` para que un botón deshabilitado
+// no reaccione; a diferencia de `enabled`, vale también en enlaces.
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55';
+  'inline-flex items-center justify-center gap-2 rounded-md border px-3.5 py-2 text-sm font-medium transition-[background-color,border-color,color,box-shadow,scale] duration-150 ease-out not-disabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-55';
 
+/**
+ * Cada variante tiene su color para que la acción se reconozca antes de leerla:
+ * azul la principal, verde la que valida, rojo la que borra.
+ */
 export const buttonStyles = {
-  primary: `${BUTTON_BASE} bg-accent text-on-accent hover:opacity-90`,
-  secondary: `${BUTTON_BASE} border border-line bg-surface text-ink hover:bg-surface-muted`,
-  danger: `${BUTTON_BASE} border border-critical/40 bg-surface text-critical hover:bg-critical-soft`,
+  primary: `${BUTTON_BASE} border-accent bg-accent text-on-accent shadow-raised not-disabled:hover:border-accent-strong not-disabled:hover:bg-accent-strong`,
+  secondary: `${BUTTON_BASE} border-accent/25 bg-tonal text-accent-strong shadow-soft not-disabled:hover:border-accent/45 not-disabled:hover:bg-tonal-hover`,
+  success: `${BUTTON_BASE} border-ok bg-ok text-on-ok shadow-soft not-disabled:hover:border-ok-strong not-disabled:hover:bg-ok-strong`,
+  danger: `${BUTTON_BASE} border-critical/35 bg-critical-soft text-critical shadow-soft not-disabled:hover:border-critical`,
+  /** Confirmación de un borrado: la única vez que el rojo va relleno. */
+  destructive: `${BUTTON_BASE} border-critical bg-critical text-on-critical shadow-soft not-disabled:hover:border-critical-strong not-disabled:hover:bg-critical-strong`,
 };
 
 const STATUS_STYLE: Record<AuditStatus | PageStatus, string> = {
@@ -121,7 +133,7 @@ export function ScopeBadge({
   );
 }
 
-const IMPACT_STYLE: Record<Impact, string> = {
+export const IMPACT_STYLE: Record<Impact, string> = {
   critical: 'bg-critical-soft text-critical border-critical/30',
   serious: 'bg-serious-soft text-serious border-serious/30',
   moderate: 'bg-moderate-soft text-moderate border-moderate/30',
@@ -184,7 +196,6 @@ export function ScoreDial({ score, size = 56 }: { score: number | null; size?: n
   }
 
   const radius = size / 2 - 4;
-  const circumference = 2 * Math.PI * radius;
   const tone = score >= 95 ? 'var(--color-ok)' : score >= 80 ? 'var(--color-moderate)' : 'var(--color-critical)';
 
   return (
@@ -199,7 +210,9 @@ export function ScoreDial({ score, size = 56 }: { score: number | null; size?: n
           stroke={tone}
           strokeWidth="4"
           strokeLinecap="round"
-          strokeDasharray={`${(score / 100) * circumference} ${circumference}`}
+          pathLength={100}
+          className="score-arc"
+          strokeDasharray={`${score} 100`}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
         <text
@@ -233,6 +246,7 @@ export function EmptyState({
       <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">{description}</p>
       {action ? (
         <Link href={action.href} className={`${buttonStyles.primary} mt-5`}>
+          {action.href === '/nueva' ? <PlusIcon /> : null}
           {action.label}
         </Link>
       ) : null}
@@ -244,7 +258,7 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
   return (
     // Dentro de un <dl>, un <div> solo puede contener grupos <dt>/<dd>: la nota
     // va dentro del <dd>, no como hermano (regla axe `definition-list`).
-    <div className="rounded-lg border border-line bg-surface px-4 py-3">
+    <div className="rounded-lg border border-line bg-surface px-4 py-3 shadow-soft">
       <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</dt>
       <dd className="mt-1">
         <span className="block text-2xl font-semibold tabular-nums">{value}</span>

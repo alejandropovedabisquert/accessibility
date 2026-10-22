@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { buttonStyles } from '@/components/ui';
+import { ArrowLeftIcon, ArrowRightIcon } from '@/components/icons';
 
 export function Pagination({
   page,
@@ -25,18 +27,20 @@ export function Pagination({
           <Link
             href={buildHref(page - 1)}
             rel="prev"
-            className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm hover:bg-surface-muted"
+            className={buttonStyles.secondary}
           >
-            ← Anterior
+            <ArrowLeftIcon />
+            Anterior
           </Link>
         ) : null}
         {page < totalPages ? (
           <Link
             href={buildHref(page + 1)}
             rel="next"
-            className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm hover:bg-surface-muted"
+            className={buttonStyles.secondary}
           >
-            Siguiente →
+            Siguiente
+            <ArrowRightIcon />
           </Link>
         ) : null}
       </div>

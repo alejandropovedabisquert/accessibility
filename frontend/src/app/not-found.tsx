@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonStyles } from '@/components/ui';
+import { HomeIcon } from '@/components/icons';
 
 export default function NotFound() {
   return (
@@ -7,6 +8,7 @@ export default function NotFound() {
       <h1 className="text-lg font-semibold">Página no encontrada</h1>
       <p className="mt-2 text-sm text-ink-muted">El recurso que buscas no existe o se ha borrado.</p>
       <Link href="/" className={`${buttonStyles.primary} mt-5`}>
+        <HomeIcon />
         Volver al listado
       </Link>
     </div>

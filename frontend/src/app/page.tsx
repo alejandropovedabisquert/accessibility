@@ -6,6 +6,7 @@ import type { Audit, AuditGroup, AuditStatus } from '@/lib/types';
 import { AuditFilters } from '@/components/AuditFilters';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { Pagination } from '@/components/Pagination';
+import { PlusIcon } from '@/components/icons';
 import { Card, EmptyState, ImpactBreakdown, PageHeader, ScoreDial, StatusBadge, buttonStyles } from '@/components/ui';
 
 interface Props {
@@ -41,6 +42,7 @@ export default async function AuditsPage({ searchParams }: Props) {
         description="Histórico de escaneos de accesibilidad. Cada auditoría guarda su resultado completo, y al volver a lanzarla los lanzamientos anteriores quedan dentro."
         actions={
           <Link href="/nueva" className={buttonStyles.primary}>
+            <PlusIcon />
             Nueva auditoría
           </Link>
         }

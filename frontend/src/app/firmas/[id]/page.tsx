@@ -5,6 +5,7 @@ import { ApiError, getSignOff } from '@/lib/api';
 import { deleteSignOffAction } from '@/app/actions';
 import { ConfirmDelete } from '@/components/ConfirmDelete';
 import { CONFORMANCE_LABEL, displayUrl, formatDateTime, screenLabel } from '@/lib/format';
+import { FileIcon } from '@/components/icons';
 import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 import { DownloadMenu } from '@/components/DownloadMenu';
 
@@ -67,6 +68,7 @@ export default async function SignOffView({ params }: Props) {
         actions={
           <>
             <a href={`/api/backend/sign-offs/${id}/report.pdf`} className={buttonStyles.primary}>
+              <FileIcon />
               Descargar informe PDF
             </a>
             <DownloadMenu

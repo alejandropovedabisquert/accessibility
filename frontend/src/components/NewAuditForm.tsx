@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createAuditAction, type FormState } from '@/app/actions';
 import { CUSTOM_SECTION } from '@/lib/format';
+import { PlayIcon, SquareCheckIcon, SquareIcon } from '@/components/icons';
 import { buttonStyles, Card, ExcludeNotice, FIELD, HINT, LABEL } from '@/components/ui';
 import type { Meta } from '@/lib/types';
 
@@ -12,6 +13,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <button type="submit" disabled={pending} className={buttonStyles.primary}>
+      <PlayIcon />
       {pending ? 'Lanzando…' : 'Lanzar auditoría'}
     </button>
   );
@@ -177,6 +179,7 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
               }}
               className={buttonStyles.secondary}
             >
+              <SquareCheckIcon />
               Marcar todas
             </button>
             <button
@@ -198,6 +201,7 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
               }}
               className={buttonStyles.secondary}
             >
+              <SquareIcon />
               Desmarcar todas
             </button>
           </div>
