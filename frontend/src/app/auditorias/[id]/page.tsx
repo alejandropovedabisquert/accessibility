@@ -14,6 +14,7 @@ import {
 } from '@/lib/format';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { DownloadMenu } from '@/components/DownloadMenu';
+import { ConfirmDelete } from '@/components/ConfirmDelete';
 import {
   Card,
   ComplianceSummary,
@@ -118,9 +119,19 @@ export default async function AuditDetailPage({ params }: Props) {
             </form>
             <form action={deleteAuditAction}>
               <input type="hidden" name="id" value={audit.id} />
-              <button type="submit" className={buttonStyles.danger}>
-                {runs.length > 1 ? 'Borrar este lanzamiento' : 'Borrar'}
-              </button>
+              <ConfirmDelete
+                label={runs.length > 1 ? 'Borrar este lanzamiento' : 'Borrar'}
+                title={runs.length > 1 ? '¿Borrar este lanzamiento?' : '¿Borrar esta auditoría?'}
+                confirmLabel="Sí, borrar"
+              >
+                <p>
+                  Se borran sus resultados, su evidencia, su informe PDF y los hallazgos de revisión manual de sus páginas.
+                  No se puede deshacer.
+                </p>
+                {runs.length > 1 ? (
+                  <p className="mt-2">Los otros {runs.length - 1} lanzamientos de esta auditoría se conservan.</p>
+                ) : null}
+              </ConfirmDelete>
             </form>
           </>
         }
@@ -299,9 +310,16 @@ export default async function AuditDetailPage({ params }: Props) {
           </p>
           <form action={deleteAuditGroupAction} className="mt-3">
             <input type="hidden" name="id" value={audit.groupId} />
-            <button type="submit" className={buttonStyles.danger}>
-              Borrar los {runs.length} lanzamientos
-            </button>
+            <ConfirmDelete
+              label={`Borrar los ${runs.length} lanzamientos`}
+              title={`¿Borrar los ${runs.length} lanzamientos?`}
+              confirmLabel={`Sí, borrar los ${runs.length}`}
+            >
+              <p>
+                Desaparece la auditoría entera, con los resultados, la evidencia y los hallazgos de revisión manual de todos
+                sus lanzamientos. No se puede deshacer.
+              </p>
+            </ConfirmDelete>
           </form>
         </details>
       ) : null}

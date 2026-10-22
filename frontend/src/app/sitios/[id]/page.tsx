@@ -9,6 +9,7 @@ import { Card, OutcomeBadge, PageHeader, ScopeBadge, buttonStyles } from '@/comp
 import { FindingCard } from '@/components/FindingCard';
 import { CreateFindingForm, SignOffForm } from '@/components/ReviewForms';
 import { SelectLatestButton } from '@/components/SelectLatestButton';
+import { ConfirmDelete } from '@/components/ConfirmDelete';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -406,9 +407,12 @@ export default async function SiteDetail({ params, searchParams }: Props) {
         </p>
         <form action={deleteSiteAction} className="mt-3">
           <input type="hidden" name="id" value={site.id} />
-          <button type="submit" className={buttonStyles.danger}>
-            Borrar {site.name}
-          </button>
+          <ConfirmDelete label={`Borrar ${site.name}`} title={`¿Borrar el sitio ${site.name}?`} confirmLabel="Sí, borrar el sitio">
+            <p>
+              Se borran sus {site.findings.length} hallazgo(s) de sitio
+              {signOffs.length > 0 ? <strong> y sus {signOffs.length} firma(s)</strong> : null}. No se puede deshacer.
+            </p>
+          </ConfirmDelete>
         </form>
       </details>
     </>

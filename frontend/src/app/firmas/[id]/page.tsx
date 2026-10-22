@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { ApiError, getSignOff } from '@/lib/api';
 import { deleteSignOffAction } from '@/app/actions';
+import { ConfirmDelete } from '@/components/ConfirmDelete';
 import { CONFORMANCE_LABEL, displayUrl, formatDateTime, screenLabel } from '@/lib/format';
 import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 import { DownloadMenu } from '@/components/DownloadMenu';
@@ -214,9 +215,9 @@ export default async function SignOffView({ params }: Props) {
         <form action={deleteSignOffAction} className="mt-3">
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="siteId" value={snapshot.site.id} />
-          <button type="submit" className={buttonStyles.danger}>
-            Borrar esta firma
-          </button>
+          <ConfirmDelete label="Borrar esta firma" title="¿Borrar esta firma?" confirmLabel="Sí, borrar la firma">
+            <p>Se borran la firma, la copia congelada de lo firmado y su informe PDF. No se puede deshacer.</p>
+          </ConfirmDelete>
         </form>
       </details>
     </>
