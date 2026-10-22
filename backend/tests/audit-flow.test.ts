@@ -866,6 +866,63 @@ describe('paginacion, filtros y borrado', () => {
   });
 });
 
+describe('lanzamientos de una misma auditoria', () => {
+  const LABEL = 'Grupo de lanzamientos';
+  let firstId = '';
+  let secondId = '';
+  let firstPageId = '';
+
+  it('volver a lanzar queda en el grupo de la original; una nueva abre otro', async () => {
+    const first = await request(app).post('/api/audits').send({ urls: [fixture.url('/correcta')], label: LABEL }).expect(202);
+    firstId = first.body.id;
+    expect(first.body.groupId).toBe(firstId);
+    firstPageId = (await waitForAudit(app, firstId)).pages[0].id;
+
+    const second = await request(app).post(`/api/audits/${firstId}/rerun`).expect(202);
+    secondId = second.body.id;
+    expect(second.body.groupId).toBe(firstId);
+    await waitForAudit(app, secondId);
+
+    const other = await request(app).post('/api/audits').send({ urls: [fixture.url('/correcta')], label: LABEL }).expect(202);
+    expect(other.body.groupId).toBe(other.body.id);
+    await waitForAudit(app, other.body.id);
+    await request(app).delete(`/api/audits/${other.body.id}`).expect(204);
+  });
+
+  it('el listado de grupos muestra el ultimo lanzamiento y los anteriores aparte', async () => {
+    const res = await request(app).get('/api/audit-groups').query({ search: LABEL }).expect(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.items[0].id).toBe(firstId);
+    expect(res.body.items[0].latest.id).toBe(secondId);
+    expect(res.body.items[0].previous.map((audit: { id: string }) => audit.id)).toEqual([firstId]);
+
+    // El listado plano de auditorias no cambia: cada lanzamiento por separado.
+    const flat = await request(app).get('/api/audits').query({ search: LABEL }).expect(200);
+    expect(flat.body.total).toBe(2);
+  });
+
+  it('pagina y filtra por grupos, no por lanzamientos', async () => {
+    const all = await request(app).get('/api/audit-groups').query({ pageSize: 100 }).expect(200);
+    const groupIds = all.body.items.map((group: { id: string }) => group.id);
+    expect(new Set(groupIds).size).toBe(groupIds.length);
+    expect(all.body.total).toBe(groupIds.length);
+
+    const failed = await request(app).get('/api/audit-groups').query({ status: 'failed', search: LABEL }).expect(200);
+    expect(failed.body.total).toBe(0);
+  });
+
+  it('borra todos los lanzamientos con sus ficheros', async () => {
+    const group = (await request(app).get(`/api/audit-groups/${firstId}`).expect(200)).body;
+    expect(group.latest.id).toBe(secondId);
+
+    await request(app).delete(`/api/audit-groups/${firstId}`).expect(204);
+    await request(app).get(`/api/audits/${firstId}`).expect(404);
+    await request(app).get(`/api/audits/${secondId}`).expect(404);
+    await request(app).get(`/api/audit-groups/${firstId}`).expect(404);
+    expect(rawStore.exists(rawStore.rawPath(firstId, firstPageId))).toBe(false);
+  });
+});
+
 describe('resiliencia', () => {
   it('marca la pagina como fallida sin tumbar la auditoria', async () => {
     const created = await request(app)

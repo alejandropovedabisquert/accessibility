@@ -117,6 +117,15 @@ describe('vista previa de la firma', () => {
     expect(result.blockers).toContainEqual(expect.objectContaining({ kind: 'page', pageId: otherPageId }));
   });
 
+  it('dos escaneos de la misma pagina no pueden estar a la vez en la muestra', async () => {
+    const rerun = await request(app).post(`/api/audits/${auditId}/rerun`).expect(202);
+    const rerunPageId = (await waitForAudit(app, rerun.body.id)).pages[0].id;
+
+    const result = await preview([pageId, rerunPageId]);
+    expect(result.blockers).toContainEqual(expect.objectContaining({ kind: 'duplicate-page', pageId: rerunPageId }));
+    expect((await preview([rerunPageId])).blockers.some((blocker) => blocker.kind === 'duplicate-page')).toBe(false);
+  });
+
   it('no deja firmar con bloqueos y devuelve cuales son', async () => {
     const res = await request(app)
       .post(`/api/sites/${siteId}/sign-offs`)

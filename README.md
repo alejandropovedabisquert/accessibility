@@ -92,10 +92,13 @@ Base: `http://localhost:3000/api`
 | `POST` | `/audits` | Crea una auditoría. Responde `202` con el id, sin esperar al escaneo |
 | `GET` | `/audits` | Listado paginado (`page`, `pageSize`, `status`, `search`) |
 | `GET` | `/audits/:id` | Auditoría con el estado de cada página |
-| `POST` | `/audits/:id/rerun` | Relanza con la misma configuración |
+| `POST` | `/audits/:id/rerun` | Relanza con la misma configuración, como un lanzamiento más de la misma auditoría (mismo `groupId`) |
 | `GET` | `/audits/:id/export?format=compact` | Informe agregado de toda la auditoría para IA, con deduplicación entre URLs (`detail=full\|legal`) |
 | `GET` | `/audits/:id/report.pdf` | Informe PDF de la auditoría (se genera la primera vez y se cachea; 409 si sigue en curso) |
 | `DELETE` | `/audits/:id` | Borra la auditoría y sus ficheros |
+| `GET` | `/audit-groups` | Una fila por auditoría (`latest` + `previous`), paginada por grupos; mismos filtros que `/audits` |
+| `GET` | `/audit-groups/:id` | Todos los lanzamientos de una auditoría |
+| `DELETE` | `/audit-groups/:id` | Borra todos los lanzamientos y sus ficheros |
 | `GET` | `/audits/:id/pages/:pageId` | Resumen e incumplimientos de una página |
 | `GET` | `/audits/:id/pages/:pageId/results` | JSON completo de axe (`?download=1` para descargar) |
 | `GET` | `/audits/:id/pages/:pageId/results?format=compact` | JSON compacto para análisis con IA (`maxNodes`, `download=1`) |

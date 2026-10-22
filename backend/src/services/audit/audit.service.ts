@@ -10,6 +10,7 @@ import { AppError, badRequest, notFound, toMessage } from '../../utils/errors';
 import type {
   Audit,
   AuditConfig,
+  AuditGroup,
   AuditPage,
   AuditWithPages,
   CreateAuditInput,
@@ -30,14 +31,18 @@ class AuditService {
   /** Auditorias que este proceso esta ejecutando ahora mismo. */
   private readonly running = new Map<string, Promise<void>>();
 
-  /** Crea la auditoria, la deja encolada y devuelve sin esperar a que termine. */
-  public create(input: CreateAuditInput): Audit {
+  /**
+   * Crea la auditoria, la deja encolada y devuelve sin esperar a que termine.
+   * Sin `groupId` abre un grupo de lanzamientos nuevo.
+   */
+  public create(input: CreateAuditInput, groupId?: string): Audit {
     const auditConfig = this.resolveConfig(input);
     const pages = this.planPages(this.resolveTargets(input.urls), auditConfig);
     const id = randomUUID();
 
     repository.createAudit({
       id,
+      groupId: groupId ?? id,
       label: input.label?.trim() || null,
       createdAt: new Date().toISOString(),
       config: auditConfig,
@@ -55,6 +60,16 @@ class AuditService {
 
   public list(query: ListAuditsQuery): Paginated<Audit> {
     return repository.list(query);
+  }
+
+  public listGroups(query: ListAuditsQuery): Paginated<AuditGroup> {
+    return repository.listGroups(query);
+  }
+
+  public getGroup(groupId: string): AuditGroup {
+    const group = repository.findGroup(groupId);
+    if (!group) throw notFound('Auditoria no encontrada');
+    return group;
   }
 
   public get(id: string): AuditWithPages {
@@ -143,7 +158,19 @@ class AuditService {
     await rawStore.removeAudit(id);
   }
 
-  /** Relanza una auditoria existente con exactamente la misma configuracion. */
+  /** Borra todos los lanzamientos de una auditoria. */
+  public async removeGroup(groupId: string): Promise<void> {
+    const { latest, previous } = this.getGroup(groupId);
+    const runs = [latest, ...previous];
+    if (runs.some((run) => this.running.has(run.id))) {
+      throw new AppError('No se puede borrar: uno de sus lanzamientos esta en ejecucion', 409);
+    }
+
+    repository.deleteGroup(groupId);
+    for (const run of runs) await rawStore.removeAudit(run.id);
+  }
+
+  /** Relanza una auditoria existente con exactamente la misma configuracion, en su mismo grupo. */
   public rerun(id: string): Audit {
     const previous = repository.findAuditWithPages(id);
     if (!previous) throw notFound('Auditoria no encontrada');
@@ -164,7 +191,7 @@ class AuditService {
       timeout: previous.config.timeoutMs,
       tags: previous.config.tags,
       evidence: previous.config.evidence,
-    });
+    }, previous.groupId);
   }
 
   /**

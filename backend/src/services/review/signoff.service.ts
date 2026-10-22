@@ -222,6 +222,24 @@ class SignOffService {
       }
     }
 
+    // WCAG-EM: cada pagina de la muestra una vez. Dos escaneos de la misma URL,
+    // seccion y pantalla serian la misma pagina contada dos veces.
+    const seen = new Map<string, AuditPage>();
+    for (const page of pages) {
+      const key = JSON.stringify([page.url, page.include, page.viewport, page.device]);
+      const first = seen.get(key);
+      if (!first) {
+        seen.set(key, page);
+        continue;
+      }
+      blockers.push({
+        kind: 'duplicate-page',
+        checkId: null,
+        pageId: page.id,
+        message: `${pageLabel(page)} está dos veces en la muestra (escaneos del ${first.finishedAt?.slice(0, 10)} y del ${page.finishedAt?.slice(0, 10)}): deja solo uno`,
+      });
+    }
+
     const reviews = new Map<string, CheckReview[]>();
     for (const page of pages) reviews.set(page.id, (await reviewService.pageCheckReviews(page)).checks);
     const siteFindings = reviewRepository.findSiteFindings(site.id);

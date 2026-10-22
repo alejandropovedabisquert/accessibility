@@ -9,7 +9,7 @@ import type {
   PageReview,
   Site,
   SiteDetail,
-  Audit,
+  AuditGroup,
   AuditWithPages,
   AxeResults,
   HistoryPoint,
@@ -53,7 +53,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const getMeta = () => apiFetch<Meta>('/meta');
 
-export const listAudits = (params: {
+/** Una fila por auditoría con sus lanzamientos: «volver a lanzar» no crea otra. */
+export const listAuditGroups = (params: {
   page?: number;
   pageSize?: number;
   status?: string;
@@ -64,8 +65,10 @@ export const listAudits = (params: {
     if (value !== undefined && value !== '') query.set(key, String(value));
   }
   const qs = query.toString();
-  return apiFetch<Paginated<Audit>>(`/audits${qs ? `?${qs}` : ''}`);
+  return apiFetch<Paginated<AuditGroup>>(`/audit-groups${qs ? `?${qs}` : ''}`);
 };
+
+export const getAuditGroup = (groupId: string) => apiFetch<AuditGroup>(`/audit-groups/${groupId}`);
 
 export const getAudit = (id: string) => apiFetch<AuditWithPages>(`/audits/${id}`);
 

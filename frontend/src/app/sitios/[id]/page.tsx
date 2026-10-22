@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { deleteSiteAction } from '@/app/actions';
 import { ApiError, getChecks, getSignOffPreview, getSite, listSignOffs } from '@/lib/api';
-import { CONFORMANCE_LABEL, displayUrl, formatDateTime, screenLabel, siteCheckOutcome } from '@/lib/format';
+import { CONFORMANCE_LABEL, displayUrl, formatDateTime, groupByPage, screenLabel, siteCheckOutcome } from '@/lib/format';
 import { getReviewer } from '@/lib/reviewer';
 import { Card, OutcomeBadge, PageHeader, ScopeBadge, buttonStyles } from '@/components/ui';
 import { FindingCard } from '@/components/FindingCard';
 import { CreateFindingForm, SignOffForm } from '@/components/ReviewForms';
+import { SelectLatestButton } from '@/components/SelectLatestButton';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -19,6 +20,7 @@ const BLOCKER_LABEL = {
   undecided: 'Sin decidir',
   untested: 'Sin revisar',
   page: 'Página',
+  'duplicate-page': 'Repetida',
 } as const;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -51,6 +53,7 @@ export default async function SiteDetail({ params, searchParams }: Props) {
   ]);
   const sampleIndex = new Map((preview?.snapshot.pages ?? []).map((page, index) => [page.id, index + 1]));
   const siteChecks = catalog.checks.filter((check) => check.scope === 'site');
+  const pageGroups = groupByPage(site.pages);
   const path = `/sitios/${id}`;
 
   return (
@@ -109,8 +112,13 @@ export default async function SiteDetail({ params, searchParams }: Props) {
 
       <section className="mb-10" aria-labelledby="h-paginas">
         <h2 id="h-paginas" className="mb-3 text-lg font-semibold">
-          Páginas escaneadas ({site.pages.length})
+          Páginas escaneadas ({pageGroups.length})
         </h2>
+        {pageGroups.length < site.pages.length ? (
+          <p className="mb-3 text-sm text-ink-muted">
+            Cada página (URL, sección y pantalla) muestra su último escaneo; los anteriores están dentro.
+          </p>
+        ) : null}
         {site.pages.length === 0 ? (
           <Card className="px-5 py-6 text-sm text-ink-muted">
             Aún no hay páginas escaneadas de estos hosts. Lanza una auditoría con URLs del sitio.
@@ -127,8 +135,8 @@ export default async function SiteDetail({ params, searchParams }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {site.pages.map((page) => (
-                  <tr key={page.id} className="border-t border-line">
+                {pageGroups.map(({ key, latest: page, previous }) => (
+                  <tr key={key} className="border-t border-line align-top">
                     <th scope="row" className="max-w-md px-4 py-3 text-left font-normal">
                       <Link
                         href={`/auditorias/${page.auditId}/paginas/${page.id}`}
@@ -137,6 +145,32 @@ export default async function SiteDetail({ params, searchParams }: Props) {
                         {displayUrl(page.url)}
                       </Link>
                       <ScopeBadge scope={page} />
+                      {previous.length > 0 ? (
+                        <details className="mt-1.5 text-xs">
+                          <summary className="cursor-pointer text-ink-muted">
+                            {previous.length === 1 ? '1 escaneo anterior' : `${previous.length} escaneos anteriores`}
+                          </summary>
+                          <ul className="mt-1 space-y-0.5 pl-3">
+                            {previous.map((old) => (
+                              <li key={old.id}>
+                                <Link
+                                  href={`/auditorias/${old.auditId}/paginas/${old.id}`}
+                                  className="text-accent underline-offset-2 hover:underline"
+                                >
+                                  {formatDateTime(old.finishedAt)}
+                                </Link>
+                                {' · '}
+                                <Link
+                                  href={`/auditorias/${old.auditId}/paginas/${old.id}/revision`}
+                                  className="text-accent underline underline-offset-2"
+                                >
+                                  Revisar<span className="sr-only"> el escaneo del {formatDateTime(old.finishedAt)}</span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
                     </th>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{screenLabel(page)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{formatDateTime(page.finishedAt)}</td>
@@ -170,30 +204,66 @@ export default async function SiteDetail({ params, searchParams }: Props) {
             <form method="get" action={`/sitios/${id}#h-firma`}>
               <fieldset>
                 <legend className="mb-2 text-sm font-medium">Muestra</legend>
-                <ul className="space-y-1">
-                  {site.pages.map((page) => (
-                    <li key={page.id}>
-                      <label className="flex items-start gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                <p className="mb-3 text-xs text-ink-muted">
+                  Un escaneo por página como máximo. Si una página se ha escaneado varias veces, elige cuál entra.
+                </p>
+                <ul className="space-y-1.5">
+                  {pageGroups.map(({ key, latest, previous }) => {
+                    const label = (
+                      <>
+                        {displayUrl(latest.url)} · {screenLabel(latest)}
+                        {latest.include ? ` · ${latest.include}` : ''}
+                      </>
+                    );
+                    if (previous.length === 0) {
+                      return (
+                        <li key={key}>
+                          <label className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              name="muestra"
+                              value={latest.id}
+                              defaultChecked={sample.includes(latest.id)}
+                              className="mt-0.5 size-4"
+                            />
+                            <span>
+                              {label}
+                              <span className="text-ink-muted"> · {formatDateTime(latest.finishedAt)}</span>
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    }
+                    const scans = [latest, ...previous];
+                    const selectId = `muestra-${latest.id}`;
+                    return (
+                      <li key={key} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                        <label htmlFor={selectId}>{label}</label>
+                        <select
+                          id={selectId}
                           name="muestra"
-                          value={page.id}
-                          defaultChecked={sample.includes(page.id)}
-                          className="mt-0.5 size-4"
-                        />
-                        <span>
-                          {displayUrl(page.url)} · {screenLabel(page)}
-                          {page.include ? ` · ${page.include}` : ''}
-                          <span className="text-ink-muted"> · {formatDateTime(page.finishedAt)}</span>
-                        </span>
-                      </label>
-                    </li>
-                  ))}
+                          defaultValue={scans.find((scan) => sample.includes(scan.id))?.id ?? ''}
+                          className="rounded-md border border-line bg-surface px-2 py-1 text-sm"
+                        >
+                          <option value="">No incluir</option>
+                          {scans.map((scan, index) => (
+                            <option key={scan.id} value={scan.id}>
+                              {formatDateTime(scan.finishedAt)}
+                              {index === 0 ? ' (último)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </li>
+                    );
+                  })}
                 </ul>
               </fieldset>
-              <button type="submit" className={`${buttonStyles.secondary} mt-4`}>
-                Comprobar la muestra
-              </button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <SelectLatestButton name="muestra" />
+                <button type="submit" className={buttonStyles.secondary}>
+                  Comprobar la muestra
+                </button>
+              </div>
             </form>
           </Card>
         ) : null}

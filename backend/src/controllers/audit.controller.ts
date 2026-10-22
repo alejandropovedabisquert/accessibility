@@ -32,6 +32,19 @@ export const deleteAudit = asyncHandler(async (req: Request<{ id: string }>, res
   res.status(204).end();
 });
 
+export const listAuditGroups = asyncHandler(async (req: Request, res: Response) => {
+  res.json(auditService.listGroups(listAuditsSchema.parse(req.query)));
+});
+
+export const getAuditGroup = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+  res.json(auditService.getGroup(req.params.id));
+});
+
+export const deleteAuditGroup = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+  await auditService.removeGroup(req.params.id);
+  res.status(204).end();
+});
+
 export const rerunAudit = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
   const audit = auditService.rerun(req.params.id);
   res.status(202).location(`/api/audits/${audit.id}`).json(audit);
