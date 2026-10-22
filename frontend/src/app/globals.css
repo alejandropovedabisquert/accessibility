@@ -7,14 +7,34 @@
  * que leen las utilidades generadas.
  */
 @theme {
-  --color-surface: #ffffff;
-  --color-surface-muted: #f6f7f9;
-  --color-line: #e2e5ea;
-  --color-ink: #16191d;
-  --color-ink-muted: #5b626c;
-  --color-accent: #1f5fbf;
+  /* Geist llega como variable desde el layout (paquete `geist`, sin descargas en build). */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /*
+   * Petróleo y arena. Los neutros son cálidos (papel, no gris) y el petróleo
+   * tira a azul a propósito: así no se confunde con el verde de «superado».
+   */
+  --color-surface: #fffbf4;
+  --color-surface-muted: #f5efe4;
+  --color-line: #e6dccb;
+  --color-ink: #14201f;
+  --color-ink-muted: #56605d;
+  --color-accent: #0d5c63;
+  --color-accent-strong: #094349;
   --color-on-accent: #ffffff;
-  --color-accent-soft: #eaf1fc;
+  --color-accent-soft: #e2f0ef;
+  /* Segundo tono para degradados (marca, barra superior): nunca lleva texto encima. */
+  --color-accent-alt: #c9a76b;
+  /*
+   * Campos de formulario: fondo propio y borde a 3:1 con todos los fondos
+   * (WCAG 1.4.11). Con el `line` de las tarjetas se confundían con el papel.
+   */
+  --color-field: #ffffff;
+  --color-field-line: #8d8270;
+  /* Botón secundario: relleno de petróleo suave. En blanco o papel se perdía en el fondo. */
+  --color-tonal: #d1e6e3;
+  --color-tonal-hover: #bddbd8;
 
   --color-critical: #a4192b;
   --color-critical-soft: #fdeaec;
@@ -25,24 +45,60 @@
   --color-minor: #33506f;
   --color-minor-soft: #eef2f7;
   --color-ok: #1d6340;
+  --color-ok-strong: #154c31;
+  --color-on-ok: #ffffff;
   --color-ok-soft: #e6f4ec;
+  --color-critical-strong: #84121f;
+  --color-on-critical: #ffffff;
+
+  /*
+   * Tailwind copia el valor de una sombra dentro de la utilidad, así que el modo
+   * oscuro no podría redefinirla: se apunta a variables propias (`--elevation-*`).
+   */
+  --shadow-soft: var(--elevation-soft);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-pop: var(--elevation-pop);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade-up: fade-up 0.35s var(--ease-out-soft) both;
+  --animate-pop-in: pop-in 0.16s var(--ease-out-soft) both;
 }
 
 :root {
   color-scheme: light dark;
+  /*
+   * Reserva siempre el hueco de la barra de scroll: si no, las páginas cortas
+   * (sin barra) quedan unos píxeles desplazadas respecto a las largas.
+   */
+  scrollbar-gutter: stable;
+  /* La cabecera es fija: sin esto, saltar a un ancla deja el título debajo de ella. */
+  scroll-padding-top: 5rem;
+  /* Sombras con un punto de color: en gris puro todo se ve plano. */
+  --elevation-soft: 0 1px 2px rgb(40 30 15 / 0.05), 0 1px 3px rgb(40 30 15 / 0.05);
+  --elevation-raised: 0 1px 2px rgb(40 30 15 / 0.06), 0 4px 12px -2px rgb(13 92 99 / 0.14);
+  --elevation-pop: 0 2px 4px rgb(40 30 15 / 0.06), 0 12px 32px -8px rgb(40 30 15 / 0.24);
+  /* Permite animar hasta `auto` (alto de los desplegables). Donde no hay soporte, se abren sin más. */
+  interpolate-size: allow-keywords;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-surface: #14171b;
-    --color-surface-muted: #1b1f24;
-    --color-line: #2c323a;
-    --color-ink: #eceef1;
-    --color-ink-muted: #a7b0bb;
-    --color-accent: #79aaf5;
-    /* Sobre el azul claro del modo oscuro el texto blanco no llega a 4.5:1. */
-    --color-on-accent: #14171b;
-    --color-accent-soft: #1b2739;
+    --color-surface: #152325;
+    --color-surface-muted: #0f1a1c;
+    --color-line: #253638;
+    --color-ink: #ecf1ef;
+    --color-ink-muted: #9fb0ad;
+    --color-accent: #6fd3d0;
+    --color-accent-strong: #9be2df;
+    /* Sobre el petróleo claro del modo oscuro el texto blanco no llega a 4.5:1. */
+    --color-on-accent: #0f1a1c;
+    --color-accent-soft: #173336;
+    --color-accent-alt: #e2cfa8;
+    /* Hundido respecto a la tarjeta, no al mismo nivel. */
+    --color-field: #0b1416;
+    --color-field-line: #5f7876;
+    --color-tonal: #1f4447;
+    --color-tonal-hover: #264f52;
 
     --color-critical: #ff9fa8;
     --color-critical-soft: #3a1b20;
@@ -53,14 +109,37 @@
     --color-minor: #a8c2e0;
     --color-minor-soft: #1e2733;
     --color-ok: #7fd3a4;
+    --color-ok-strong: #a1e1bd;
+    --color-on-ok: #0f1a1c;
     --color-ok-soft: #14291e;
+    --color-critical-strong: #ffbcc2;
+    --color-on-critical: #0f1a1c;
+
+    --elevation-soft: 0 1px 2px rgb(0 0 0 / 0.3);
+    --elevation-raised: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 14px -2px rgb(111 211 208 / 0.16);
+    --elevation-pop: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.6);
   }
 }
 
+/* También en html: el hueco reservado de la barra de scroll pinta su fondo. */
+html,
 body {
   background: var(--color-surface-muted);
   color: var(--color-ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+}
+
+/* Casillas y radios nativos con el color de marca. */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--color-accent);
 }
 
 /* Foco siempre visible: es una herramienta de accesibilidad, no lo escondemos. */
@@ -68,6 +147,155 @@ body {
   outline: 3px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 3px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* ── Desplegables (<details>) ───────────────────────────────────────────── */
+
+/*
+ * Se anima el alto del contenido. `overflow: clip` con margen en vez de
+ * `hidden`: hidden recortaría el anillo de foco de los campos del borde.
+ * Pero clip no contiene los márgenes, y el `mt-*` del contenido se escapaba
+ * por arriba: al plegar quedaba ese hueco unos milisegundos. `flow-root` lo
+ * mete dentro de lo que se anima.
+ * `.menu` queda fuera: su lista va posicionada encima y el recorte la cortaría.
+ */
+details:not(.menu)::details-content {
+  display: flow-root;
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  overflow-clip-margin: 6px;
+  transition:
+    block-size 0.28s var(--ease-out-soft),
+    opacity 0.2s ease-out,
+    content-visibility 0.28s allow-discrete;
+}
+
+details:not(.menu)[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+}
+
+/* Chevron propio en lugar del triángulo nativo, que no se puede animar. */
+details:not(.menu) > summary {
+  list-style: none;
+  transition: color 0.15s ease-out;
+}
+
+details:not(.menu) > summary::-webkit-details-marker {
+  display: none;
+}
+
+details:not(.menu) > summary::before {
+  content: '';
+  display: inline-block;
+  flex-shrink: 0;
+  inline-size: 0.5em;
+  block-size: 0.5em;
+  margin-inline-end: 0.55em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  rotate: -45deg;
+  translate: 0 -0.1em;
+  opacity: 0.7;
+  transition: rotate 0.22s var(--ease-out-soft);
+}
+
+details:not(.menu)[open] > summary::before {
+  rotate: 45deg;
+  translate: 0 -0.2em;
+}
+
+details:not(.menu) > summary:hover::before {
+  opacity: 1;
+}
+
+/* Menú desplegable de botón (DownloadMenu). */
+details.menu[open] > :not(summary) {
+  animation: var(--animate-pop-in);
+  transform-origin: top right;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 -4px;
+  }
+}
+
+/* ── Diálogos ───────────────────────────────────────────────────────────── */
+
+dialog {
+  opacity: 0;
+  scale: 0.96;
+  translate: 0 8px;
+  transition:
+    opacity 0.2s ease-out,
+    scale 0.2s var(--ease-out-soft),
+    translate 0.2s var(--ease-out-soft),
+    overlay 0.2s allow-discrete,
+    display 0.2s allow-discrete;
+}
+
+dialog[open] {
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
+}
+
+@starting-style {
+  dialog[open] {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 8px;
+  }
+}
+
+dialog::backdrop {
+  background-color: rgb(10 12 16 / 0);
+  backdrop-filter: blur(0);
+  transition:
+    background-color 0.2s ease-out,
+    backdrop-filter 0.2s ease-out,
+    overlay 0.2s allow-discrete,
+    display 0.2s allow-discrete;
+}
+
+dialog[open]::backdrop {
+  background-color: rgb(10 12 16 / 0.45);
+  backdrop-filter: blur(3px);
+}
+
+@starting-style {
+  dialog[open]::backdrop {
+    background-color: rgb(10 12 16 / 0);
+    backdrop-filter: blur(0);
+  }
+}
+
+/* ── Puntuación ─────────────────────────────────────────────────────────── */
+
+/* El arco usa pathLength=100, así que el dasharray es directamente el porcentaje. */
+.score-arc {
+  animation: score-fill 0.9s var(--ease-out-soft) both;
+}
+
+@keyframes score-fill {
+  from {
+    stroke-dasharray: 0 100;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

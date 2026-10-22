@@ -5,7 +5,8 @@ import { deleteSiteAction } from '@/app/actions';
 import { ApiError, getChecks, getSignOffPreview, getSite, listSignOffs } from '@/lib/api';
 import { CONFORMANCE_LABEL, displayUrl, formatDateTime, groupByPage, screenLabel, siteCheckOutcome } from '@/lib/format';
 import { getReviewer } from '@/lib/reviewer';
-import { Card, OutcomeBadge, PageHeader, ScopeBadge, buttonStyles } from '@/components/ui';
+import { SearchCheckIcon } from '@/components/icons';
+import { Card, FIELD, OutcomeBadge, PageHeader, ScopeBadge, buttonStyles } from '@/components/ui';
 import { FindingCard } from '@/components/FindingCard';
 import { CreateFindingForm, SignOffForm } from '@/components/ReviewForms';
 import { SelectLatestButton } from '@/components/SelectLatestButton';
@@ -208,60 +209,82 @@ export default async function SiteDetail({ params, searchParams }: Props) {
                 <p className="mb-3 text-xs text-ink-muted">
                   Un escaneo por página como máximo. Si una página se ha escaneado varias veces, elige cuál entra.
                 </p>
-                <ul className="space-y-1.5">
-                  {pageGroups.map(({ key, latest, previous }) => {
-                    const label = (
-                      <>
-                        {displayUrl(latest.url)} · {screenLabel(latest)}
-                        {latest.include ? ` · ${latest.include}` : ''}
-                      </>
-                    );
-                    if (previous.length === 0) {
-                      return (
-                        <li key={key}>
-                          <label className="flex items-start gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              name="muestra"
-                              value={latest.id}
-                              defaultChecked={sample.includes(latest.id)}
-                              className="mt-0.5 size-4"
-                            />
-                            <span>
-                              {label}
-                              <span className="text-ink-muted"> · {formatDateTime(latest.finishedAt)}</span>
-                            </span>
-                          </label>
-                        </li>
-                      );
-                    }
-                    const scans = [latest, ...previous];
-                    const selectId = `muestra-${latest.id}`;
-                    return (
-                      <li key={key} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                        <label htmlFor={selectId}>{label}</label>
-                        <select
-                          id={selectId}
-                          name="muestra"
-                          defaultValue={scans.find((scan) => sample.includes(scan.id))?.id ?? ''}
-                          className="rounded-md border border-line bg-surface px-2 py-1 text-sm"
-                        >
-                          <option value="">No incluir</option>
-                          {scans.map((scan, index) => (
-                            <option key={scan.id} value={scan.id}>
-                              {formatDateTime(scan.finishedAt)}
-                              {index === 0 ? ' (último)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <div className="overflow-x-auto rounded-md border border-line">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-line bg-surface-muted text-left text-xs uppercase tracking-wide text-ink-muted">
+                        <th scope="col" className="px-3 py-2 font-medium">
+                          Página
+                        </th>
+                        <th scope="col" className="w-72 px-3 py-2 font-medium">
+                          Escaneo
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageGroups.map(({ key, latest, previous }) => {
+                        // La fila nombra a su control: «Incluir» o un desplegable sueltos no dicen de qué página son.
+                        const rowId = `muestra-fila-${latest.id}`;
+                        const scans = [latest, ...previous];
+                        return (
+                          <tr key={key} className="border-b border-line align-middle last:border-0">
+                            <th scope="row" id={rowId} className="px-3 py-2.5 text-left font-normal">
+                              <span className="block break-all font-medium">{displayUrl(latest.url)}</span>
+                              <span className="sr-only">, </span>
+                              <span className="mt-0.5 block text-xs text-ink-muted">
+                                {screenLabel(latest)}
+                                {latest.include ? (
+                                  <>
+                                    {' · '}
+                                    <code>{latest.include}</code>
+                                  </>
+                                ) : null}
+                              </span>
+                            </th>
+                            <td className="px-3 py-2.5">
+                              {previous.length === 0 ? (
+                                <label className="inline-flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    name="muestra"
+                                    value={latest.id}
+                                    defaultChecked={sample.includes(latest.id)}
+                                    aria-labelledby={`${rowId} ${rowId}-incluir`}
+                                    className="size-4"
+                                  />
+                                  <span id={`${rowId}-incluir`}>
+                                    Incluir
+                                    <span className="text-ink-muted"> · {formatDateTime(latest.finishedAt)}</span>
+                                  </span>
+                                </label>
+                              ) : (
+                                <select
+                                  name="muestra"
+                                  aria-labelledby={rowId}
+                                  defaultValue={scans.find((scan) => sample.includes(scan.id))?.id ?? ''}
+                                  className={FIELD}
+                                >
+                                  <option value="">No incluir</option>
+                                  {scans.map((scan, index) => (
+                                    <option key={scan.id} value={scan.id}>
+                                      {formatDateTime(scan.finishedAt)}
+                                      {index === 0 ? ' (último)' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </fieldset>
               <div className="mt-4 flex flex-wrap gap-2">
                 <SelectLatestButton name="muestra" />
                 <button type="submit" className={buttonStyles.secondary}>
+                  <SearchCheckIcon />
                   Comprobar la muestra
                 </button>
               </div>

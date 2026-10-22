@@ -11,6 +11,14 @@ const SOURCE_LABEL: Record<ManualFinding['source']['kind'], string> = {
   'axe-false-positive': 'Falso positivo de axe',
 };
 
+/** Borde izquierdo por estado: lo pendiente de validar destaca entre lo ya cerrado. */
+const REVIEW_STRIPE: Record<ManualFinding['review']['status'], string> = {
+  proposed: 'border-l-accent',
+  validated: 'border-l-ok',
+  amended: 'border-l-ok',
+  rejected: 'border-l-line',
+};
+
 /**
  * Un hallazgo con quién lo propuso, en qué se apoya y su revisión. Las
  * referencias a capturas (`focus-3.jpg`) enlazan a la imagen por el proxy.
@@ -29,7 +37,11 @@ export function FindingCard({
 }) {
   const { review } = finding;
   return (
-    <article className={`rounded-md border border-line p-4 ${review.status === 'rejected' ? 'opacity-70' : ''}`}>
+    <article
+      className={`rounded-md border border-line border-l-4 bg-surface-muted/60 p-4 ${REVIEW_STRIPE[review.status]} ${
+        review.status === 'rejected' ? 'opacity-70' : ''
+      }`}
+    >
       <header className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={finding.outcome} />
         <ReviewStatusBadge status={review.status} />

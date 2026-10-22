@@ -16,6 +16,16 @@ import {
 import { OUTCOME_LABEL } from '@/lib/format';
 import type { FindingOutcome, ManualFinding } from '@/lib/types';
 import { FIELD, HINT, LABEL, buttonStyles } from '@/components/ui';
+import {
+  BuildingIcon,
+  CheckIcon,
+  LinkIcon,
+  PenIcon,
+  RefreshIcon,
+  SaveIcon,
+  UnlinkIcon,
+  XIcon,
+} from '@/components/icons';
 
 const FINDING_OUTCOMES: FindingOutcome[] = ['passed', 'failed', 'cantTell', 'inapplicable'];
 const INITIAL: FormState = { error: null };
@@ -97,10 +107,14 @@ export function ReviewFindingForm({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Submit value="validated" variant="primary" disabled={undecided} describedBy={undecided ? `${id}-undecided` : undefined}>
+        <Submit value="validated" variant="success" disabled={undecided} describedBy={undecided ? `${id}-undecided` : undefined}>
+          <CheckIcon />
           Validar
         </Submit>
-        <Submit value="rejected">Rechazar</Submit>
+        <Submit value="rejected">
+          <XIcon />
+          Rechazar
+        </Submit>
       </div>
       {undecided ? (
         <p id={`${id}-undecided`} className={HINT}>
@@ -135,7 +149,10 @@ export function ReviewFindingForm({
               className={FIELD}
             />
           </div>
-          <Submit value="amended">Guardar corrección</Submit>
+          <Submit value="amended">
+            <SaveIcon />
+            Guardar corrección
+          </Submit>
         </div>
       </details>
     </form>
@@ -187,7 +204,10 @@ export function FalsePositiveForm({
           <textarea id={`${id}-note`} name="note" required rows={2} className={FIELD} />
           <p className={HINT}>Queda validado a tu nombre. Para deshacerlo, recházalo después.</p>
         </div>
-        <Submit>Marcar falso positivo</Submit>
+        <Submit>
+          <XIcon />
+          Marcar falso positivo
+        </Submit>
       </form>
     </details>
   );
@@ -255,7 +275,10 @@ export function CreateFindingForm({
           </label>
           <textarea id={`${id}-recommendation`} name="recommendation" rows={2} className={FIELD} />
         </div>
-        <Submit variant="primary">Guardar resultado</Submit>
+        <Submit variant="primary">
+          <SaveIcon />
+          Guardar resultado
+        </Submit>
       </form>
     </details>
   );
@@ -289,7 +312,10 @@ export function CreateSiteForm() {
           Uno por línea; vale pegar una URL entera. Las páginas ya escaneadas de esos hosts entran solas en el sitio.
         </p>
       </div>
-      <Submit variant="primary">Crear sitio</Submit>
+      <Submit variant="primary">
+        <BuildingIcon />
+        Crear sitio
+      </Submit>
     </form>
   );
 }
@@ -345,6 +371,7 @@ export function SignOffForm({
         <p className={HINT}>La firma no se puede modificar después. Si cambian los hallazgos, la firma lo indicará.</p>
       </div>
       <Submit variant="primary" disabled={!canSign}>
+        <PenIcon />
         Firmar la web
       </Submit>
     </form>
@@ -395,7 +422,10 @@ export function BaselineForm({
         )}
         <ReviewerField id={`${id}-by`} reviewer={reviewer} />
       </div>
-      <Submit variant={current ? 'secondary' : 'primary'}>{current ? 'Recalcular la herencia' : 'Enlazar y heredar'}</Submit>
+      <Submit variant={current ? 'secondary' : 'primary'}>
+        {current ? <RefreshIcon /> : <LinkIcon />}
+        {current ? 'Recalcular la herencia' : 'Enlazar y heredar'}
+      </Submit>
     </form>
   );
 }
@@ -408,7 +438,10 @@ export function UnlinkBaselineForm({ auditId, pageId, path }: { auditId: string;
       <input type="hidden" name="pageId" value={pageId} />
       <input type="hidden" name="path" value={path} />
       <FormError state={state} />
-      <Submit variant="danger">Quitar la línea base</Submit>
+      <Submit variant="danger">
+        <UnlinkIcon />
+        Quitar la línea base
+      </Submit>
     </form>
   );
 }
@@ -459,7 +492,9 @@ export function BulkInapplicableForm({
         <div className="min-w-56">
           <ReviewerField id={`${id}-by`} reviewer={reviewer} />
         </div>
-        <Submit variant="primary">Validar los {criteria.length} «No aplica»</Submit>
+        <Submit variant="success">
+          <CheckIcon />
+          Validar los {criteria.length} «No aplica»</Submit>
       </div>
     </form>
   );

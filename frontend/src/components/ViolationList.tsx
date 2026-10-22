@@ -3,10 +3,16 @@
 import { useMemo, useState } from 'react';
 import type { AxeRule, Impact } from '@/lib/types';
 import { IMPACT_LABEL, ruleLevel } from '@/lib/format';
-import { Card, ImpactBadge, LevelBadge } from '@/components/ui';
+import { Card, IMPACT_STYLE, ImpactBadge, LevelBadge } from '@/components/ui';
 
 const ORDER: Record<string, number> = { critical: 0, serious: 1, moderate: 2, minor: 3 };
 const FILTERS: Array<Impact | 'all'> = ['all', 'critical', 'serious', 'moderate', 'minor'];
+const IMPACT_DOT: Record<Impact, string> = {
+  critical: 'bg-critical',
+  serious: 'bg-serious',
+  moderate: 'bg-moderate',
+  minor: 'bg-minor',
+};
 
 /** Un nodo puede traer un HTML enorme; en pantalla no aporta pasar de esto. */
 const MAX_HTML = 400;
@@ -54,12 +60,17 @@ export function ViolationList({ rules, emptyMessage }: { rules: AxeRule[]; empty
               type="button"
               onClick={() => setFilter(key)}
               aria-pressed={filter === key}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                filter === key
-                  ? 'border-accent bg-accent text-on-accent'
-                  : 'border-line bg-surface text-ink-muted hover:bg-surface-muted'
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-[background-color,border-color,color,scale] duration-150 active:scale-95 ${
+                filter !== key
+                  ? 'border-line bg-surface text-ink-muted hover:border-ink-muted/40 hover:text-ink'
+                  : key === 'all'
+                    ? 'border-accent bg-accent text-on-accent'
+                    : `${IMPACT_STYLE[key]} ring-1 ring-current/40`
               }`}
             >
+              {key !== 'all' ? (
+                <span aria-hidden="true" className={`size-2 rounded-full ${IMPACT_DOT[key]}`} />
+              ) : null}
               {key === 'all' ? 'Todas' : IMPACT_LABEL[key]} ({counts[key] ?? 0})
             </button>
           ))}
@@ -73,9 +84,9 @@ export function ViolationList({ rules, emptyMessage }: { rules: AxeRule[]; empty
       <ul className="space-y-3">
         {visible.map((rule) => (
           <li key={rule.id}>
-            <Card>
+            <Card className="transition-shadow duration-200 has-[details[open]]:shadow-raised hover:shadow-raised">
               <details className="group">
-                <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3">
+                <summary className="flex cursor-pointer flex-wrap items-center gap-3 rounded-lg px-4 py-3">
                   <ImpactBadge impact={rule.impact} />
                   <LevelBadge level={ruleLevel(rule.tags)} />
                   <span className="font-medium">{rule.help}</span>

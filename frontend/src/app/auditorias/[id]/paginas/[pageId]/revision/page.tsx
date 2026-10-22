@@ -5,6 +5,7 @@ import { ApiError, getAudit, getBaseline, getBaselineCandidates, getChecks, getP
 import { OUTCOME_LABEL, OUTCOMES, displayUrl, screenLabel } from '@/lib/format';
 import { getReviewer } from '@/lib/reviewer';
 import type { Check, CheckReview, EarlOutcome } from '@/lib/types';
+import { EyeIcon } from '@/components/icons';
 import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 import { FindingCard } from '@/components/FindingCard';
 import { EvidencePanel } from '@/components/EvidencePanel';
@@ -24,6 +25,15 @@ const PRINCIPLES = [
 ] as const;
 
 /** Lo que el panel enseña; el texto completo y los formularios se quedan fuera para no cargar de más. */
+/** Franja izquierda de cada criterio: el resultado se ve al pasar sin leer la etiqueta. */
+const OUTCOME_STRIPE: Record<EarlOutcome, string> = {
+  passed: 'border-l-ok',
+  failed: 'border-l-critical',
+  cantTell: 'border-l-moderate',
+  inapplicable: 'border-l-ink-muted/40',
+  untested: 'border-l-line',
+};
+
 const PANEL_KINDS = ['screenshot', 'reflow-320', 'zoom-200', 'text-spacing', 'orientation', 'focus-sequence', 'images'] as const;
 
 const PENDING_FILTER = 'por-validar';
@@ -159,6 +169,7 @@ export default async function PageReviewView({ params, searchParams }: Props) {
         }
         actions={
           <Link href={`/auditorias/${id}/paginas/${pageId}`} className={buttonStyles.secondary}>
+            <EyeIcon />
             Resultado de axe
           </Link>
         }
@@ -262,25 +273,33 @@ export default async function PageReviewView({ params, searchParams }: Props) {
         if (checks.length === 0) return null;
         return (
           <section key={principle.id} className="mb-8" aria-labelledby={`h-principio-${principle.id}`}>
-            <h2 id={`h-principio-${principle.id}`} className="mb-3 text-lg font-semibold">
-              {principle.id}. {principle.name}
+            <h2
+              id={`h-principio-${principle.id}`}
+              className="mb-4 flex items-center gap-3 text-lg font-semibold after:h-px after:flex-1 after:bg-line"
+            >
+              <span className="grid size-7 place-items-center rounded-md bg-accent text-sm text-on-accent">{principle.id}</span>
+              {principle.name}
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-5">
               {checks.map((item) => {
                 const check = checkById.get(item.checkId);
                 return (
-                  <Card key={item.checkId} className="p-5">
+                  <Card key={item.checkId} className={`overflow-hidden border-l-4 ${OUTCOME_STRIPE[item.outcome]}`}>
                     <section aria-labelledby={`h-${item.checkId}`}>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 id={`h-${item.checkId}`} className="font-semibold">
-                          {item.criterion} {item.name}
-                          {check ? <span className="ml-2 text-xs font-normal text-ink-muted">Nivel {check.level}</span> : null}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-muted/70 px-5 py-3">
+                        <h3 id={`h-${item.checkId}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold">
+                          <span className="rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-xs text-accent-strong tabular-nums">
+                            {item.criterion}
+                          </span>
+                          {item.name}
+                          {check ? <span className="text-xs font-normal text-ink-muted">Nivel {check.level}</span> : null}
                         </h3>
                         <OutcomeBadge outcome={item.outcome} />
                       </div>
+                      <div className="px-5 pt-3 pb-5">
 
                       {check ? (
-                        <details className="mt-2">
+                        <details>
                           <summary className="cursor-pointer text-sm text-accent">Qué comprobar</summary>
                           <p className="mt-2 text-sm">{check.instructions}</p>
                           {check.requiresAssistiveTech ? (
@@ -335,6 +354,7 @@ export default async function PageReviewView({ params, searchParams }: Props) {
 
                       <div className="mt-3">
                         <CreateFindingForm checkId={item.checkId} target={{ auditId: id, pageId }} path={path} reviewer={reviewer} />
+                      </div>
                       </div>
                     </section>
                   </Card>

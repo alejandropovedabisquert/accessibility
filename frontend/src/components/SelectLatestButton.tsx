@@ -1,6 +1,7 @@
 'use client';
 
 import { buttonStyles } from '@/components/ui';
+import { ListCheckIcon } from '@/components/icons';
 
 /**
  * Pone el último escaneo de cada página en la muestra sin enviar el formulario:
@@ -25,6 +26,7 @@ export function SelectLatestButton({ name }: { name: string }) {
         }
       }}
     >
+      <ListCheckIcon />
       Elegir el último escaneo de todas
     </button>
   );

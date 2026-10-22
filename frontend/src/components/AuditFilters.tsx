@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { AUDIT_STATUS_LABEL } from '@/lib/format';
 import type { AuditStatus } from '@/lib/types';
+import { FIELD } from '@/components/ui';
 
 const STATUSES: AuditStatus[] = ['queued', 'running', 'completed', 'failed'];
 
@@ -46,7 +47,7 @@ export function AuditFilters() {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="avantio.com"
-          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
+          className={FIELD}
         />
       </div>
 
@@ -58,7 +59,7 @@ export function AuditFilters() {
           id="filtro-estado"
           defaultValue={params.get('status') ?? ''}
           onChange={(event) => apply({ status: event.target.value })}
-          className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
+          className={`${FIELD} w-auto!`}
         >
           <option value="">Todos</option>
           {STATUSES.map((status) => (
