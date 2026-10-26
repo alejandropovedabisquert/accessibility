@@ -4,7 +4,8 @@ import app from '../src/app';
 import { closeDb } from '../src/db/client';
 import browserPool from '../src/services/scanner/browserPool';
 import auditService from '../src/services/audit/audit.service';
-import type { BaselineReport, CheckReview, ManualFinding, PageReview } from '../src/types/audit.types';
+import reviewRepository from '../src/db/review.repository';
+import type { BaselineReport, CheckReview, HeirResult, HeirsOverview, ManualFinding, PageReview } from '../src/types/audit.types';
 import { startFixtureServer, type FixtureServer } from './helpers/fixtureServer';
 import { waitForAudit } from './helpers/waitFor';
 
@@ -55,6 +56,10 @@ const decide = async (pageId: string, body: Record<string, unknown>): Promise<Ma
 const link = async (pageId: string, baselinePageId = ids.base) =>
   (await request(app).put(`/api/audits/${auditId}/pages/${pageId}/baseline`).send({ baselinePageId, by: WHO }).expect(200))
     .body as BaselineReport;
+
+const heirsOf = async (pageId: string) =>
+  (await request(app).get(`/api/audits/${auditId}/pages/${pageId}/heirs`).expect(200)).body as HeirsOverview;
+const statusOf = (overview: HeirsOverview, pageId: string) => overview.candidates.find((item) => item.page.id === pageId)?.status;
 
 let focusVisibleBase: ManualFinding;
 
@@ -108,12 +113,13 @@ afterAll(async () => {
   closeDb();
 });
 
-describe('candidatas a linea base', () => {
-  it('son las de la misma pantalla, con cuantos hallazgos decididos tienen', async () => {
-    const res = await request(app).get(`/api/audits/${auditId}/pages/${ids.other}/baseline-candidates`).expect(200);
-    const base = res.body.find((item: { page: { id: string } }) => item.page.id === ids.base);
-    expect(base.decidedFindings).toBe(6);
-    expect(res.body.some((item: { page: { id: string } }) => item.page.id === ids.other)).toBe(false);
+describe('candidatas a heredar', () => {
+  it('son las de la misma pantalla, y la linea base dice cuantos hallazgos propios tiene decididos', async () => {
+    const overview = await heirsOf(ids.base);
+    expect(overview.decidedFindings).toBe(6);
+    expect(overview.inheritsFrom).toBeNull();
+    expect(overview.candidates.map((item) => item.page.id).sort()).toEqual([ids.other, ids.twin].sort());
+    expect(overview.candidates.every((item) => item.status === 'available')).toBe(true);
   });
 });
 
@@ -210,6 +216,79 @@ describe('herencia', () => {
     expect(contrast.findings[0]).toMatchObject({ outcome: 'cantTell', inheritedFrom: null });
     expect(contrast.findings[0]?.review.status).toBe('proposed');
     expect(checkOf(review, 'focus-visible').findings).toHaveLength(0);
+  });
+});
+
+// Aqui `twin` hereda de la base y `other` ya no (se le quito al final de 'herencia').
+describe('herederas elegidas desde la linea base', () => {
+  const linkHeirs = async (baselineId: string, pageIds: string[], status = 200) =>
+    (await request(app).post(`/api/audits/${auditId}/pages/${baselineId}/heirs`).send({ pageIds, by: WHO }).expect(status)).body;
+
+  it('enlaza varias de una vez, y repetirlo recalcula sin duplicar', async () => {
+    expect(statusOf(await heirsOf(ids.base), ids.twin)).toBe('heir');
+    expect(statusOf(await heirsOf(ids.base), ids.other)).toBe('available');
+
+    const results = (await linkHeirs(ids.base, [ids.other, ids.twin])) as HeirResult[];
+    expect(results.map((item) => [item.pageId, item.linked])).toEqual([
+      [ids.other, true],
+      [ids.twin, true],
+    ]);
+    expect(results.find((item) => item.pageId === ids.twin)?.inherited).toBeGreaterThan(0);
+
+    await linkHeirs(ids.base, [ids.other, ids.twin]);
+    expect(checkOf(await reviewOf(ids.other), 'contrast-minimum').findings).toHaveLength(1);
+    const overview = await heirsOf(ids.base);
+    expect([statusOf(overview, ids.other), statusOf(overview, ids.twin)]).toEqual(['heir', 'heir']);
+    // La lista de herederas dice cuanto heredo cada una, sin tener que abrirlas.
+    expect(overview.candidates.find((item) => item.page.id === ids.twin)?.inherited).toBeGreaterThan(0);
+  });
+
+  it('una heredera no puede ser linea base hasta que se le quite la herencia', async () => {
+    const res = await linkHeirs(ids.twin, [ids.other], 409);
+    expect(res.error).toContain('una heredera no puede ser línea base');
+    expect((await heirsOf(ids.twin)).inheritsFrom?.pageId).toBe(ids.base);
+  });
+
+  it('una pagina con herederas no puede heredar', async () => {
+    await request(app).delete(`/api/audits/${auditId}/pages/${ids.twin}/baseline`).expect(204);
+    expect(statusOf(await heirsOf(ids.twin), ids.base)).toBe('has-heirs');
+
+    const res = await request(app)
+      .put(`/api/audits/${auditId}/pages/${ids.base}/baseline`)
+      .send({ baselinePageId: ids.twin, by: WHO })
+      .expect(409);
+    expect(res.body.error).toContain('es línea base de otras páginas');
+  });
+
+  it('la que ya hereda de otra se salta con aviso y no para a las demas', async () => {
+    const overview = await heirsOf(ids.twin);
+    expect(statusOf(overview, ids.other)).toBe('other-baseline');
+    expect(overview.candidates.find((item) => item.page.id === ids.other)?.baselineUrl).toContain('/base');
+
+    const results = (await linkHeirs(ids.twin, [ids.other, 'no-existe'])) as HeirResult[];
+    expect(results[0]).toMatchObject({ pageId: ids.other, linked: false });
+    expect(results[0]?.error).toContain('ya hereda de');
+    expect(results[1]).toMatchObject({ pageId: 'no-existe', linked: false });
+    expect((await heirsOf(ids.base)).candidates.find((item) => item.page.id === ids.other)?.status).toBe('heir');
+  });
+
+  it('marca las cadenas de antes de la regla', async () => {
+    // Una cadena ya no se puede crear por la API: se simula como quedaria en una BD de antes.
+    const report = (await request(app).get(`/api/audits/${auditId}/pages/${ids.other}/baseline`).expect(200)).body as BaselineReport;
+    reviewRepository.saveBaseline({ ...report, pageId: ids.base, baseline: { pageId: ids.twin, auditId, url: fixture.url('/gemela') } });
+    try {
+      const overview = await heirsOf(ids.base);
+      expect(overview.chain).toBe(true);
+      expect(overview.inheritsFrom?.pageId).toBe(ids.twin);
+    } finally {
+      reviewRepository.deleteBaseline(ids.base);
+    }
+    expect((await heirsOf(ids.base)).chain).toBe(false);
+  });
+
+  it('pide al menos una pagina y quien enlaza', async () => {
+    await request(app).post(`/api/audits/${auditId}/pages/${ids.base}/heirs`).send({ pageIds: [], by: WHO }).expect(400);
+    await request(app).post(`/api/audits/${auditId}/pages/${ids.base}/heirs`).send({ pageIds: [ids.other] }).expect(400);
   });
 });
 

@@ -8,12 +8,15 @@ import { probe } from '../evidence/evidence.service';
 import { withStoredDom } from '../evidence/storedDom';
 import { findCheck } from './catalog';
 import reviewService, { axeAssertor } from './review.service';
-import { badRequest, conflict, notFound } from '../../utils/errors';
+import { AppError, badRequest, conflict, notFound, toMessage } from '../../utils/errors';
 import type {
   AuditPage,
   AxeResults,
   BaselineRegion,
   BaselineReport,
+  HeirCandidate,
+  HeirResult,
+  HeirsOverview,
   ManualFinding,
   NotInheritedReason,
   PageEvidence,
@@ -78,20 +81,71 @@ class BaselineService {
     return report;
   }
 
-  /** Paginas con las que tiene sentido comparar: misma pantalla, de la misma auditoria o del mismo sitio. */
-  public candidates(auditId: string, pageId: string) {
+  /**
+   * Las paginas que pueden heredar de esta y en que situacion esta cada una. Se eligen desde la linea
+   * base: se revisa una a fondo y se reparte a las que comparten plantilla.
+   */
+  public heirs(auditId: string, pageId: string): HeirsOverview {
     const page = requireCompletedPage(auditId, pageId);
-    const site = reviewRepository.findSiteByHost(page.host);
-    const pool = [...auditRepository.findPages(auditId), ...(site ? auditRepository.findSitePages(site.id, CANDIDATES_LIMIT) : [])];
-    const unique = new Map(pool.map((candidate) => [candidate.id, candidate]));
-    return [...unique.values()]
-      .filter((candidate) => candidate.id !== page.id && candidate.status === 'completed' && sameScreen(candidate, page))
-      .map((candidate) => ({
-        page: candidate,
-        decidedFindings: reviewRepository
-          .findPageFindings(candidate.id)
-          .filter((finding) => DECIDED.has(finding.review.status) && !finding.inheritedFrom).length,
-      }));
+    const pool = this.comparablePages(page);
+    const links = reviewRepository.findBaselineLinks([page.id, ...pool.map((candidate) => candidate.id)]);
+    const baselineOf = new Map(links.map((link) => [link.pageId, link.baselinePageId]));
+    const isBaseline = new Set(links.map((link) => link.baselinePageId));
+    const urlOf = (id: string) => pool.find((candidate) => candidate.id === id)?.url ?? auditRepository.findPageById(id)?.url;
+
+    const candidates = pool.map((candidate): HeirCandidate => {
+      const from = baselineOf.get(candidate.id);
+      if (from === page.id) {
+        const report = reviewRepository.findBaseline(candidate.id);
+        return { page: candidate, status: 'heir', inherited: report?.inherited.length, notInherited: report?.notInherited.length };
+      }
+      if (from) return { page: candidate, status: 'other-baseline', baselineUrl: urlOf(from) ?? '' };
+      if (isBaseline.has(candidate.id)) return { page: candidate, status: 'has-heirs' };
+      return { page: candidate, status: 'available' };
+    });
+
+    const inheritsFrom = baselineOf.has(page.id) ? (reviewRepository.findBaseline(page.id)?.baseline ?? null) : null;
+    return {
+      inheritsFrom,
+      decidedFindings: reviewRepository
+        .findPageFindings(page.id)
+        .filter((finding) => DECIDED.has(finding.review.status) && !finding.inheritedFrom).length,
+      chain: inheritsFrom !== null && isBaseline.has(page.id),
+      candidates,
+    };
+  }
+
+  /**
+   * Enlaza varias herederas a esta linea base, una detras de otra: cada una compara DOMs en un
+   * navegador. Una que no se puede enlazar se anota y no para las demas. Volver a mandar las que ya
+   * heredan es recalcular: trae lo que se haya decidido en la linea base despues.
+   */
+  public async linkHeirs(auditId: string, pageId: string, input: { pageIds: string[]; by: string }): Promise<HeirResult[]> {
+    const baseline = requireCompletedPage(auditId, pageId);
+    this.assertCanBeBaseline(baseline);
+
+    const results: HeirResult[] = [];
+    for (const heirId of new Set(input.pageIds)) {
+      const heir = auditRepository.findPageById(heirId);
+      if (!heir) {
+        results.push({ pageId: heirId, url: '', linked: false, error: 'Página no encontrada' });
+        continue;
+      }
+      try {
+        const report = await this.link(heir.auditId, heir.id, { baselinePageId: baseline.id, by: input.by });
+        results.push({
+          pageId: heir.id,
+          url: heir.url,
+          linked: true,
+          inherited: report.inherited.length,
+          notInherited: report.notInherited.length,
+        });
+      } catch (error) {
+        if (!(error instanceof AppError)) console.error(error);
+        results.push({ pageId: heir.id, url: heir.url, linked: false, error: toMessage(error) });
+      }
+    }
+    return results;
   }
 
   public async link(auditId: string, pageId: string, input: { baselinePageId: string; by: string }): Promise<BaselineReport> {
@@ -101,6 +155,15 @@ class BaselineService {
     if (baseline.id === page.id) throw badRequest('Una página no puede ser su propia línea base');
     if (!sameScreen(page, baseline)) {
       throw badRequest('La línea base tiene que ser de la misma pantalla (resolución o dispositivo): si no, no se puede comparar');
+    }
+    // Sin cadenas: lo heredado viene siempre de una pagina revisada a mano, y de una sola.
+    this.assertCanBeBaseline(baseline);
+    if (reviewRepository.findHeirIds(page.id).length > 0) {
+      throw conflict(`${page.url} es línea base de otras páginas: no puede heredar mientras las tenga`);
+    }
+    const current = reviewRepository.findBaseline(page.id);
+    if (current && current.baseline.pageId !== baseline.id) {
+      throw conflict(`${page.url} ya hereda de ${current.baseline.url}: quítale esa herencia antes de enlazarla a otra`);
     }
 
     const [pageEvidence, baselineEvidence, pageResults] = await Promise.all([
@@ -300,6 +363,25 @@ class BaselineService {
 
     reviewRepository.saveBaseline(report);
     return report;
+  }
+
+  private assertCanBeBaseline(baseline: AuditPage): void {
+    const inherits = reviewRepository.findBaseline(baseline.id);
+    if (inherits) {
+      throw conflict(
+        `${baseline.url} hereda de ${inherits.baseline.url}: una heredera no puede ser línea base. Quítale su herencia antes`,
+      );
+    }
+  }
+
+  /** Con las que tiene sentido comparar: misma pantalla, de la misma auditoria o del mismo sitio. */
+  private comparablePages(page: AuditPage): AuditPage[] {
+    const site = reviewRepository.findSiteByHost(page.host);
+    const pool = [...auditRepository.findPages(page.auditId), ...(site ? auditRepository.findSitePages(site.id, CANDIDATES_LIMIT) : [])];
+    const unique = new Map(pool.map((candidate) => [candidate.id, candidate]));
+    return [...unique.values()].filter(
+      (candidate) => candidate.id !== page.id && candidate.status === 'completed' && sameScreen(candidate, page),
+    );
   }
 
   public async unlink(auditId: string, pageId: string): Promise<void> {

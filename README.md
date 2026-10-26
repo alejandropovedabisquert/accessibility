@@ -516,9 +516,9 @@ recuerda en una cookie; no hay autenticación.
 
 ### Líneas base: revisar una plantilla una vez
 
-Si varias páginas comparten plantilla, se revisa y valida una y se enlaza como **línea base** de las
-demás (desde su revisión, o `PUT /api/audits/:id/pages/:pageId/baseline` con `baselinePageId` y
-`by`). Se heredan, ya validados a nombre de quien enlaza, los hallazgos cuyos elementos **y la región
+Si varias páginas comparten plantilla, se revisa y valida una y, desde su revisión, se eligen las
+páginas que **heredan** de ella como **línea base** (`GET`/`POST /api/audits/:id/pages/:pageId/heirs`,
+el POST con `pageIds` y `by`; también `PUT .../pages/:pageId/baseline` para enlazar una sola). Se heredan, ya validados a nombre de quien enlaza, los hallazgos cuyos elementos **y la región
 que los contiene** (cabecera, navegación, pie…) son estructuralmente iguales en las dos páginas. La
 comparación ignora textos, enlaces e ids generados (la misma huella de `fingerprint.ts`) y se hace
 sobre el DOM guardado al escanear (`dom.html` de la evidencia), no sobre la web de ahora.
@@ -531,6 +531,10 @@ sobre el DOM guardado al escanear (`dom.html` de la evidencia), no sobre la web 
 - Lo heredado sigue al original: si se corrige o se rechaza allí, cambia en todas las copias. Quitar la
   línea base deja la página como estaba.
 - Solo se comparan páginas de la misma pantalla, y ambas necesitan evidencia con DOM guardado.
+- **Sin cadenas:** una página que hereda no puede ser línea base, y una con herederas no puede heredar,
+  hasta que se quite una de las dos herencias. Una página que ya hereda de otra línea base no se mueve
+  sola: se salta con aviso. Las cadenas de antes de esta regla se marcan en la revisión.
+- Volver a enlazar las herederas (botón «Recalcular» en la línea base) trae lo decidido después.
 
 ### Firma de una web
 

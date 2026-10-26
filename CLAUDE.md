@@ -180,6 +180,13 @@ con `inherited_from`; las propuestas de axe resueltas por herencia se modifican 
 `clearInheritance` las devuelve a `cantTell` al quitar o recalcular. `reviewFinding` propaga cada
 revisión a las copias (`propagateToCopies`): si añades otra forma de cambiar un hallazgo, propágala.
 
+**Las herederas se eligen desde la línea base, y no hay cadenas.** `linkHeirs` recorre las elegidas
+llamando a `link()` una a una (una que falla no para las demás). Las reglas viven en `link()`, así que
+valen también para el `PUT` de una sola: una heredera no puede ser línea base, una página con herederas
+no puede heredar, y una que ya hereda de otra base no se mueve (se salta, para no pisar una herencia
+revisada). Las cadenas de antes de la regla no se rompen solas: `heirs()` las marca con `chain` y hay
+que deshacer una de las dos herencias a mano. Por eso `propagateToCopies` sigue recorriendo en cadena.
+
 **Una firma se recalcula con su versión del catálogo, no con la actual.** `stillMatches` rehace el
 snapshot con `checksOfVersion(signOff.catalogVersion)`: la v1 (`wcag22-aa`) no tenía AAA, y sin eso
 todas las firmas anteriores pasarían a `stillMatches: false`. Si una versión nueva cambia textos o

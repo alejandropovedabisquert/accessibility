@@ -6,6 +6,7 @@ import { slugifyUrl } from '../utils/url';
 import {
   createFindingSchema,
   baselineSchema,
+  heirsSchema,
   bulkValidateSchema,
   createSiteSchema,
   evidenceFileSchema,
@@ -136,8 +137,12 @@ export const getBaseline = asyncHandler(async (req: Request<PageParams>, res: Re
   res.json(baselineService.get(req.params.id, req.params.pageId));
 });
 
-export const getBaselineCandidates = asyncHandler(async (req: Request<PageParams>, res: Response) => {
-  res.json(baselineService.candidates(req.params.id, req.params.pageId));
+export const getHeirs = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  res.json(baselineService.heirs(req.params.id, req.params.pageId));
+});
+
+export const linkHeirs = asyncHandler(async (req: Request<PageParams>, res: Response) => {
+  res.json(await baselineService.linkHeirs(req.params.id, req.params.pageId, heirsSchema.parse(req.body)));
 });
 
 export const linkBaseline = asyncHandler(async (req: Request<PageParams>, res: Response) => {

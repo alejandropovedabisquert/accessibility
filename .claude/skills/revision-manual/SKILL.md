@@ -57,7 +57,8 @@ pareja A/AA (1.4.6 con 1.4.3, 2.4.9 con 2.4.4, 2.4.12 con 2.4.11, 2.5.5 con 2.5.
    violación de axe y los `inapplicable` propuestos ya tienen resultado: no los repitas. Los
    hallazgos con `inherited: true` vienen de una línea base y ya están validados: no los toques.
    Si varias páginas comparten plantilla, revisa a fondo una, y sugiere a la persona que la valide
-   y la enlace como línea base de las demás antes de seguir con ellas: ahorra repetir trabajo.
+   y, desde la revisión de esa página, elija las demás como herederas antes de seguir con ellas:
+   ahorra repetir trabajo.
 2. **Qué mirar.** `get_checks` con los `checkIds` pendientes, **una vez por sesión**: trae las
    instrucciones de cada criterio, la evidencia que necesita y si exige lector de pantalla.
 3. **La evidencia justa.** `get_evidence` pidiendo solo los `kinds` de los criterios que vas a

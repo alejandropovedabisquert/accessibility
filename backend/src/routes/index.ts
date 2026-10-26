@@ -20,8 +20,9 @@ import { getMeta, getStats } from '../controllers/meta.controller';
 import {
   validateApplicability,
   getBaseline,
-  getBaselineCandidates,
+  getHeirs,
   linkBaseline,
+  linkHeirs,
   unlinkBaseline,
   createFalsePositive,
   createSignOff,
@@ -78,7 +79,8 @@ router.post('/audits/:id/pages/:pageId/findings/validate-inapplicable', validate
 router.get('/audits/:id/pages/:pageId/evidence', getPageEvidence);
 // Enlazar una linea base es de la capa 3: hereda hallazgos ya validados.
 router.get('/audits/:id/pages/:pageId/baseline', getBaseline);
-router.get('/audits/:id/pages/:pageId/baseline-candidates', getBaselineCandidates);
+router.get('/audits/:id/pages/:pageId/heirs', getHeirs);
+router.post('/audits/:id/pages/:pageId/heirs', linkHeirs);
 router.put('/audits/:id/pages/:pageId/baseline', linkBaseline);
 router.delete('/audits/:id/pages/:pageId/baseline', unlinkBaseline);
 router.get('/audits/:id/pages/:pageId/evidence/files/:name', getEvidenceFile);
