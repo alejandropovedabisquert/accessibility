@@ -21,6 +21,7 @@ import type {
   ScanScreen,
   ScanTarget,
   ScanWaitUntil,
+  ScannedUrl,
   SeriesKey,
   Viewport,
 } from '../types/audit.types';
@@ -623,7 +624,7 @@ class AuditRepository {
   }
 
   /** Series distintas auditadas (URL + seccion + pantalla), para el selector de historico. */
-  scannedUrls(): Array<SeriesKey & { host: string; runs: number; lastScan: string | null }> {
+  scannedUrls(): ScannedUrl[] {
     const rows = getDb()
       .prepare(`
         SELECT url, host, include_selector, viewport_width, viewport_height, device,

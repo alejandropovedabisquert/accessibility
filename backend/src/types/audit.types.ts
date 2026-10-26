@@ -211,6 +211,41 @@ export interface SeriesKey extends ScanScreen {
   include: string | null;
 }
 
+/** Respuesta de `GET /api/meta`: opciones y limites para el formulario de nueva auditoria. */
+export interface Meta {
+  browsers: Array<{ id: string; name: string }>;
+  devices: Array<{
+    name: string;
+    viewport: { width: number; height: number } | null;
+    isMobile?: boolean;
+    hasTouch?: boolean;
+  }>;
+  tags: Array<{ id: string; label: string }>;
+  sections: Array<{ id: string; label: string; selector: string }>;
+  viewports: Array<{ id: string; label: string; viewport: Viewport }>;
+  defaults: {
+    browser: ScanBrowser;
+    waitUntil: ScanWaitUntil;
+    tags: string[];
+    timeout: number;
+    viewport: { width: number; height: number };
+  };
+  limits: {
+    maxUrlsPerAudit: number;
+    scanConcurrency: number;
+    maxSelectorLength: number;
+    maxViewports: number;
+  };
+}
+
+export interface ScannedUrl extends ScanScreen {
+  url: string;
+  host: string;
+  include: string | null;
+  runs: number;
+  lastScan: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Revision manual (capas 2 y 3) y firma. El vocabulario de resultados es el de
 // EARL (W3C) para poder exportarlo sin traducciones: ver `services/review/`.
@@ -284,9 +319,6 @@ export interface CheckCatalog {
 /** Resultados de EARL. `untested` no se guarda: es la ausencia de hallazgo. */
 export type EarlOutcome = 'passed' | 'failed' | 'cantTell' | 'inapplicable' | 'untested';
 export type FindingOutcome = Exclude<EarlOutcome, 'untested'>;
-
-/** Modo de EARL; sale de quien evalua (axe, IA o persona), no se guarda aparte. */
-export type EarlMode = 'automatic' | 'semiAuto' | 'manual';
 
 /** Estado de la validacion de la capa 3, independiente del resultado. */
 export type ReviewStatus = 'proposed' | 'validated' | 'rejected' | 'amended';

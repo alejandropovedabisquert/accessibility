@@ -1,6 +1,7 @@
 export type AuditStatus = 'queued' | 'running' | 'completed' | 'failed';
 export type PageStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type ScanBrowser = 'chromium' | 'firefox' | 'webkit';
+export type ScanWaitUntil = 'load' | 'domcontentloaded' | 'networkidle';
 export type Impact = 'critical' | 'serious' | 'moderate' | 'minor';
 
 export const IMPACTS: Impact[] = ['critical', 'serious', 'moderate', 'minor'];
@@ -50,13 +51,13 @@ export interface ScanScreen {
 }
 
 export interface AuditConfig {
-  browser: string;
+  browser: ScanBrowser;
   device: string | null;
   /** El primero de `viewports`; se mantiene por compatibilidad. */
   viewport: Viewport | null;
   /** Resoluciones en las que se escanea cada URL. Vacio si se usa `device`. */
   viewports: Viewport[];
-  waitUntil: string;
+  waitUntil: ScanWaitUntil;
   timeoutMs: number;
   tags: string[];
   /** Recoger evidencia para la revision manual. */
@@ -149,13 +150,18 @@ export interface Paginated<T> {
 
 export interface Meta {
   browsers: Array<{ id: string; name: string }>;
-  devices: Array<{ name: string; viewport: { width: number; height: number } | null; isMobile?: boolean }>;
+  devices: Array<{
+    name: string;
+    viewport: { width: number; height: number } | null;
+    isMobile?: boolean;
+    hasTouch?: boolean;
+  }>;
   tags: Array<{ id: string; label: string }>;
   sections: Array<{ id: string; label: string; selector: string }>;
   viewports: Array<{ id: string; label: string; viewport: Viewport }>;
   defaults: {
-    browser: string;
-    waitUntil: string;
+    browser: ScanBrowser;
+    waitUntil: ScanWaitUntil;
     tags: string[];
     timeout: number;
     viewport: { width: number; height: number };
@@ -275,9 +281,6 @@ export interface CheckCatalog {
 /** Resultados de EARL. `untested` no se guarda: es la ausencia de hallazgo. */
 export type EarlOutcome = 'passed' | 'failed' | 'cantTell' | 'inapplicable' | 'untested';
 export type FindingOutcome = Exclude<EarlOutcome, 'untested'>;
-
-/** Modo de EARL; sale de quien evalua (axe, IA o persona), no se guarda aparte. */
-export type EarlMode = 'automatic' | 'semiAuto' | 'manual';
 
 /** Estado de la validacion de la capa 3, independiente del resultado. */
 export type ReviewStatus = 'proposed' | 'validated' | 'rejected' | 'amended';

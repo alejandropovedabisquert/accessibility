@@ -9,7 +9,7 @@ Ejecuta los tres pasos desde la raíz de `accessibility/`, en este orden, y no p
 fallo: informa de los tres.
 
 ```bash
-make typecheck                 # tsc --noEmit en backend, frontend y mcp
+make typecheck                 # tsc --noEmit en backend, frontend y mcp (backend y mcp, también sus tests)
 make test                      # vitest del backend y del mcp (escanean de verdad con Chromium)
 cd frontend && pnpm build      # next build
 ```

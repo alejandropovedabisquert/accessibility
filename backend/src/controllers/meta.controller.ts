@@ -8,7 +8,7 @@ import {
   SECTION_PRESETS,
   VIEWPORT_PRESETS,
 } from '../services/scanner/scan.service';
-import { DEFAULT_VIEWPORT } from '../types/audit.types';
+import { DEFAULT_VIEWPORT, type Meta } from '../types/audit.types';
 import auditService from '../services/audit/audit.service';
 import config from '../config/config';
 
@@ -27,7 +27,7 @@ const DEVICES = Object.entries(devices).map(([name, descriptor]) => ({
 }));
 
 export const getMeta = (_req: Request, res: Response) => {
-  res.json({
+  const meta: Meta = {
     browsers: BROWSERS,
     devices: DEVICES,
     tags: AVAILABLE_TAGS,
@@ -46,7 +46,8 @@ export const getMeta = (_req: Request, res: Response) => {
       maxSelectorLength: MAX_SELECTOR_LENGTH,
       maxViewports: MAX_VIEWPORTS,
     },
-  });
+  };
+  res.json(meta);
 };
 
 export const getStats = (_req: Request, res: Response) => {
