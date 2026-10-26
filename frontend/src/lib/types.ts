@@ -4,7 +4,7 @@ export type ScanBrowser = 'chromium' | 'firefox' | 'webkit';
 export type ScanWaitUntil = 'load' | 'domcontentloaded' | 'networkidle';
 export type Impact = 'critical' | 'serious' | 'moderate' | 'minor';
 
-export const IMPACTS: Impact[] = ['critical', 'serious', 'moderate', 'minor'];
+export const IMPACTS: readonly Impact[] = ['critical', 'serious', 'moderate', 'minor'] as const;
 
 /** Nivel de una regla segun sus tags de axe. Misma regla que `backend/src/services/audit/levels.ts`. */
 export type RuleLevel = 'A' | 'AA' | 'AAA' | 'best-practice';

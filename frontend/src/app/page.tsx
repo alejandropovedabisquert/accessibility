@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { listAuditGroups } from '@/lib/api';
 import { AUDIT_STATUS_LABEL, formatDateTime, formatRelative, isInProgress } from '@/lib/format';
-import type { Audit, AuditGroup, AuditStatus } from '@/lib/types';
+import type { Audit, AuditGroup } from '@/lib/types';
 import { AuditFilters } from '@/components/AuditFilters';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { Pagination } from '@/components/Pagination';
@@ -146,7 +146,7 @@ function GroupRow({ group }: { group: AuditGroup }) {
         ) : null}
       </th>
       <td className="px-4 py-3">
-        <StatusBadge status={audit.status as AuditStatus} />
+        <StatusBadge status={audit.status} />
       </td>
       <td className="px-4 py-3 tabular-nums">
         {audit.completedPages}/{audit.totalPages}

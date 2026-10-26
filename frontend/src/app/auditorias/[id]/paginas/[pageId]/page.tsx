@@ -16,7 +16,7 @@ import { DiffPanel } from '@/components/DiffPanel';
 import { DownloadMenu } from '@/components/DownloadMenu';
 import { HistoryChart } from '@/components/HistoryChart';
 import { ClipboardCheckIcon } from '@/components/icons';
-import { Card, ComplianceSummary, ExcludeNotice, PageHeader, buttonStyles } from '@/components/ui';
+import { Breadcrumbs, Card, ComplianceSummary, ExcludeNotice, PageHeader, buttonStyles } from '@/components/ui';
 
 interface Props {
   params: Promise<{ id: string; pageId: string }>;
@@ -66,26 +66,18 @@ export default async function PageDetail({ params }: Props) {
 
   return (
     <>
-      <nav aria-label="Migas de pan" className="mb-3 text-sm">
-        <ol className="flex flex-wrap items-center gap-1.5 text-ink-muted">
-          <li>
-            <Link href="/" className="text-accent underline-offset-2 hover:underline">
-              Auditorías
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li>
-            <Link href={`/auditorias/${id}`} className="text-accent underline-offset-2 hover:underline">
-              {audit?.label ?? 'Auditoría'}
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li aria-current="page">
+      <Breadcrumbs
+        trail={[
+          { href: '/', label: 'Auditorías' },
+          { href: `/auditorias/${id}`, label: audit?.label ?? 'Auditoría' },
+        ]}
+        current={
+          <>
             {displayUrl(page.url)}
             {scope ? ` · ${scope}` : ''} · {screenLabel(page)}
-          </li>
-        </ol>
-      </nav>
+          </>
+        }
+      />
 
       <PageHeader
         title={displayUrl(page.url)}

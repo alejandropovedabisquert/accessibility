@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { AxeRule, Impact } from '@/lib/types';
+import { IMPACTS, type AxeRule, type Impact } from '@/lib/types';
 import { IMPACT_LABEL, ruleLevel } from '@/lib/format';
 import { Card, IMPACT_STYLE, ImpactBadge, LevelBadge } from '@/components/ui';
 
-const ORDER: Record<string, number> = { critical: 0, serious: 1, moderate: 2, minor: 3 };
-const FILTERS: Array<Impact | 'all'> = ['all', 'critical', 'serious', 'moderate', 'minor'];
+const FILTERS: Array<Impact | 'all'> = ['all', ...IMPACTS];
+/** Sin impacto, al final. */
+const rank = (impact: Impact | null) => (impact ? IMPACTS.indexOf(impact) : IMPACTS.length);
 const IMPACT_DOT: Record<Impact, string> = {
   critical: 'bg-critical',
   serious: 'bg-serious',
@@ -25,7 +26,7 @@ export function ViolationList({ rules, emptyMessage }: { rules: AxeRule[]; empty
     () =>
       [...rules].sort(
         (a, b) =>
-          (ORDER[a.impact ?? ''] ?? 9) - (ORDER[b.impact ?? ''] ?? 9) || b.nodes.length - a.nodes.length
+          rank(a.impact) - rank(b.impact) || b.nodes.length - a.nodes.length
       ),
     [rules]
   );

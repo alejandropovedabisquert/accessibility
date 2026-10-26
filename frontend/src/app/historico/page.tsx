@@ -56,6 +56,8 @@ export default async function HistoryPage({ searchParams }: Props) {
   const history = selected
     ? await getHistory(selected.url, selected.include, selected, 50).catch(() => null)
     : null;
+  const selectedScope = selected ? sectionLabel(selected.include, meta?.sections) : null;
+  const lastPoint = history?.points.at(-1);
 
   return (
     <>
@@ -100,16 +102,14 @@ export default async function HistoryPage({ searchParams }: Props) {
             <Card className="p-5">
               <h2 className="mb-4 break-all text-base font-semibold">
                 {displayUrl(selected.url)}
-                {sectionLabel(selected.include, meta?.sections)
-                  ? ` · ${sectionLabel(selected.include, meta?.sections)}`
-                  : ''}
+                {selectedScope ? ` · ${selectedScope}` : ''}
                 {` · ${screenLabel(selected)}`}
               </h2>
               <HistoryChart points={history.points} label="Incumplimientos por escaneo" />
-              {history.points.length > 0 ? (
+              {lastPoint ? (
                 <p className="mt-4 text-sm">
                   <Link
-                    href={`/auditorias/${history.points[history.points.length - 1]!.auditId}/paginas/${history.points[history.points.length - 1]!.pageId}`}
+                    href={`/auditorias/${lastPoint.auditId}/paginas/${lastPoint.pageId}`}
                     className="text-accent underline underline-offset-2"
                   >
                     Ver el último resultado en detalle →
