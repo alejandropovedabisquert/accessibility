@@ -30,6 +30,28 @@ export const EVIDENCE_LIMITS = {
 /** Nombre del DOM guardado tal y como quedo tras cargar, para comparar paginas sin volver a la web. */
 export const DOM_SNAPSHOT = 'dom.html';
 
+/** Todos los tipos con recolector. La API los valida contra esta lista. */
+export const COLLECTED_EVIDENCE_KINDS = [
+  'screenshot',
+  'orientation',
+  'focus-sequence',
+  'reflow-320',
+  'zoom-200',
+  'text-spacing',
+  'images',
+  'media',
+  'forms',
+  'controls',
+  'headings',
+  'landmarks',
+  'text-content',
+] as const satisfies readonly CollectedEvidenceKind[];
+
+// Un recolector nuevo en `EvidenceData` que no este en la lista deja de compilar aqui.
+type UnlistedKind = Exclude<CollectedEvidenceKind, (typeof COLLECTED_EVIDENCE_KINDS)[number]>;
+const allKindsListed: [UnlistedKind] extends [never] ? true : false = true;
+void allKindsListed;
+
 /** 1280 × 1024 al 400 % (lo que pide 1.4.10). */
 const REFLOW_VIEWPORT: Viewport = { width: 320, height: 256 };
 const JPEG = { type: 'jpeg', quality: 70 } as const;
@@ -125,7 +147,7 @@ class EvidenceService {
       // Sin probes no hay nada que recoger; se devuelve el error en todos los tipos.
       const message = `No se pudo preparar la página: ${toMessage(error).split('\n')[0]}`;
       return {
-        evidence: this.emptyEvidence(job, original, message),
+        evidence: this.emptyEvidence(job, original, message, domSnapshot),
         files,
       };
     }
@@ -187,16 +209,21 @@ class EvidenceService {
     };
   }
 
-  private emptyEvidence(job: EvidenceJob, viewport: Viewport | null, message: string): PageEvidence {
+  private emptyEvidence(
+    job: EvidenceJob,
+    viewport: Viewport | null,
+    message: string,
+    domSnapshot: string | null,
+  ): PageEvidence {
     return {
       collectedAt: new Date().toISOString(),
       browser: job.browser,
       viewport,
       scope: job.scope,
       items: {},
-      errors: { screenshot: message },
+      errors: Object.fromEntries(COLLECTED_EVIDENCE_KINDS.map((kind) => [kind, message])),
       applicability: {},
-      domSnapshot: null,
+      domSnapshot,
     };
   }
 

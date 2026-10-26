@@ -6,7 +6,7 @@ import scanService, { DEFAULT_TAGS } from '../scanner/scan.service';
 import rawStore from '../storage/rawStore';
 import { aggregateCompliance, summarize } from './summary';
 import { hostOf, normalizeUrl } from '../../utils/url';
-import { AppError, badRequest, notFound, toMessage } from '../../utils/errors';
+import { AppError, badRequest, conflict, notFound, toMessage } from '../../utils/errors';
 import type {
   Audit,
   AuditConfig,
@@ -24,6 +24,7 @@ import type {
   Viewport,
 } from '../../types/audit.types';
 import { DEFAULT_VIEWPORT } from '../../types/audit.types';
+import { requireAudit, requirePage } from '../shared/require';
 
 type PlannedPage = ScanTarget & ScanScreen;
 
@@ -79,14 +80,12 @@ class AuditService {
   }
 
   public getPageDetail(auditId: string, pageId: string) {
-    const page = repository.findPage(auditId, pageId);
-    if (!page) throw notFound('Pagina no encontrada en esta auditoria');
+    const page = requirePage(auditId, pageId);
     return { page, issues: repository.findIssues(pageId) };
   }
 
   public async getPageResults(auditId: string, pageId: string) {
-    const page = repository.findPage(auditId, pageId);
-    if (!page) throw notFound('Pagina no encontrada en esta auditoria');
+    const page = requirePage(auditId, pageId);
 
     const results = await rawStore.readRaw(auditId, pageId);
     if (!results) throw notFound('No hay resultado guardado para esta pagina');
@@ -95,8 +94,7 @@ class AuditService {
 
   /** Compara una pagina con el escaneo completado anterior de la misma URL, seccion y pantalla. */
   public getPageDiff(auditId: string, pageId: string): PageDiff {
-    const page = repository.findPage(auditId, pageId);
-    if (!page) throw notFound('Pagina no encontrada en esta auditoria');
+    const page = requirePage(auditId, pageId);
 
     const audit = repository.findAudit(auditId);
     const previous = audit
@@ -150,9 +148,8 @@ class AuditService {
   }
 
   public async remove(id: string): Promise<void> {
-    const audit = repository.findAudit(id);
-    if (!audit) throw notFound('Auditoria no encontrada');
-    if (this.running.has(id)) throw new AppError('No se puede borrar una auditoria en ejecucion', 409);
+    requireAudit(id);
+    if (this.running.has(id)) throw conflict('No se puede borrar una auditoria en ejecucion');
 
     repository.deleteAudit(id);
     await rawStore.removeAudit(id);
@@ -163,7 +160,7 @@ class AuditService {
     const { latest, previous } = this.getGroup(groupId);
     const runs = [latest, ...previous];
     if (runs.some((run) => this.running.has(run.id))) {
-      throw new AppError('No se puede borrar: uno de sus lanzamientos esta en ejecucion', 409);
+      throw conflict('No se puede borrar: uno de sus lanzamientos esta en ejecucion');
     }
 
     repository.deleteGroup(groupId);

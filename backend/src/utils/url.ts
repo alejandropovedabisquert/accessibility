@@ -1,4 +1,4 @@
-import { AppError } from './errors';
+import { badRequest } from './errors';
 
 /** Normaliza una URL a su forma canonica, descartando el hash. */
 export const normalizeUrl = (raw: string): string => {
@@ -6,11 +6,11 @@ export const normalizeUrl = (raw: string): string => {
   try {
     parsed = new URL(raw.trim());
   } catch {
-    throw new AppError(`URL no valida: ${raw}`, 400);
+    throw badRequest(`URL no valida: ${raw}`);
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new AppError('Solo se permiten los protocolos http y https', 400);
+    throw badRequest('Solo se permiten los protocolos http y https');
   }
 
   parsed.hash = '';
@@ -38,7 +38,7 @@ export const normalizeHost = (raw: string): string => {
   } catch {
     // Cae al error de abajo.
   }
-  throw new AppError(`Host no valido: ${raw}`, 400);
+  throw badRequest(`Host no valido: ${raw}`);
 };
 
 /** Version corta y legible de una URL, sin protocolo ni barra final. */

@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createAuditAction, type FormState } from '@/app/actions';
 import { CUSTOM_SECTION } from '@/lib/format';
+import { useKeepValuesOnError } from '@/lib/useKeepValuesOnError';
 import { PlayIcon, SquareCheckIcon, SquareIcon } from '@/components/icons';
 import { buttonStyles, Card, ExcludeNotice, FIELD, HINT, LABEL } from '@/components/ui';
 import type { Meta } from '@/lib/types';
@@ -21,12 +22,13 @@ function SubmitButton() {
 
 export function NewAuditForm({ meta }: { meta: Meta }) {
   const [state, formAction] = useActionState<FormState, FormData>(createAuditAction, { error: null });
+  const keep = useKeepValuesOnError(state);
   const [useDevice, setUseDevice] = useState(false);
   const [section, setSection] = useState('');
   const [exclude, setExclude] = useState('');
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form {...keep} action={formAction} className="space-y-5">
       {state.error ? (
         <div
           role="alert"

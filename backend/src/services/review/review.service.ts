@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import auditRepository from '../../db/audit.repository';
 import reviewRepository, { type NewFinding } from '../../db/review.repository';
 import rawStore from '../storage/rawStore';
-import { MAX_HTML_LENGTH, MAX_NODES_LIMIT, toCompactNode, truncate } from '../export/compact';
+import { MAX_HTML_LENGTH, toFindingTargets, truncate } from '../export/compact';
 import { catalog, checksForAxeRule, findCheck } from './catalog';
 import { probe } from '../evidence/evidence.service';
 import { withStoredDom } from '../evidence/storedDom';
@@ -25,6 +25,7 @@ import type {
   Site,
   SiteDetail,
 } from '../../types/audit.types';
+import { requireCompletedPage } from '../shared/require';
 
 export const MAX_SITE_HOSTS = 20;
 /** Paginas que devuelve el detalle de un sitio; de sobra para elegir una muestra. */
@@ -103,6 +104,14 @@ const requireCheck = (checkId: string, scope: Check['scope']): Check => {
   return check;
 };
 
+/** Autor de las propuestas de axe. `clearInheritance` las devuelve a como las crea `proposeFromTools`: tiene que salir igual. */
+export const axeAssertor = (results: AxeResults): Assertor => ({
+  type: 'tool',
+  name: `axe-core ${results.testEngine?.version ?? ''}`.trim(),
+  model: null,
+  assistiveTech: null,
+});
+
 class ReviewService {
   public getCatalog() {
     return catalog;
@@ -156,7 +165,7 @@ class ReviewService {
    * nunca van a necesitar (mismo motivo que el PDF perezoso).
    */
   public async getPageReview(auditId: string, pageId: string, maxTargets: number): Promise<PageReview> {
-    const page = this.requireCompletedPage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     const { checks: full, evidence } = await this.pageCheckReviews(page);
     const checks = full.map((check) => ({
       ...check,
@@ -229,7 +238,7 @@ class ReviewService {
     kinds?: CollectedEvidenceKind[],
     exclude?: string,
   ): Promise<PageEvidence & { excluded?: number }> {
-    const page = this.requireCompletedPage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     const evidence = await rawStore.readEvidence(auditId, pageId);
     if (!evidence) throw notFound('Esta página no tiene evidencia: la auditoría no la pidió (evidence: true)');
 
@@ -281,14 +290,14 @@ class ReviewService {
   }
 
   public evidenceFile(auditId: string, pageId: string, name: string): string {
-    this.requireCompletedPage(auditId, pageId);
+    requireCompletedPage(auditId, pageId);
     const filePath = rawStore.evidenceFilePath(auditId, pageId, name);
     if (!rawStore.exists(filePath)) throw notFound('Captura no encontrada');
     return filePath;
   }
 
   public createPageFinding(auditId: string, pageId: string, input: FindingInput): ManualFinding {
-    const page = this.requireCompletedPage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     requireCheck(input.checkId, 'page');
     return this.insert({ kind: 'page', pageId: page.id }, input);
   }
@@ -309,7 +318,7 @@ class ReviewService {
     pageId: string,
     input: { checkId: string; ruleId: string; by: string; note: string },
   ): Promise<ManualFinding> {
-    const page = this.requireCompletedPage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     const check = requireCheck(input.checkId, 'page');
     const results = await rawStore.readRaw(auditId, pageId);
     const violation = results?.violations.find((rule) => rule.id === input.ruleId);
@@ -325,10 +334,7 @@ class ReviewService {
         subject: { kind: 'page', pageId: page.id },
         source: { kind: 'axe-false-positive', ruleId: input.ruleId, checkId: check.id },
         outcome: 'passed',
-        targets: violation.nodes.slice(0, MAX_NODES_LIMIT).map((node) => {
-          const { selector, html } = toCompactNode(node);
-          return { selector, html };
-        }),
+        targets: toFindingTargets(violation.nodes),
         targetCount: violation.nodes.length,
         description: `Falso positivo de axe (${input.ruleId}) para ${check.criterion}: ${input.note}`,
         recommendation: null,
@@ -425,7 +431,7 @@ class ReviewService {
    * `reviewFinding` una a una para que se propague a las copias heredadas.
    */
   public validateApplicability(auditId: string, pageId: string, input: { by: string; note: string | null }): ManualFinding[] {
-    const page = this.requireCompletedPage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     const pending = reviewRepository
       .findPageFindings(page.id)
       .filter((finding) => finding.source.kind === 'applicability' && finding.review.status === 'proposed');
@@ -438,14 +444,6 @@ class ReviewService {
     );
   }
 
-  private requireCompletedPage(auditId: string, pageId: string): AuditPage {
-    const page = auditRepository.findPage(auditId, pageId);
-    if (!page) throw notFound('Pagina no encontrada en esta auditoria');
-    if (page.status !== 'completed') {
-      throw conflict('La página no tiene resultados que revisar: el escaneo no ha terminado o falló');
-    }
-    return page;
-  }
 
   private insert(subject: NewFinding['subject'], input: FindingInput): ManualFinding {
     const targets = cleanTargets(input.targets);
@@ -474,7 +472,7 @@ class ReviewService {
   private proposeFromTools(page: AuditPage, results: AxeResults, evidence: PageEvidence | null): void {
     const createdAt = new Date().toISOString();
     const tool = (name: string): Assertor => ({ type: 'tool', name, model: null, assistiveTech: null });
-    const axeAuthor = tool(`axe-core ${results.testEngine?.version ?? ''}`.trim());
+    const axeAuthor = axeAssertor(results);
 
     const fromAxe = results.incomplete.flatMap((rule) =>
       checksForAxeRule(rule.id)
@@ -485,11 +483,7 @@ class ReviewService {
             subject: { kind: 'page', pageId: page.id },
             source: { kind: 'axe-needs-review', ruleId: rule.id, checkId: check.id },
             outcome: 'cantTell',
-            // Se guardan como mucho MAX_NODES_LIMIT: el resto sigue en el JSON crudo.
-            targets: rule.nodes.slice(0, MAX_NODES_LIMIT).map((node) => {
-              const { selector, html } = toCompactNode(node);
-              return { selector, html };
-            }),
+            targets: toFindingTargets(rule.nodes),
             targetCount: rule.nodes.length,
             description: rule.help,
             recommendation: null,

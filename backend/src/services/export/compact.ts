@@ -3,6 +3,7 @@ import type {
   AxeResult,
   AxeResults,
   Compliance,
+  FindingTarget,
   Impact,
   RuleLevel,
   ScanScope,
@@ -117,6 +118,13 @@ export const toCompactNode = (node: AxeNode): CompactNode => ({
   html: truncate(node.html.replace(/\s+/g, ' ').trim(), MAX_HTML_LENGTH),
   message: nodeMessage(node),
 });
+
+/** Los targets de un hallazgo: como mucho MAX_NODES_LIMIT, el resto sigue en el JSON crudo. */
+export const toFindingTargets = (nodes: readonly AxeNode[]): FindingTarget[] =>
+  nodes.slice(0, MAX_NODES_LIMIT).map((node) => {
+    const { selector, html } = toCompactNode(node);
+    return { selector, html };
+  });
 
 const toImpact = (value: unknown): Impact | null =>
   typeof value === 'string' && (IMPACTS as readonly string[]).includes(value) ? (value as Impact) : null;

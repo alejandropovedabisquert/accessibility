@@ -5,6 +5,7 @@ import { notFound } from '../../utils/errors';
 import { buildPageExport, type CompactPageExport, type CompactPageInfo } from './compact';
 import { buildAuditExport, type AggregatedExport, type ExportDetail } from './aggregate';
 import type { Audit, AuditPage, AxeResults } from '../../types/audit.types';
+import { requireAudit, requirePage } from '../shared/require';
 
 export const pageInfo = (page: AuditPage, audit: Audit, scannedAt: string | null): CompactPageInfo => ({
   url: page.url,
@@ -17,10 +18,8 @@ export const pageInfo = (page: AuditPage, audit: Audit, scannedAt: string | null
 
 class ExportService {
   public async pageCompact(auditId: string, pageId: string, maxNodes: number): Promise<CompactPageExport> {
-    const page = repository.findPage(auditId, pageId);
-    if (!page) throw notFound('Pagina no encontrada en esta auditoria');
-    const audit = repository.findAudit(auditId);
-    if (!audit) throw notFound('Auditoria no encontrada');
+    const page = requirePage(auditId, pageId);
+    const audit = requireAudit(auditId);
 
     const results = await rawStore.readRaw(auditId, pageId);
     if (!results) throw notFound('No hay resultado guardado para esta pagina');

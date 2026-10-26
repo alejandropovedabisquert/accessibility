@@ -3,6 +3,20 @@
  * que los dos se sigan pareciendo: si cambias el aspecto de uno, cambia aqui.
  */
 
+/**
+ * La norma con la que se mide la conformidad legal, en el PDF de la auditoria, el de la firma y el
+ * EARL. Cambia con el TODO de EN 301 549 v4.1.1 de `catalog.ts`.
+ */
+export const LEGAL_STANDARD = 'EN 301 549 v3.2.1';
+export const LEGAL_BASIS = `WCAG 2.1 A y AA, por ${LEGAL_STANDARD}`;
+
+/** Lo que no cuenta para la conformidad legal: AAA o criterio nuevo de WCAG 2.2. */
+export const notLegalTag = (legal: boolean, level: string) =>
+  legal ? '' : ` <span class="tag">${level === 'AAA' ? 'AAA' : 'WCAG 2.2'}</span>`;
+
+export const screenLabel = (device: string | null, viewport: { width: number; height: number } | null) =>
+  device ?? (viewport ? `${viewport.width}×${viewport.height}` : '');
+
 export const escapeHtml = (value: unknown): string =>
   String(value ?? '')
     .replace(/&/g, '&amp;')

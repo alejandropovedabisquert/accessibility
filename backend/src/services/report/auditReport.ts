@@ -1,9 +1,10 @@
 import type { Audit, AuditPage, AxeResults, Check, Impact, RuleLevel } from '../../types/audit.types';
 import { catalog, checksForAxeRule } from '../review/catalog';
 import { aggregateCompliance, computeCompliance } from '../audit/summary';
+import { complianceGroup } from '../audit/levels';
 import { buildAuditExport, summarizeByRule, type ImprovementSummary } from '../export/aggregate';
 import { scopeWarnings, type CompactPageInfo } from '../export/compact';
-import { BASE_STYLES, escapeHtml, formatDate } from './reportBase';
+import { BASE_STYLES, escapeHtml, formatDate, LEGAL_BASIS, notLegalTag, screenLabel } from './reportBase';
 import { displayUrl } from '../../utils/url';
 
 export interface AuditReportPage {
@@ -64,10 +65,9 @@ const cellsOf = (results: AxeResults): Map<string, Cell> => {
 
 const isLegal = (check: Check) => check.en301549 !== null;
 
-const tagOf = (check: Check) => (isLegal(check) ? '' : ` <span class="tag">${check.level === 'AAA' ? 'AAA' : 'WCAG 2.2'}</span>`);
+const tagOf = (check: Check) => notLegalTag(isLegal(check), check.level);
 
-const screenOf = ({ page, info }: AuditReportPage) =>
-  page.device ?? (info.viewport ? `${info.viewport.width}×${info.viewport.height}` : '');
+const screenOf = ({ page, info }: AuditReportPage) => screenLabel(page.device, info.viewport);
 
 /** `[1, 2, 3, 5]` → `P1–P3, P5`. */
 export const pageRanges = (numbers: number[]): string => {
@@ -154,7 +154,7 @@ export const auditReportHtml = ({ audit, pages }: AuditReportInput, generatedAt:
   });
   const byRule = summarizeByRule(grouped.findings, MAX_EXAMPLES);
   const numbersOf = (entry: ImprovementSummary) => entry.pages.map((index) => scanned[index]?.number ?? 0);
-  const isLegalLevel = (level: RuleLevel) => level === 'A' || level === 'AA';
+  const isLegalLevel = (level: RuleLevel) => complianceGroup(level) === 'legal';
   const failures = byRule.filter((entry) => entry.status === 'fail');
   const reviews = byRule.filter((entry) => entry.status === 'needs-review');
 
@@ -333,7 +333,7 @@ export const auditReportHtml = ({ audit, pages }: AuditReportInput, generatedAt:
       <span><strong>–</strong> no aplica</span>
       <span>vacío: ninguna regla de ese criterio se ejecutó en la página</span>
     </div>
-    <h3>Requisitos legales (WCAG 2.1 A y AA, por EN 301 549)</h3>
+    <h3>Requisitos legales (${LEGAL_BASIS})</h3>
     ${legalRows.length > 0 ? matrix(legalRows) : '<p class="muted">Ninguna regla ejecutada comprueba requisitos legales.</p>'}
     ${otherRows.length > 0 ? `<h3>No exigibles: criterios nuevos de WCAG 2.2 y AAA</h3>${matrix(otherRows)}` : ''}
   </section>
