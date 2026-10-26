@@ -1,4 +1,4 @@
-import { BASE_STYLES, escapeHtml, formatDate } from '../report/reportBase';
+import { BASE_STYLES, escapeHtml, formatDate, LEGAL_BASIS, notLegalTag, screenLabel } from '../report/reportBase';
 import type { ConformanceStatus, EarlOutcome, SignOff, SignOffSnapshot } from '../../types/audit.types';
 
 export const OUTCOME_LABEL: Record<EarlOutcome, string> = {
@@ -16,12 +16,9 @@ export const CONFORMANCE_LABEL: Record<ConformanceStatus, string> = {
   'non-conformant': 'No conforme',
 };
 
-/** Etiqueta de un criterio que no cuenta para la conformidad legal. */
-const tagOf = (criterion: SignOffSnapshot['criteria'][number]) =>
-  criterion.legal ? '' : ` <span class="tag">${criterion.level === 'AAA' ? 'AAA' : 'WCAG 2.2'}</span>`;
+const tagOf = (criterion: SignOffSnapshot['criteria'][number]) => notLegalTag(criterion.legal, criterion.level);
 
-const screen = (page: SignOffSnapshot['pages'][number]) =>
-  page.device ?? (page.viewport ? `${page.viewport.width}×${page.viewport.height}` : '');
+const screen = (page: SignOffSnapshot['pages'][number]) => screenLabel(page.device, page.viewport);
 
 /**
  * Informe firmado, autocontenido para pasarlo a PDF. Sale todo de la copia
@@ -86,7 +83,7 @@ export const signOffReportHtml = (signOff: SignOff, snapshot: SignOffSnapshot): 
 
   <div class="status s-${conformance.status}">${CONFORMANCE_LABEL[conformance.status]}</div>
   <p>
-    Requisitos legales (WCAG 2.1 A y AA, por EN 301 549 v3.2.1): ${conformance.passed} cumplen, ${conformance.failed} no cumplen
+    Requisitos legales (${LEGAL_BASIS}): ${conformance.passed} cumplen, ${conformance.failed} no cumplen
     y ${conformance.inapplicable} no aplican, de ${conformance.applicable + conformance.inapplicable}.
     Criterios nuevos de WCAG 2.2, aún no exigibles: ${snapshot.wcag22.passed} cumplen o no aplican, ${snapshot.wcag22.failed} no cumplen.
     ${

@@ -14,6 +14,7 @@ import {
   type FormState,
 } from '@/app/actions';
 import { OUTCOME_LABEL } from '@/lib/format';
+import { useKeepValuesOnError } from '@/lib/useKeepValuesOnError';
 import type { FindingOutcome, ManualFinding } from '@/lib/types';
 import { FIELD, HINT, LABEL, buttonStyles } from '@/components/ui';
 import {
@@ -87,12 +88,13 @@ export function ReviewFindingForm({
   reviewer: string;
 }) {
   const [state, action] = useActionState(reviewFindingAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   const id = useId();
   const undecided = finding.outcome === 'cantTell';
   const reviewed = finding.review.status !== 'proposed';
 
   const form = (
-    <form action={action} className="space-y-3">
+    <form {...keep} action={action} className="space-y-3">
       <input type="hidden" name="findingId" value={finding.id} />
       <input type="hidden" name="path" value={path} />
       <FormError state={state} />
@@ -185,11 +187,12 @@ export function FalsePositiveForm({
   reviewer: string;
 }) {
   const [state, action] = useActionState(falsePositiveAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   const id = useId();
   return (
     <details>
       <summary className="cursor-pointer text-sm text-accent">Marcar como falso positivo</summary>
-      <form action={action} className="mt-3 space-y-3">
+      <form {...keep} action={action} className="mt-3 space-y-3">
         <input type="hidden" name="auditId" value={auditId} />
         <input type="hidden" name="pageId" value={pageId} />
         <input type="hidden" name="checkId" value={checkId} />
@@ -226,11 +229,12 @@ export function CreateFindingForm({
   reviewer: string;
 }) {
   const [state, action] = useActionState(createFindingAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   const id = useId();
   return (
     <details>
       <summary className="cursor-pointer text-sm text-accent">Añadir un resultado</summary>
-      <form action={action} className="mt-3 space-y-3">
+      <form {...keep} action={action} className="mt-3 space-y-3">
         <input type="hidden" name="checkId" value={checkId} />
         <input type="hidden" name="path" value={path} />
         {'siteId' in target ? (
@@ -286,8 +290,9 @@ export function CreateFindingForm({
 
 export function CreateSiteForm() {
   const [state, action] = useActionState(createSiteAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   return (
-    <form action={action} className="space-y-4">
+    <form {...keep} action={action} className="space-y-4">
       <FormError state={state} />
       <div>
         <label htmlFor="site-name" className={LABEL}>
@@ -335,8 +340,9 @@ export function SignOffForm({
   canSign: boolean;
 }) {
   const [state, action] = useActionState(signOffAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   return (
-    <form action={action} className="space-y-4">
+    <form {...keep} action={action} className="space-y-4">
       <input type="hidden" name="siteId" value={siteId} />
       {pageIds.map((id) => (
         <input key={id} type="hidden" name="pageIds" value={id} />
@@ -396,9 +402,10 @@ export function BaselineForm({
   current?: string;
 }) {
   const [state, action] = useActionState(linkBaselineAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   const id = useId();
   return (
-    <form action={action} className="space-y-3">
+    <form {...keep} action={action} className="space-y-3">
       <input type="hidden" name="auditId" value={auditId} />
       <input type="hidden" name="pageId" value={pageId} />
       <input type="hidden" name="path" value={path} />
@@ -432,8 +439,9 @@ export function BaselineForm({
 
 export function UnlinkBaselineForm({ auditId, pageId, path }: { auditId: string; pageId: string; path: string }) {
   const [state, action] = useActionState(unlinkBaselineAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   return (
-    <form action={action} className="space-y-2">
+    <form {...keep} action={action} className="space-y-2">
       <input type="hidden" name="auditId" value={auditId} />
       <input type="hidden" name="pageId" value={pageId} />
       <input type="hidden" name="path" value={path} />
@@ -464,9 +472,10 @@ export function BulkInapplicableForm({
   criteria: Array<{ criterion: string; name: string; reason: string }>;
 }) {
   const [state, action] = useActionState(validateInapplicableAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
   const id = useId();
   return (
-    <form action={action} className="space-y-3">
+    <form {...keep} action={action} className="space-y-3">
       <input type="hidden" name="auditId" value={auditId} />
       <input type="hidden" name="pageId" value={pageId} />
       <input type="hidden" name="path" value={path} />

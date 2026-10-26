@@ -138,10 +138,7 @@ class SignOffService {
    * ahora: si alguien ha corregido un hallazgo despues de firmar, se nota.
    */
   public async get(id: string): Promise<SignOffDetail> {
-    const signOff = reviewRepository.findSignOff(id);
-    if (!signOff) throw notFound('Firma no encontrada');
-    const snapshot = await rawStore.readSignOffSnapshot<SignOffSnapshot>(id);
-    if (!snapshot) throw notFound('No se encuentra el contenido firmado en disco');
+    const { snapshot, ...signOff } = await this.frozen(id);
 
     let stillMatches: boolean | null = null;
     const site = reviewRepository.findSite(signOff.siteId);

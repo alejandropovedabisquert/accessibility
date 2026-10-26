@@ -3,11 +3,11 @@ import auditRepository from '../../db/audit.repository';
 import reviewRepository from '../../db/review.repository';
 import rawStore from '../storage/rawStore';
 import { normalizeHtml } from '../export/fingerprint';
-import { MAX_NODES_LIMIT, nodeSelector, toCompactNode } from '../export/compact';
+import { nodeSelector, toFindingTargets } from '../export/compact';
 import { probe } from '../evidence/evidence.service';
 import { withStoredDom } from '../evidence/storedDom';
 import { findCheck } from './catalog';
-import reviewService from './review.service';
+import reviewService, { axeAssertor } from './review.service';
 import { badRequest, conflict, notFound } from '../../utils/errors';
 import type {
   AuditPage,
@@ -18,6 +18,7 @@ import type {
   NotInheritedReason,
   PageEvidence,
 } from '../../types/audit.types';
+import { requireCompletedPage } from '../shared/require';
 
 const DECIDED = new Set(['validated', 'amended']);
 /** Paginas candidatas como mucho: las de la auditoria y las del sitio. */
@@ -71,7 +72,7 @@ const ruleNodes = (results: AxeResults, kind: 'violations' | 'incomplete', ruleI
  */
 class BaselineService {
   public get(auditId: string, pageId: string): BaselineReport {
-    this.requirePage(auditId, pageId);
+    requireCompletedPage(auditId, pageId);
     const report = reviewRepository.findBaseline(pageId);
     if (!report) throw notFound('Esta página no tiene línea base');
     return report;
@@ -79,7 +80,7 @@ class BaselineService {
 
   /** Paginas con las que tiene sentido comparar: misma pantalla, de la misma auditoria o del mismo sitio. */
   public candidates(auditId: string, pageId: string) {
-    const page = this.requirePage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     const site = reviewRepository.findSiteByHost(page.host);
     const pool = [...auditRepository.findPages(auditId), ...(site ? auditRepository.findSitePages(site.id, CANDIDATES_LIMIT) : [])];
     const unique = new Map(pool.map((candidate) => [candidate.id, candidate]));
@@ -94,7 +95,7 @@ class BaselineService {
   }
 
   public async link(auditId: string, pageId: string, input: { baselinePageId: string; by: string }): Promise<BaselineReport> {
-    const page = this.requirePage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     const baseline = auditRepository.findPageById(input.baselinePageId);
     if (!baseline || baseline.status !== 'completed') throw notFound('Página de línea base no encontrada o sin escaneo completado');
     if (baseline.id === page.id) throw badRequest('Una página no puede ser su propia línea base');
@@ -221,10 +222,7 @@ class BaselineService {
             ...original,
             id,
             subject: { kind: 'page', pageId: page.id },
-            targets: nodes.slice(0, MAX_NODES_LIMIT).map((node) => {
-              const { selector, html } = toCompactNode(node);
-              return { selector, html };
-            }),
+            targets: toFindingTargets(nodes),
             targetCount: nodes.length,
             createdAt: at,
           },
@@ -303,7 +301,7 @@ class BaselineService {
   }
 
   public async unlink(auditId: string, pageId: string): Promise<void> {
-    const page = this.requirePage(auditId, pageId);
+    const page = requireCompletedPage(auditId, pageId);
     if (!reviewRepository.findBaseline(pageId)) throw notFound('Esta página no tiene línea base');
     const results = await rawStore.readRaw(page.auditId, page.id);
     if (results) this.clearInheritance(page, results);
@@ -321,7 +319,7 @@ class BaselineService {
         const { ruleId } = finding.source;
         reviewRepository.resetProposal(finding.id, {
           description: results.incomplete.find((rule) => rule.id === ruleId)?.help ?? finding.description,
-          assertedBy: { type: 'tool', name: `axe-core ${results.testEngine?.version ?? ''}`.trim(), model: null, assistiveTech: null },
+          assertedBy: axeAssertor(results),
         });
       } else {
         reviewRepository.deleteFinding(finding.id);
@@ -357,12 +355,6 @@ class BaselineService {
     return html;
   }
 
-  private requirePage(auditId: string, pageId: string): AuditPage {
-    const page = auditRepository.findPage(auditId, pageId);
-    if (!page) throw notFound('Pagina no encontrada en esta auditoria');
-    if (page.status !== 'completed') throw conflict('La página no tiene un escaneo completado');
-    return page;
-  }
 }
 
 export default new BaselineService();

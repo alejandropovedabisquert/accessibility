@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import type { CollectedEvidenceKind } from '../types/audit.types';
 import { DEFAULT_MAX_NODES, MAX_NODES_LIMIT } from '../services/export/compact';
 import { MAX_SITE_HOSTS } from '../services/review/review.service';
+import { COLLECTED_EVIDENCE_KINDS } from '../services/evidence/evidence.service';
 
 const TEXT_LIMIT = 4000;
 const NAME_LIMIT = 120;
@@ -90,22 +90,6 @@ export const reviewFindingSchema = z
   })
   .strict();
 
-const EVIDENCE_KINDS = [
-  'screenshot',
-  'orientation',
-  'focus-sequence',
-  'reflow-320',
-  'zoom-200',
-  'text-spacing',
-  'images',
-  'media',
-  'forms',
-  'controls',
-  'headings',
-  'landmarks',
-  'text-content',
-] as const satisfies readonly CollectedEvidenceKind[];
-
 /**
  * `kinds=focus-sequence,images`: solo esos tipos. Sin `kinds`, todos.
  * `exclude=header, footer, .banner-cookies`: sin los elementos de esas zonas (un selector CSS).
@@ -117,7 +101,7 @@ export const evidenceQuerySchema = z.object({
     .trim()
     .min(1)
     .transform((value) => value.split(',').map((kind) => kind.trim()))
-    .pipe(z.array(z.enum(EVIDENCE_KINDS, { message: `Tipos válidos: ${EVIDENCE_KINDS.join(', ')}` })))
+    .pipe(z.array(z.enum(COLLECTED_EVIDENCE_KINDS, { message: `Tipos válidos: ${COLLECTED_EVIDENCE_KINDS.join(', ')}` })))
     .optional(),
 });
 

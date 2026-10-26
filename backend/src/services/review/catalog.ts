@@ -75,7 +75,7 @@ export const buildCatalog = (raw: unknown): CheckCatalog => {
       //     version, asi que `checksOfVersion` tiene que conservar el criterio legal
       //     de la v2, o las firmas antiguas pasaran a `stillMatches: false`.
       // Revisar tambien si el OAW publica metodologia nueva y si cambia la regla de
-      // `conformanceOf`, y los textos "WCAG 2.1 ... EN 301 549 v3.2.1" del PDF y la UI.
+      // `conformanceOf`, y `LEGAL_STANDARD` (reportBase.ts) y los textos de la UI.
       en301549: entry.introducedIn === '2.2' || entry.level === 'AAA' ? null : `9.${entry.criterion}`,
       axeRules: rules,
       coverage: rules.length > 0 ? 'partial' : 'manual',

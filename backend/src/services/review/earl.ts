@@ -1,6 +1,7 @@
 import type { Assertor, CriterionResult, ManualFinding, SignOff, SignOffSnapshot } from '../../types/audit.types';
 import { displayUrl } from '../../utils/url';
 import { CONFORMANCE_LABEL, OUTCOME_LABEL } from './signoffReport';
+import { LEGAL_BASIS, LEGAL_STANDARD, screenLabel } from '../report/reportBase';
 
 /**
  * Exportacion EARL 1.0 (https://www.w3.org/TR/EARL10-Schema/) en JSON-LD con
@@ -77,8 +78,7 @@ const CONTEXT = {
 
 type SnapshotPage = SignOffSnapshot['pages'][number];
 
-const screen = (page: SnapshotPage) =>
-  page.device ?? (page.viewport ? `${page.viewport.width}×${page.viewport.height}` : null);
+const screen = (page: SnapshotPage) => screenLabel(page.device, page.viewport) || null;
 
 /**
  * Unico dentro de la muestra: el importador empareja las paginas por titulo.
@@ -198,7 +198,7 @@ export const buildEarl = (signOff: SignOff, snapshot: SignOffSnapshot, axeVersio
 
   const { conformance } = snapshot;
   const summary = [
-    `**${CONFORMANCE_LABEL[conformance.status]}** con los requisitos legales (WCAG 2.1 A y AA, por EN 301 549 v3.2.1): ` +
+    `**${CONFORMANCE_LABEL[conformance.status]}** con los requisitos legales (${LEGAL_BASIS}): ` +
       `${conformance.passed} cumplen, ${conformance.failed} no cumplen y ${conformance.inapplicable} no aplican.`,
     `Criterios nuevos de WCAG 2.2, aún no exigibles: ${snapshot.wcag22.passed} cumplen o no aplican, ${snapshot.wcag22.failed} no cumplen.` +
       (snapshot.aaa ? ` Criterios AAA, no exigibles: ${snapshot.aaa.passed} cumplen o no aplican, ${snapshot.aaa.failed} no cumplen.` : ''),
@@ -228,7 +228,7 @@ export const buildEarl = (signOff: SignOff, snapshot: SignOffSnapshot, axeVersio
       conformanceTarget: target,
       accessibilitySupportBaseline: assistiveTech.join('; '),
       additionalEvaluationRequirements:
-        'La conformidad legal se mide con WCAG 2.1 A y AA (EN 301 549 v3.2.1, RD 1112/2018). ' +
+        `La conformidad legal se mide con WCAG 2.1 A y AA (${LEGAL_STANDARD}, RD 1112/2018). ` +
         'Los criterios nuevos de WCAG 2.2 y los AAA se evalúan e informan, pero no cuentan para ella.',
     },
     exploreTarget: { technologiesReliedUpon: [], essentialFunctionality: '', pageTypeVariety: '' },
