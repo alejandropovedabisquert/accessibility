@@ -17,7 +17,8 @@ export interface AssertorDefaults {
   model: string | null;
 }
 
-const EVIDENCE_KINDS = [
+// Copias de las listas del backend (el MCP no puede importarlo); tests/tools.test.ts las compara.
+export const EVIDENCE_KINDS = [
   'screenshot',
   'orientation',
   'focus-sequence',
@@ -33,8 +34,8 @@ const EVIDENCE_KINDS = [
   'text-content',
 ] as const;
 
-const OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable', 'untested'] as const;
-const FINDING_OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable'] as const;
+export const OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable', 'untested'] as const;
+export const FINDING_OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable'] as const;
 const LEVELS = ['A', 'AA', 'AAA'] as const;
 
 // Lo justo de las respuestas de la API que aqui se reorganiza. El resto pasa tal cual.

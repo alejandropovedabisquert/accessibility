@@ -18,7 +18,7 @@ export const createSiteSchema = z
   })
   .strict();
 
-const outcomeSchema = z.enum(['passed', 'failed', 'cantTell', 'inapplicable']);
+export const outcomeSchema = z.enum(['passed', 'failed', 'cantTell', 'inapplicable']);
 
 const targetSchema = z
   .object({

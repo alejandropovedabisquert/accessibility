@@ -52,7 +52,7 @@ export interface FindingReviewInput {
   description?: string;
 }
 
-const OUTCOME_ORDER: readonly EarlOutcome[] = ['failed', 'cantTell', 'passed', 'inapplicable', 'untested'];
+export const OUTCOME_ORDER: readonly EarlOutcome[] = ['failed', 'cantTell', 'passed', 'inapplicable', 'untested'];
 
 const isActive = (finding: ManualFinding) => finding.review.status !== 'rejected';
 

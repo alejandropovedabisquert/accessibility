@@ -8,7 +8,10 @@ import auditService from '../../backend/src/services/audit/audit.service';
 import browserPool from '../../backend/src/services/scanner/browserPool';
 import { startFixtureServer, type FixtureServer } from '../../backend/tests/helpers/fixtureServer';
 import { ApiClient } from '../src/api';
-import { createServer } from '../src/tools';
+import { outcomeSchema } from '../../backend/src/schemas/review.schema';
+import { COLLECTED_EVIDENCE_KINDS } from '../../backend/src/services/evidence/evidence.service';
+import { OUTCOME_ORDER } from '../../backend/src/services/review/review.service';
+import { createServer, EVIDENCE_KINDS, FINDING_OUTCOMES, OUTCOMES } from '../src/tools';
 
 /** Contraste sobre degradado (needs-review de axe) y unos cuantos elementos enfocables. */
 const PAGE = `<!doctype html>
@@ -96,6 +99,15 @@ describe('herramientas publicadas', () => {
     expect(names.some((name) => /review_finding|validate|reject|amend|delete|false_positive/.test(name))).toBe(false);
     // Firmar tampoco: solo se puede ver que falta.
     expect(names.some((name) => /sign/.test(name) && name !== 'get_sign_off_preview')).toBe(false);
+  });
+});
+
+describe('listas copiadas del backend', () => {
+  // Un tipo o resultado nuevo en el backend que falte aqui lo rechazaria el zod del MCP sin llegar a la API.
+  it('coinciden con las que valida la API', () => {
+    expect([...EVIDENCE_KINDS].sort()).toEqual([...COLLECTED_EVIDENCE_KINDS].sort());
+    expect([...FINDING_OUTCOMES].sort()).toEqual([...outcomeSchema.options].sort());
+    expect([...OUTCOMES].sort()).toEqual([...OUTCOME_ORDER].sort());
   });
 });
 
@@ -272,6 +284,56 @@ describe('respuestas cortas y por lotes', () => {
     expect(all.items.controls.items.length).toBeGreaterThan(0);
     expect(without.items.controls.items).toEqual([]);
     expect(without.excluded).toBe(all.items.controls.items.length);
+  });
+});
+
+// Despues de los de get_page_review: con un sitio creado, la revision de la pagina trae su `site`.
+describe('sitio y firma', () => {
+  let siteId = '';
+
+  it('create_site y get_site devuelven sus paginas y hallazgos compactados', async () => {
+    const site = await callJson<{ id: string }>('create_site', { name: 'Fixture', hosts: [fixture.url('/mcp')] });
+    siteId = site.id;
+
+    const finding = await callJson<{ by: string; review: string }>('create_site_finding', {
+      siteId,
+      checkId: 'multiple-ways',
+      outcome: 'cantTell',
+      description: 'Solo hay una página escaneada: no se puede comparar',
+    });
+    expect(finding).toMatchObject({ by: 'ai:Claude', review: 'proposed' });
+
+    const detail = await callJson<{
+      pages: Array<Record<string, unknown>>;
+      findings: Array<Record<string, unknown>>;
+    }>('get_site', { siteId });
+    expect(detail.pages.map((page) => page.id)).toContain(pageId);
+    for (const page of detail.pages) {
+      expect(Object.keys(page)).toEqual(expect.arrayContaining(['id', 'url', 'viewport', 'status', 'score']));
+      // Los contadores de axe no le sirven a la revisión: compactPage los quita.
+      expect(page).not.toHaveProperty('violations');
+    }
+    expect(detail.findings).toHaveLength(1);
+    expect(detail.findings[0]).toMatchObject({ outcome: 'cantTell', by: 'ai:Claude', review: 'proposed' });
+  });
+
+  it('get_sign_off_preview dice que falta y resume los criterios', async () => {
+    const preview = await callJson<{
+      canSign: boolean;
+      blockers: unknown[];
+      conformance: unknown;
+      criteria: Array<Record<string, unknown>>;
+    }>('get_sign_off_preview', { siteId, pageIds: [pageId] });
+
+    // Quedan criterios por revisar y hallazgos propuestos sin validar.
+    expect(preview.canSign).toBe(false);
+    expect(preview.blockers.length).toBeGreaterThan(0);
+    expect(preview.conformance).toBeTruthy();
+    expect(preview.criteria.length).toBeGreaterThan(0);
+    for (const criterion of preview.criteria) {
+      expect(Object.keys(criterion).sort()).toEqual(['checkId', 'criterion', 'level', 'outcome']);
+    }
+    expect(preview.criteria.find((criterion) => criterion.checkId === 'multiple-ways')?.outcome).toBe('cantTell');
   });
 });
 
