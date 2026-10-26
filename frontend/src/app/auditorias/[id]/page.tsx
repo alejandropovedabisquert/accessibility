@@ -241,7 +241,7 @@ export default async function AuditDetailPage({ params }: Props) {
                   <td className="whitespace-nowrap px-4 py-3 tabular-nums">{screenLabel(page)}</td>
                 ) : null}
                 <td className="px-4 py-3">
-                  <StatusBadge status={page.status} kind="page" />
+                  <StatusBadge status={page.status} />
                 </td>
                 <td className="px-4 py-3">
                   {page.status === 'completed' ? <ImpactBreakdown counters={page} /> : <span className="text-ink-muted">—</span>}

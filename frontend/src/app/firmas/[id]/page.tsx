@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { ApiError, getSignOff } from '@/lib/api';
@@ -6,7 +5,7 @@ import { deleteSignOffAction } from '@/app/actions';
 import { ConfirmDelete } from '@/components/ConfirmDelete';
 import { CONFORMANCE_LABEL, displayUrl, formatDateTime, screenLabel } from '@/lib/format';
 import { FileIcon } from '@/components/icons';
-import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
+import { Breadcrumbs, Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 import { DownloadMenu } from '@/components/DownloadMenu';
 
 interface Props {
@@ -39,23 +38,13 @@ export default async function SignOffView({ params }: Props) {
 
   return (
     <>
-      <nav aria-label="Migas de pan" className="mb-3 text-sm">
-        <ol className="flex flex-wrap items-center gap-1.5 text-ink-muted">
-          <li>
-            <Link href="/sitios" className="text-accent underline-offset-2 hover:underline">
-              Sitios
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li>
-            <Link href={`/sitios/${snapshot.site.id}`} className="text-accent underline-offset-2 hover:underline">
-              {snapshot.site.name}
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li aria-current="page">Firma del {formatDateTime(signOff.signedAt)}</li>
-        </ol>
-      </nav>
+      <Breadcrumbs
+        trail={[
+          { href: '/sitios', label: 'Sitios' },
+          { href: `/sitios/${snapshot.site.id}`, label: snapshot.site.name },
+        ]}
+        current={`Firma del ${formatDateTime(signOff.signedAt)}`}
+      />
 
       <PageHeader
         title={CONFORMANCE_LABEL[signOff.conformance]}

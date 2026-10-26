@@ -11,8 +11,8 @@ Documentación de producto y endpoints: `README.md`. Decisiones de backend: `bac
 ```bash
 make dev         # backend :3000 + frontend :3001 en local
 make up          # todo con Docker
-make test        # tests del backend (vitest)
-make typecheck   # tsc --noEmit en ambos
+make test        # tests del backend y del mcp (vitest)
+make typecheck   # tsc --noEmit en backend, frontend y mcp; en backend y mcp, también sus tests
 ```
 
 Antes de dar trabajo por terminado, ejecuta la skill `verify` (typecheck + tests + `next build`).
@@ -69,13 +69,20 @@ routes/ → controllers/ → services/ → db/audit.repository.ts
 - **controllers**: solo HTTP. Parsean con zod, llaman a un servicio, responden. Cero lógica.
 - **services**: la lógica. No conocen `req`/`res`.
 - **repository**: el único sitio con SQL. Ningún servicio hace queries por su cuenta.
-- Los errores se lanzan con `AppError` / `badRequest()` / `notFound()` de `utils/errors.ts`; el
-  `errorHandler` los traduce a JSON. No llames a `res.status(...)` para errores.
+- Los errores se lanzan con `AppError` / `badRequest()` / `notFound()` / `conflict()` de
+  `utils/errors.ts`; el `errorHandler` los traduce a JSON. No llames a `res.status(...)` para errores.
+- «Buscar o 404/409» con `requireAudit` / `requirePage` / `requireCompletedPage` de
+  `services/shared/require.ts`, para que todos los servicios digan lo mismo.
 
 ### Frontend
 
 - Server Components para leer datos (`lib/api.ts`). Client Components solo donde hay interacción.
 - Las mutaciones son Server Actions (`app/actions.ts`), no `fetch` desde el cliente.
+- Toda llamada del servidor a la API pasa por `callApi` (`lib/apiClient.ts`): un solo `API_URL` y el
+  mismo texto de error en lecturas y formularios. Nunca lanza; un fallo de red también es un `error`.
+- Un formulario con `useActionState` lleva `useKeepValuesOnError(state)` (`<form {...keep} action>`):
+  React 19 vacía los campos no controlados al terminar la acción **también cuando devuelve un error**,
+  y sin esto un 400 borra lo que el usuario había escrito.
 - El navegador nunca llama a la API directamente: va por el proxy `/api/backend/*` (rewrite en
   `next.config.ts`). Si añades una descarga o un enlace a la API, usa esa ruta.
 
@@ -87,6 +94,9 @@ routes/ → controllers/ → services/ → db/audit.repository.ts
 - Si cambias `mcp/src`, `make mcp`: Claude Code arranca `mcp/dist/index.js`.
 - Tipos compartidos del backend en `src/types/audit.types.ts`; el frontend tiene su copia en
   `src/lib/types.ts` (no hay paquete compartido). **Si cambias uno, cambia el otro.**
+- El MCP copia a mano las listas de tipos de evidencia y de resultados (`mcp/src/tools.ts`), porque no
+  puede importar el backend; `mcp/tests/tools.test.ts` las compara con las de la API. Un recolector
+  nuevo va en `COLLECTED_EVIDENCE_KINDS` (`evidence.service.ts`, no compila si falta) y en esa copia.
 - Los tests de flujo escanean de verdad con Chromium contra fixtures locales. No metas dependencias
   de red en los tests.
 
@@ -134,7 +144,8 @@ una página en su sitio, borra ese fichero. Las incidencias se agrupan con `buil
 `summarizeByRule`, igual que la exportación agregada: si cambias la agrupación, cambian los dos.
 **No le añadas un estado de conformidad** ("parcialmente conforme"): axe no lo puede decir y contradiría
 al de la firma. Los estilos son comunes con el PDF de la firma (`report/reportBase.ts`) para que se
-sigan pareciendo.
+sigan pareciendo, y también la norma legal (`LEGAL_STANDARD`, la usan los dos PDF y el EARL): cuando
+llegue EN 301 549 v4 se cambia ahí, no en cada texto.
 
 **No lances un navegador por escaneo.** Usa `browserPool.acquire()/release()`. Arrancar uno por URL
 costaba ~175 ms extra por URL.

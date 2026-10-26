@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { ApiError, type ApiClient } from './api.js';
+import type { ApiClient } from './api.js';
 
 /**
  * Herramientas de la capa 2 (revision asistida por IA).
@@ -17,7 +17,8 @@ export interface AssertorDefaults {
   model: string | null;
 }
 
-const EVIDENCE_KINDS = [
+// Copias de las listas del backend (el MCP no puede importarlo); tests/tools.test.ts las compara.
+export const EVIDENCE_KINDS = [
   'screenshot',
   'orientation',
   'focus-sequence',
@@ -33,8 +34,8 @@ const EVIDENCE_KINDS = [
   'text-content',
 ] as const;
 
-const OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable', 'untested'] as const;
-const FINDING_OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable'] as const;
+export const OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable', 'untested'] as const;
+export const FINDING_OUTCOMES = ['passed', 'failed', 'cantTell', 'inapplicable'] as const;
 const LEVELS = ['A', 'AA', 'AAA'] as const;
 
 // Lo justo de las respuestas de la API que aqui se reorganiza. El resto pasa tal cual.
@@ -105,12 +106,13 @@ type ToolResult = {
 /** JSON sin espacios: lo lee un modelo, y cada espacio son tokens. */
 const json = (value: unknown): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
 
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 const run = async (fn: () => Promise<ToolResult>): Promise<ToolResult> => {
   try {
     return await fn();
   } catch (error) {
-    const message = error instanceof ApiError || error instanceof Error ? error.message : String(error);
-    return { content: [{ type: 'text', text: message }], isError: true };
+    return { content: [{ type: 'text', text: errorMessage(error) }], isError: true };
   }
 };
 
@@ -135,6 +137,9 @@ const compactFinding = (finding: ApiFinding) => ({
  * de uno recien escrito: quien lo lee ya sabe lo que mando, y cada respuesta se
  * queda en su contexto para el resto de la sesion.
  */
+const pagePath = (auditId: string, pageId: string) =>
+  `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}`;
+
 const findingRef = (finding: ApiFinding) => ({
   id: finding.id,
   outcome: finding.outcome,
@@ -225,7 +230,7 @@ const inBatch = async <T, R>(items: T[], write: (item: T) => Promise<R>) => {
     try {
       done.push(await write(item));
     } catch (error) {
-      errors.push({ index, error: error instanceof Error ? error.message : String(error) });
+      errors.push({ index, error: errorMessage(error) });
     }
   }
   return { done, ...(errors.length > 0 ? { errors } : {}) };
@@ -234,6 +239,11 @@ const inBatch = async <T, R>(items: T[], write: (item: T) => Promise<R>) => {
 export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpServer => {
   const server = new McpServer({ name: 'accessibility', version: '1.0.0' });
   const author = (model?: string) => ({ type: 'ai' as const, name: assertor.name, model: model ?? assertor.model });
+  // Lo comparten la herramienta suelta y la de lotes: la ruta y la autoria no pueden divergir.
+  const postPageFinding = async (auditId: string, pageId: string, finding: object, model?: string) =>
+    findingRef(await api.post<ApiFinding>(`${pagePath(auditId, pageId)}/findings`, { ...finding, assertedBy: author(model) }));
+  const patchFinding = async (findingId: string, changes: object, model?: string) =>
+    findingRef(await api.patch<ApiFinding>(`/findings/${encodeURIComponent(findingId)}`, { ...changes, assertedBy: author(model) }));
 
   server.registerTool(
     'list_audits',
@@ -401,7 +411,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ auditId, pageId, outcomes, levels, maxTargets, detail }) =>
       run(async () => {
         const review = await api.get<ApiPageReview>(
-          `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/review`,
+          `${pagePath(auditId, pageId)}/review`,
           { maxTargets },
         );
         const wanted = outcomes ? new Set<string>(outcomes) : null;
@@ -440,7 +450,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ auditId, pageId, kinds, exclude }) =>
       run(async () =>
         json(
-          await api.get(`/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/evidence`, {
+          await api.get(`${pagePath(auditId, pageId)}/evidence`, {
             kinds: kinds.join(','),
             exclude,
           }),
@@ -461,7 +471,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ auditId, pageId, name }) =>
       run(async () => {
         const image = await api.getBase64(
-          `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/evidence/files/${name}`,
+          `${pagePath(auditId, pageId)}/evidence/files/${name}`,
         );
         return { content: [{ type: 'image', data: image.data, mimeType: image.mimeType }] };
       }),
@@ -482,12 +492,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ auditId, pageId, model, ...finding }) =>
       run(async () =>
         json(
-          findingRef(
-            await api.post<ApiFinding>(
-              `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/findings`,
-              { ...finding, assertedBy: author(model) },
-            ),
-          ),
+          await postPageFinding(auditId, pageId, finding, model),
         ),
       ),
   );
@@ -512,12 +517,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
         json(
           await inBatch(findings, async (finding) => ({
             checkId: finding.checkId,
-            ...findingRef(
-              await api.post<ApiFinding>(
-                `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/findings`,
-                { ...finding, assertedBy: author(model) },
-              ),
-            ),
+            ...(await postPageFinding(auditId, pageId, finding, model)),
           })),
         ),
       ),
@@ -562,12 +562,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ findingId, model, ...changes }) =>
       run(async () =>
         json(
-          findingRef(
-            await api.patch<ApiFinding>(`/findings/${encodeURIComponent(findingId)}`, {
-              ...changes,
-              assertedBy: author(model),
-            }),
-          ),
+          await patchFinding(findingId, changes, model),
         ),
       ),
   );
@@ -595,11 +590,7 @@ export const createServer = (api: ApiClient, assertor: AssertorDefaults): McpSer
     ({ updates, model }) =>
       run(async () =>
         json(
-          await inBatch(updates, async ({ findingId, ...changes }) =>
-            findingRef(
-              await api.patch<ApiFinding>(`/findings/${encodeURIComponent(findingId)}`, { ...changes, assertedBy: author(model) }),
-            ),
-          ),
+          await inBatch(updates, ({ findingId, ...changes }) => patchFinding(findingId, changes, model)),
         ),
       ),
   );

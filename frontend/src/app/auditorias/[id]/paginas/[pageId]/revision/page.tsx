@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import { ApiError, getAudit, getBaseline, getBaselineCandidates, getChecks, getPage, getPageEvidence, getPageReview } from '@/lib/api';
 import { OUTCOME_LABEL, OUTCOMES, displayUrl, screenLabel } from '@/lib/format';
 import { getReviewer } from '@/lib/reviewer';
 import type { Check, CheckReview, EarlOutcome } from '@/lib/types';
 import { EyeIcon } from '@/components/icons';
-import { Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
+import { Breadcrumbs, Card, OutcomeBadge, PageHeader, buttonStyles } from '@/components/ui';
 import { FindingCard } from '@/components/FindingCard';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { BulkInapplicableForm, CreateFindingForm, FalsePositiveForm } from '@/components/ReviewForms';
@@ -24,7 +25,6 @@ const PRINCIPLES = [
   { id: '4', name: 'Robusto' },
 ] as const;
 
-/** Lo que el panel enseña; el texto completo y los formularios se quedan fuera para no cargar de más. */
 /** Franja izquierda de cada criterio: el resultado se ve al pasar sin leer la etiqueta. */
 const OUTCOME_STRIPE: Record<EarlOutcome, string> = {
   passed: 'border-l-ok',
@@ -34,9 +34,24 @@ const OUTCOME_STRIPE: Record<EarlOutcome, string> = {
   untested: 'border-l-line',
 };
 
+/** Lo que el panel enseña; el texto completo y los formularios se quedan fuera para no cargar de más. */
 const PANEL_KINDS = ['screenshot', 'reflow-320', 'zoom-200', 'text-spacing', 'orientation', 'focus-sequence', 'images'] as const;
 
 const PENDING_FILTER = 'por-validar';
+
+function FilterPill({ href, active, children }: { href: string; active: boolean; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'true' : undefined}
+      className={`inline-block rounded-full border px-3 py-1 text-sm ${
+        active ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface hover:bg-surface-muted'
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
 
 type Filter = EarlOutcome | typeof PENDING_FILTER | null;
 
@@ -128,29 +143,14 @@ export default async function PageReviewView({ params, searchParams }: Props) {
 
   return (
     <>
-      <nav aria-label="Migas de pan" className="mb-3 text-sm">
-        <ol className="flex flex-wrap items-center gap-1.5 text-ink-muted">
-          <li>
-            <Link href="/" className="text-accent underline-offset-2 hover:underline">
-              Auditorías
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li>
-            <Link href={`/auditorias/${id}`} className="text-accent underline-offset-2 hover:underline">
-              {audit?.label ?? 'Auditoría'}
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li>
-            <Link href={`/auditorias/${id}/paginas/${pageId}`} className="text-accent underline-offset-2 hover:underline">
-              {displayUrl(review.page.url)}
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li aria-current="page">Revisión manual</li>
-        </ol>
-      </nav>
+      <Breadcrumbs
+        trail={[
+          { href: '/', label: 'Auditorías' },
+          { href: `/auditorias/${id}`, label: audit?.label ?? 'Auditoría' },
+          { href: `/auditorias/${id}/paginas/${pageId}`, label: displayUrl(review.page.url) },
+        ]}
+        current="Revisión manual"
+      />
 
       <PageHeader
         title="Revisión manual"
@@ -234,15 +234,9 @@ export default async function PageReviewView({ params, searchParams }: Props) {
         <ul className="flex flex-wrap gap-2">
           {LEVEL_FILTERS.map((item) => (
             <li key={item.label}>
-              <Link
-                href={href(filter, item.value)}
-                aria-current={level === item.value ? 'true' : undefined}
-                className={`inline-block rounded-full border px-3 py-1 text-sm ${
-                  level === item.value ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface hover:bg-surface-muted'
-                }`}
-              >
+              <FilterPill href={href(filter, item.value)} active={level === item.value}>
                 {item.label} <span className="tabular-nums">({review.checks.filter((check) => matchesLevel(check, item.value)).length})</span>
-              </Link>
+              </FilterPill>
             </li>
           ))}
         </ul>
@@ -252,15 +246,9 @@ export default async function PageReviewView({ params, searchParams }: Props) {
         <ul className="flex flex-wrap gap-2">
           {filters.map((item) => (
             <li key={item.label}>
-              <Link
-                href={href(item.value, level)}
-                aria-current={filter === item.value ? 'true' : undefined}
-                className={`inline-block rounded-full border px-3 py-1 text-sm ${
-                  filter === item.value ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface hover:bg-surface-muted'
-                }`}
-              >
+              <FilterPill href={href(item.value, level)} active={filter === item.value}>
                 {item.label} <span className="tabular-nums">({item.count})</span>
-              </Link>
+              </FilterPill>
             </li>
           ))}
         </ul>

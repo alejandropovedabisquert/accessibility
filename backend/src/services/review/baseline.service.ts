@@ -112,16 +112,9 @@ class BaselineService {
     const baselineDom = await this.dom(baseline, baselineEvidence);
     if (!pageResults) throw notFound('No hay resultado guardado para esta página');
 
-    // Volver a enlazar empieza de cero: lo heredado antes puede ya no valer.
-    this.clearInheritance(page, pageResults);
-    // Crea las propuestas de axe de la pagina, que la herencia puede resolver.
-    await reviewService.pageCheckReviews(page);
-
     const decided = reviewRepository
       .findPageFindings(baseline.id)
       .filter((finding) => DECIDED.has(finding.review.status));
-    const own = reviewRepository.findPageFindings(page.id);
-
     const axeSelectors = decided.flatMap((finding) => {
       if (finding.source.kind === 'axe-needs-review') return ruleNodes(pageResults, 'incomplete', finding.source.ruleId).map(nodeSelector);
       if (finding.source.kind === 'axe-false-positive') return ruleNodes(pageResults, 'violations', finding.source.ruleId).map(nodeSelector);
@@ -130,6 +123,15 @@ class BaselineService {
     const selectors = [...new Set([...decided.flatMap((finding) => finding.targets.map((target) => target.selector)), ...axeSelectors])];
 
     const [inBaseline, inPage] = [await resolveDom(baselineDom, selectors), await resolveDom(pageDom, selectors)];
+
+    // Volver a enlazar empieza de cero: lo heredado antes puede ya no valer. Va despues de todo lo
+    // que puede fallar (disco, navegador), para no dejar la pagina sin herencia y con la fila de
+    // `baseline` del enlace anterior apuntando a copias borradas.
+    this.clearInheritance(page, pageResults);
+    // Crea las propuestas de axe de la pagina, que la herencia puede resolver.
+    await reviewService.pageCheckReviews(page);
+    const own = reviewRepository.findPageFindings(page.id);
+
     const wholePageMatch = inBaseline.body !== '' && inBaseline.body === inPage.body;
     /** Huella de un elemento si es igual (el y su region) en las dos paginas. */
     const matchOne = (selector: string): string | null => {

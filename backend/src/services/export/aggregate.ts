@@ -24,7 +24,7 @@ import { fingerprint, normalizeHtml, type FingerprintPattern } from './fingerpri
 export const AGGREGATED_SCHEMA_VERSION = '1.1';
 
 /** Nodos de ejemplo por regla en el bloque resumido de mejoras. */
-export const MAX_IMPROVEMENT_EXAMPLES = 3;
+const MAX_IMPROVEMENT_EXAMPLES = 3;
 
 export type ExportDetail = 'full' | 'legal';
 

@@ -22,8 +22,7 @@ import type {
   ScanScreen,
 } from './types';
 import { screenQuery } from './format';
-
-const API_URL = process.env.API_URL ?? 'http://localhost:3000';
+import { callApi } from './apiClient';
 
 export class ApiError extends Error {
   constructor(
@@ -34,21 +33,11 @@ export class ApiError extends Error {
   }
 }
 
-/** Fetch desde el servidor de Next hacia la API. Nunca cachea: los datos cambian solos. */
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`${API_URL}/api${path}`, { ...init, cache: 'no-store' });
-  } catch {
-    throw new ApiError(`No se pudo conectar con la API en ${API_URL}`, 503);
-  }
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new ApiError(body?.error ?? `La API devolvio ${res.status}`, res.status);
-  }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+/** Lectura desde el servidor de Next; lanza `ApiError` para que la recojan `notFound()` o `error.tsx`. */
+async function apiFetch<T>(path: string): Promise<T> {
+  const result = await callApi<T>(path);
+  if (!result.ok) throw new ApiError(result.error, result.status);
+  return result.data;
 }
 
 export const getMeta = () => apiFetch<Meta>('/meta');

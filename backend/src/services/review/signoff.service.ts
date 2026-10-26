@@ -26,7 +26,7 @@ import type {
   SignOffSnapshot,
 } from '../../types/audit.types';
 
-export const MAX_SAMPLE_PAGES = 50;
+const MAX_SAMPLE_PAGES = 50;
 
 /**
  * Peor resultado de un criterio en la muestra. A diferencia de una pagina,

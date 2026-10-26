@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { downloadFlag } from './audit.schema';
 import { DEFAULT_MAX_NODES, MAX_NODES_LIMIT } from '../services/export/compact';
 import { MAX_SITE_HOSTS } from '../services/review/review.service';
 import { COLLECTED_EVIDENCE_KINDS } from '../services/evidence/evidence.service';
@@ -18,7 +19,7 @@ export const createSiteSchema = z
   })
   .strict();
 
-const outcomeSchema = z.enum(['passed', 'failed', 'cantTell', 'inapplicable']);
+export const outcomeSchema = z.enum(['passed', 'failed', 'cantTell', 'inapplicable']);
 
 const targetSchema = z
   .object({
@@ -165,4 +166,5 @@ export const pageReviewQuerySchema = z.object({
  */
 export const earlQuerySchema = z.object({
   target: z.enum(['AA', 'AAA'], { message: 'target debe ser AA o AAA' }).default('AA'),
+  download: downloadFlag,
 });

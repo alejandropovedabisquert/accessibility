@@ -1,8 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import { z } from 'zod';
 import config from './config/config';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
+
+// Los mensajes de zod llegan tal cual a la UI ("urls: Too big: …"); los que escribimos a mano ganan.
+z.config(z.locales.es());
 
 const app = express();
 

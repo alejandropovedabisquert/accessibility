@@ -88,6 +88,12 @@ export const listAuditsSchema = z.object({
   search: z.string().trim().min(1).max(200).optional(),
 });
 
+/** `?download=1` pide el fichero como adjunto; cualquier otro valor, o ninguno, lo enseña. */
+export const downloadFlag = z
+  .string()
+  .optional()
+  .transform((value) => value === '1');
+
 export const historySchema = z.object({
   url: urlSchema,
   // La serie es por URL + seccion: sin `include` es la de la pagina entera.
@@ -103,12 +109,18 @@ export const historySchema = z.object({
     .optional(),
   device: z.string().trim().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(30),
-});
+}).transform(({ url, include, viewport, device, limit }) => ({
+  url,
+  include: include ?? null,
+  screen: viewport || device ? { viewport: viewport ?? null, device: device ?? null } : undefined,
+  limit,
+}));
 
 /** Sin `format` se devuelve el JSON crudo de siempre; `compact` es la exportacion para IA. */
 export const resultsQuerySchema = z.object({
   format: z.enum(['compact']).optional(),
   maxNodes: z.coerce.number().int().min(1).max(MAX_NODES_LIMIT).default(DEFAULT_MAX_NODES),
+  download: downloadFlag,
 });
 
 /** La exportacion agregada solo existe en formato compacto: `format` es obligatorio para poder anadir otros. */

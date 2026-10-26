@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { PlusIcon } from '@/components/icons';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type {
   AuditStatus,
   EarlOutcome,
@@ -13,13 +13,13 @@ import type {
   RuleLevel,
   ScanScope,
 } from '@/lib/types';
+import { IMPACTS } from '@/lib/types';
 import {
-  AUDIT_STATUS_LABEL,
   COMPLIANCE_LABEL,
   IMPACT_LABEL,
   LEVEL_LABEL,
   OUTCOME_LABEL,
-  PAGE_STATUS_LABEL,
+  STATUS_LABEL,
   REVIEW_STATUS_LABEL,
   sectionLabel,
 } from '@/lib/format';
@@ -75,6 +75,27 @@ export const buttonStyles = {
   destructive: `${BUTTON_BASE} border-critical bg-critical text-on-critical shadow-soft not-disabled:hover:border-critical-strong not-disabled:hover:bg-critical-strong`,
 };
 
+/** Migas de pan: los niveles anteriores enlazan y el último es la página actual. */
+export function Breadcrumbs({ trail, current }: { trail: Array<{ href: string; label: ReactNode }>; current: ReactNode }) {
+  return (
+    <nav aria-label="Migas de pan" className="mb-3 text-sm">
+      <ol className="flex flex-wrap items-center gap-1.5 text-ink-muted">
+        {trail.map((crumb) => (
+          <Fragment key={crumb.href}>
+            <li>
+              <Link href={crumb.href} className="text-accent underline-offset-2 hover:underline">
+                {crumb.label}
+              </Link>
+            </li>
+            <li aria-hidden="true">/</li>
+          </Fragment>
+        ))}
+        <li aria-current="page">{current}</li>
+      </ol>
+    </nav>
+  );
+}
+
 const STATUS_STYLE: Record<AuditStatus | PageStatus, string> = {
   queued: 'bg-surface-muted text-ink-muted border-line',
   pending: 'bg-surface-muted text-ink-muted border-line',
@@ -83,12 +104,8 @@ const STATUS_STYLE: Record<AuditStatus | PageStatus, string> = {
   failed: 'bg-critical-soft text-critical border-critical/30',
 };
 
-export function StatusBadge({ status, kind = 'audit' }: { status: AuditStatus | PageStatus; kind?: 'audit' | 'page' }) {
-  const label =
-    kind === 'audit'
-      ? AUDIT_STATUS_LABEL[status as AuditStatus] ?? status
-      : PAGE_STATUS_LABEL[status as PageStatus] ?? status;
-
+export function StatusBadge({ status }: { status: AuditStatus | PageStatus }) {
+  const label = STATUS_LABEL[status];
   const live = status === 'running' || status === 'queued';
 
   return (
@@ -163,7 +180,7 @@ export function ImpactBreakdown({
   counters: Pick<Counters, Impact>;
   size?: 'sm' | 'md';
 }) {
-  const entries = (['critical', 'serious', 'moderate', 'minor'] as Impact[])
+  const entries = IMPACTS
     .map((impact) => ({ impact, count: counters[impact] }))
     .filter((entry) => entry.count > 0);
 

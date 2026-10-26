@@ -28,7 +28,7 @@ export const EVIDENCE_LIMITS = {
 } as const;
 
 /** Nombre del DOM guardado tal y como quedo tras cargar, para comparar paginas sin volver a la web. */
-export const DOM_SNAPSHOT = 'dom.html';
+const DOM_SNAPSHOT = 'dom.html';
 
 /** Todos los tipos con recolector. La API los valida contra esta lista. */
 export const COLLECTED_EVIDENCE_KINDS = [

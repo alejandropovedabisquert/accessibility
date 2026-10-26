@@ -6,7 +6,7 @@ import { ApiError, getChecks, getSignOffPreview, getSite, listSignOffs } from '@
 import { CONFORMANCE_LABEL, displayUrl, formatDateTime, groupByPage, screenLabel, siteCheckOutcome } from '@/lib/format';
 import { getReviewer } from '@/lib/reviewer';
 import { SearchCheckIcon } from '@/components/icons';
-import { Card, FIELD, OutcomeBadge, PageHeader, ScopeBadge, buttonStyles } from '@/components/ui';
+import { Breadcrumbs, Card, FIELD, OutcomeBadge, PageHeader, ScopeBadge, buttonStyles } from '@/components/ui';
 import { FindingCard } from '@/components/FindingCard';
 import { CreateFindingForm, SignOffForm } from '@/components/ReviewForms';
 import { SelectLatestButton } from '@/components/SelectLatestButton';
@@ -60,17 +60,7 @@ export default async function SiteDetail({ params, searchParams }: Props) {
 
   return (
     <>
-      <nav aria-label="Migas de pan" className="mb-3 text-sm">
-        <ol className="flex flex-wrap items-center gap-1.5 text-ink-muted">
-          <li>
-            <Link href="/sitios" className="text-accent underline-offset-2 hover:underline">
-              Sitios
-            </Link>
-          </li>
-          <li aria-hidden="true">/</li>
-          <li aria-current="page">{site.name}</li>
-        </ol>
-      </nav>
+      <Breadcrumbs trail={[{ href: '/sitios', label: 'Sitios' }]} current={site.name} />
 
       <PageHeader title={site.name} description={<>Hosts: {site.origins.join(', ')}</>} />
 

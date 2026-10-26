@@ -63,11 +63,10 @@ export const AUDIT_STATUS_LABEL: Record<AuditStatus, string> = {
   failed: 'Fallida',
 };
 
-export const PAGE_STATUS_LABEL: Record<PageStatus, string> = {
+/** Auditorías y páginas comparten los estados salvo `queued`/`pending`, que no se solapan. */
+export const STATUS_LABEL: Record<AuditStatus | PageStatus, string> = {
+  ...AUDIT_STATUS_LABEL,
   pending: 'Pendiente',
-  running: 'Escaneando',
-  completed: 'Completada',
-  failed: 'Fallida',
 };
 
 export const IMPACT_LABEL: Record<Impact, string> = {
