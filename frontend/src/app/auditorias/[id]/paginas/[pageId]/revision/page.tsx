@@ -39,10 +39,12 @@ const PANEL_KINDS = ['screenshot', 'reflow-320', 'zoom-200', 'text-spacing', 'or
 
 const PENDING_FILTER = 'por-validar';
 
+/** Filtrar no es cambiar de página: se queda donde estaba en vez de subir arriba del todo. */
 function FilterPill({ href, active, children }: { href: string; active: boolean; children: ReactNode }) {
   return (
     <Link
       href={href}
+      scroll={false}
       aria-current={active ? 'true' : undefined}
       className={`inline-block rounded-full border px-3 py-1 text-sm ${
         active ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface hover:bg-surface-muted'

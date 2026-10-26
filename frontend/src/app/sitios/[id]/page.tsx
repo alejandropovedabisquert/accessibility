@@ -14,7 +14,7 @@ import { ConfirmDelete } from '@/components/ConfirmDelete';
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ muestra?: string | string[] }>;
+  searchParams: Promise<{ muestra?: string | string[]; comprobar?: string }>;
 }
 
 const BLOCKER_LABEL = {
@@ -36,8 +36,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SiteDetail({ params, searchParams }: Props) {
   const { id } = await params;
-  const rawSample = (await searchParams).muestra;
+  const query = await searchParams;
+  const rawSample = query.muestra;
   const sample = (Array.isArray(rawSample) ? rawSample : rawSample ? [rawSample] : []).filter(Boolean);
+  // Enviado sin elegir nada: sin `comprobar` no se distingue de entrar en la página sin más.
+  const emptySample = query.comprobar === '1' && sample.length === 0;
 
   let site;
   try {
@@ -194,6 +197,7 @@ export default async function SiteDetail({ params, searchParams }: Props) {
         {site.pages.length > 0 ? (
           <Card className="mb-4 p-5">
             <form method="get" action={`/sitios/${id}#h-firma`}>
+              <input type="hidden" name="comprobar" value="1" />
               <fieldset>
                 <legend className="mb-2 text-sm font-medium">Muestra</legend>
                 <p className="mb-3 text-xs text-ink-muted">
@@ -280,6 +284,12 @@ export default async function SiteDetail({ params, searchParams }: Props) {
               </div>
             </form>
           </Card>
+        ) : null}
+
+        {emptySample ? (
+          <p role="alert" className="mb-4 rounded-md border border-moderate/30 bg-moderate-soft px-4 py-3 text-sm text-moderate">
+            No has elegido ninguna página: marca o elige al menos un escaneo para comprobar la muestra.
+          </p>
         ) : null}
 
         {sample.length > 0 && !preview ? (
