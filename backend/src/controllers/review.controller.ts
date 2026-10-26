@@ -115,9 +115,9 @@ export const deleteSignOff = asyncHandler(async (req: Request<IdParams>, res: Re
 });
 
 export const getSignOffEarl = asyncHandler(async (req: Request<IdParams>, res: Response) => {
-  const { target } = earlQuerySchema.parse(req.query);
+  const { target, download } = earlQuerySchema.parse(req.query);
   const { signOff, siteName, earl } = await signOffService.earl(req.params.id, target);
-  if (req.query.download === '1') {
+  if (download) {
     const suffix = target === 'AAA' ? '-aaa' : '';
     res.setHeader(
       'Content-Disposition',

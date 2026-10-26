@@ -57,10 +57,10 @@ const sendCompactJson = (res: Response, body: unknown, fileName: string | null) 
 };
 
 export const exportAudit = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const { maxNodes, detail } = auditExportQuerySchema.parse(req.query);
+  const { maxNodes, detail, download } = auditExportQuerySchema.parse(req.query);
   const exported = await exportService.auditCompact(req.params.id, maxNodes, detail);
   const fileName =
-    req.query.download === '1'
+    download
       ? `accesibilidad-ia-auditoria-${exported.audit.id.slice(0, 8)}${detail === 'legal' ? '-legal' : ''}.json`
       : null;
   sendCompactJson(res, exported, fileName);
@@ -73,19 +73,19 @@ export const getPage = asyncHandler(async (req: Request<PageParams>, res: Respon
 });
 
 export const getPageResults = asyncHandler(async (req: Request<PageParams>, res: Response) => {
-  const { format, maxNodes } = resultsQuerySchema.parse(req.query);
+  const { format, maxNodes, download } = resultsQuerySchema.parse(req.query);
 
   if (format === 'compact') {
     const compact = await exportService.pageCompact(req.params.id, req.params.pageId, maxNodes);
     const fileName =
-      req.query.download === '1' ? `accesibilidad-ia-${slugifyUrl(compact.page.url)}.json` : null;
+      download ? `accesibilidad-ia-${slugifyUrl(compact.page.url)}.json` : null;
     sendCompactJson(res, compact, fileName);
     return;
   }
 
   const { page, results } = await auditService.getPageResults(req.params.id, req.params.pageId);
 
-  if (req.query.download === '1') {
+  if (download) {
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="informe-accesibilidad-${slugifyUrl(page.url)}.json"`
@@ -104,15 +104,8 @@ export const getAuditPdf = asyncHandler(async (req: Request<{ id: string }>, res
 });
 
 export const getHistory = asyncHandler(async (req: Request, res: Response) => {
-  const { url, include, viewport, device, limit } = historySchema.parse(req.query);
-  const scope = include ?? null;
-  const screen = viewport || device ? { viewport: viewport ?? null, device: device ?? null } : undefined;
-  res.json({
-    url,
-    include: scope,
-    ...(screen ?? {}),
-    points: auditService.history(url, scope, screen, limit),
-  });
+  const { url, include, screen, limit } = historySchema.parse(req.query);
+  res.json({ url, include, ...screen, points: auditService.history(url, include, screen, limit) });
 });
 
 export const getScannedUrls = asyncHandler(async (_req: Request, res: Response) => {

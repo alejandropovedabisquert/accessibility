@@ -24,7 +24,7 @@ function mergeSection(
   return merged;
 }
 
-export function mergeLocale(from: LocaleData, extra: LocaleData): LocaleData {
+function mergeLocale(from: LocaleData, extra: LocaleData): LocaleData {
   return {
     ...from,
     ...extra,

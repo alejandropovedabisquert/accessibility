@@ -57,7 +57,7 @@ export const OUTCOME_ORDER: readonly EarlOutcome[] = ['failed', 'cantTell', 'pas
 const isActive = (finding: ManualFinding) => finding.review.status !== 'rejected';
 
 /** Reglas de axe que la capa 3 ha declarado falso positivo para este criterio (y no ha rechazado despues). */
-export const falsePositiveRules = (findings: readonly ManualFinding[]): Set<string> =>
+const falsePositiveRules = (findings: readonly ManualFinding[]): Set<string> =>
   new Set(
     findings.flatMap((finding) =>
       finding.source.kind === 'axe-false-positive' && isActive(finding) ? [finding.source.ruleId] : [],

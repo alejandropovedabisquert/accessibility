@@ -3,12 +3,12 @@ import { chromium, devices, firefox, webkit } from 'playwright';
 import {
   AVAILABLE_TAGS,
   DEFAULT_TAGS,
-  DEFAULT_VIEWPORT,
   MAX_SELECTOR_LENGTH,
   MAX_VIEWPORTS,
   SECTION_PRESETS,
   VIEWPORT_PRESETS,
 } from '../services/scanner/scan.service';
+import { DEFAULT_VIEWPORT } from '../types/audit.types';
 import auditService from '../services/audit/audit.service';
 import config from '../config/config';
 

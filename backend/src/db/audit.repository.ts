@@ -97,6 +97,20 @@ interface IssueRow {
   description: string;
 }
 
+/** Busqueda del listado: por etiqueta o por la URL de alguna de sus paginas. Usa `@search`. */
+const matchesSearch = (alias: string) => `(
+  ${alias}.label LIKE @search
+  OR EXISTS (SELECT 1 FROM audit_pages p WHERE p.audit_id = ${alias}.id AND p.url LIKE @search)
+)`;
+
+const paginated = <T>(items: T[], total: number, query: ListAuditsQuery): Paginated<T> => ({
+  items,
+  page: query.page,
+  pageSize: query.pageSize,
+  total,
+  totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
+});
+
 const counters = (row: Counters): Counters => ({
   violations: row.violations,
   violationNodes: row.violationNodes,
@@ -432,10 +446,7 @@ class AuditRepository {
       params.status = query.status;
     }
     if (query.search) {
-      where.push(`(
-        a.label LIKE @search
-        OR EXISTS (SELECT 1 FROM audit_pages p WHERE p.audit_id = a.id AND p.url LIKE @search)
-      )`);
+      where.push(matchesSearch('a'));
       params.search = `%${query.search}%`;
     }
 
@@ -452,13 +463,7 @@ class AuditRepository {
       `)
       .all({ ...params, limit: query.pageSize, offset: (query.page - 1) * query.pageSize }) as AuditRow[];
 
-    return {
-      items: rows.map(toAudit),
-      page: query.page,
-      pageSize: query.pageSize,
-      total,
-      totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
-    };
+    return paginated(rows.map(toAudit), total, query);
   }
 
   /**
@@ -475,12 +480,7 @@ class AuditRepository {
       params.status = query.status;
     }
     if (query.search) {
-      where.push(`EXISTS (
-        SELECT 1 FROM audits g WHERE g.group_id = a.group_id AND (
-          g.label LIKE @search
-          OR EXISTS (SELECT 1 FROM audit_pages p WHERE p.audit_id = g.id AND p.url LIKE @search)
-        )
-      )`);
+      where.push(`EXISTS (SELECT 1 FROM audits g WHERE g.group_id = a.group_id AND ${matchesSearch('g')})`);
       params.search = `%${query.search}%`;
     }
 
@@ -498,17 +498,12 @@ class AuditRepository {
       .all({ ...params, limit: query.pageSize, offset: (query.page - 1) * query.pageSize }) as AuditRow[];
 
     const runs = this.findGroupRuns(rows.map((row) => row.group_id));
-    return {
-      items: rows.map((row) => ({
-        id: row.group_id,
-        latest: toAudit(row),
-        previous: (runs.get(row.group_id) ?? []).filter((run) => run.id !== row.id),
-      })),
-      page: query.page,
-      pageSize: query.pageSize,
-      total,
-      totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
-    };
+    const items = rows.map((row) => ({
+      id: row.group_id,
+      latest: toAudit(row),
+      previous: (runs.get(row.group_id) ?? []).filter((run) => run.id !== row.id),
+    }));
+    return paginated(items, total, query);
   }
 
   findGroup(groupId: string): AuditGroup | null {

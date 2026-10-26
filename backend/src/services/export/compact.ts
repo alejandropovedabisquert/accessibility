@@ -74,11 +74,11 @@ export interface CompactPageExport {
 
 type AxeNode = AxeResult['nodes'][number];
 
-export const EXCLUDE_WARNING = (selector: string) =>
+const EXCLUDE_WARNING = (selector: string) =>
   `Se excluyo del analisis "${selector}": no se ha auditado. Si es contenido propio y no de un tercero, ` +
   'forma parte del sitio, cuenta para el cumplimiento legal y hay que revisarlo por separado.';
 
-export const INCLUDE_WARNING = (selector: string) =>
+const INCLUDE_WARNING = (selector: string) =>
   `Solo se analizo "${selector}": axe omite las reglas de ambito de pagina ` +
   '(html-has-lang, document-title, landmark-one-main, region...), que no se han comprobado.';
 
@@ -151,7 +151,7 @@ export const compareFindingPriority = (a: Prioritized, b: Prioritized): number =
   LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level) ||
   IMPACT_RANK(a.impact) - IMPACT_RANK(b.impact);
 
-export const compareFindings = (a: CompactFinding, b: CompactFinding): number =>
+const compareFindings = (a: CompactFinding, b: CompactFinding): number =>
   compareFindingPriority(a, b) || b.count - a.count || a.rule.localeCompare(b.rule);
 
 /** Reglas de axe que acaban en `findings`, cada una con su estado. */

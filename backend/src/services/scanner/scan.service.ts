@@ -7,8 +7,6 @@ import { AsyncTaskQueue } from '../shared/AsyncTaskQueue';
 import evidenceService, { type EvidenceBundle } from '../evidence/evidence.service';
 import { toMessage } from '../../utils/errors';
 import { DEFAULT_VIEWPORT } from '../../types/audit.types';
-
-export { DEFAULT_VIEWPORT };
 import type { AuditConfig, AxeResults, ScanBrowser, ScanScope, Viewport } from '../../types/audit.types';
 
 export interface ScanJob {
