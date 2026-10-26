@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { ApiError, getAudit, getBaseline, getBaselineCandidates, getChecks, getPage, getPageEvidence, getPageReview } from '@/lib/api';
+import { ApiError, getAudit, getBaseline, getHeirs, getChecks, getPage, getPageEvidence, getPageReview } from '@/lib/api';
 import { OUTCOME_LABEL, OUTCOMES, displayUrl, screenLabel } from '@/lib/format';
 import { getReviewer } from '@/lib/reviewer';
 import type { Check, CheckReview, EarlOutcome } from '@/lib/types';
@@ -11,7 +11,7 @@ import { Breadcrumbs, Card, OutcomeBadge, PageHeader, buttonStyles } from '@/com
 import { FindingCard } from '@/components/FindingCard';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { BulkInapplicableForm, CreateFindingForm, FalsePositiveForm } from '@/components/ReviewForms';
-import { BaselinePanel } from '@/components/BaselinePanel';
+import { BaselinePanel, HeirsPanel } from '@/components/BaselinePanel';
 
 interface Props {
   params: Promise<{ id: string; pageId: string }>;
@@ -105,13 +105,13 @@ export default async function PageReviewView({ params, searchParams }: Props) {
     throw error;
   }
 
-  const [catalog, audit, evidence, reviewer, baseline, candidates] = await Promise.all([
+  const [catalog, audit, evidence, reviewer, baseline, heirs] = await Promise.all([
     getChecks(),
     getAudit(id).catch(() => null),
     review.evidence ? getPageEvidence(id, pageId, [...PANEL_KINDS]).catch(() => null) : Promise.resolve(null),
     getReviewer(),
     getBaseline(id, pageId).catch(() => null),
-    getBaselineCandidates(id, pageId).catch(() => []),
+    getHeirs(id, pageId).catch(() => null),
   ]);
 
   const checkById = new Map<string, Check>(catalog.checks.map((check) => [check.id, check]));
@@ -222,14 +222,10 @@ export default async function PageReviewView({ params, searchParams }: Props) {
         <h2 id="h-linea-base" className="mb-3 text-lg font-semibold">
           Línea base
         </h2>
-        <BaselinePanel
-          report={baseline}
-          candidates={candidates}
-          auditId={id}
-          pageId={pageId}
-          path={path}
-          reviewer={reviewer}
-        />
+        <div className="space-y-4">
+          <BaselinePanel report={baseline} auditId={id} pageId={pageId} path={path} reviewer={reviewer} />
+          {heirs ? <HeirsPanel overview={heirs} auditId={id} pageId={pageId} path={path} reviewer={reviewer} /> : null}
+        </div>
       </section>
 
       <nav aria-label="Filtrar por nivel" className="mb-3">

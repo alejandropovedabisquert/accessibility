@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { CUSTOM_SECTION } from '@/lib/format';
 import { REVIEWER_COOKIE } from '@/lib/reviewer';
 import { callApi } from '@/lib/apiClient';
-import type { Audit, Site, SignOff } from '@/lib/types';
+import type { Audit, HeirResult, Site, SignOff } from '@/lib/types';
 
 export interface FormState {
   error: string | null;
@@ -326,6 +326,31 @@ export async function linkBaselineAction(_prev: FormState, formData: FormData): 
   await rememberReviewer(by);
   revalidatePath(internalPath(formData));
   return { error: null };
+}
+
+export interface HeirsState extends FormState {
+  results?: HeirResult[];
+}
+
+/**
+ * Enlazar desde la línea base las páginas elegidas (o recalcular las que ya heredan). La API sigue con
+ * las demás si una falla: el resultado de cada una vuelve al formulario.
+ */
+export async function linkHeirsAction(_prev: HeirsState, formData: FormData): Promise<HeirsState> {
+  const by = text(formData, 'by');
+  const pageIds = formData.getAll('heirs').map(String).filter(Boolean);
+  if (!by) return { error: 'Indica quién enlaza.' };
+  if (pageIds.length === 0) return { error: 'No has elegido ninguna página.' };
+
+  const result = await callApi<HeirResult[]>(
+    `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/heirs`,
+    { method: 'POST', body: { pageIds, by } },
+  );
+  if (!result.ok) return { error: result.error };
+
+  await rememberReviewer(by);
+  revalidatePath(internalPath(formData));
+  return { error: null, results: result.data };
 }
 
 export async function unlinkBaselineAction(_prev: FormState, formData: FormData): Promise<FormState> {

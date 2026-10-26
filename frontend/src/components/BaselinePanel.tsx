@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { displayUrl, formatDateTime, screenLabel } from '@/lib/format';
-import type { AuditPage, BaselineReport, NotInheritedReason } from '@/lib/types';
+import type { AuditPage, BaselineReport, HeirsOverview, NotInheritedReason } from '@/lib/types';
 import { Card } from '@/components/ui';
-import { BaselineForm, UnlinkBaselineForm } from '@/components/ReviewForms';
+import { BaselineForm, HeirsForm, RecalculateHeirsForm, UnlinkBaselineForm } from '@/components/ReviewForms';
 
 const REGION_LABEL = { same: 'Igual', changed: 'Cambia', 'only-baseline': 'Solo en la línea base', 'only-page': 'Solo en esta página' } as const;
 const REGION_STYLE = { same: 'text-ok', changed: 'text-moderate', 'only-baseline': 'text-ink-muted', 'only-page': 'text-ink-muted' } as const;
@@ -22,40 +22,24 @@ const REASON_LABEL: Record<NotInheritedReason, string> = {
  */
 export function BaselinePanel({
   report,
-  candidates,
   auditId,
   pageId,
   path,
   reviewer,
 }: {
   report: BaselineReport | null;
-  candidates: Array<{ page: AuditPage; decidedFindings: number }>;
   auditId: string;
   pageId: string;
   path: string;
   reviewer: string;
 }) {
   if (!report) {
-    const usable = candidates
-      .filter((candidate) => candidate.decidedFindings > 0)
-      .map((candidate) => ({
-        id: candidate.page.id,
-        label: `${displayUrl(candidate.page.url)}${candidate.page.include ? ` · ${candidate.page.include}` : ''} · ${screenLabel(candidate.page)} · ${candidate.decidedFindings} hallazgo(s) decidido(s)`,
-      }));
     return (
-      <Card className="space-y-3 p-5">
-        <p className="text-sm">
-          Si esta página comparte plantilla con otra ya revisada, enlázala como línea base: se heredan, ya validados, los
-          hallazgos cuyos elementos y región (cabecera, navegación, pie…) son estructuralmente iguales en las dos. Lo que
-          cambie se queda para revisar aquí.
+      <Card className="p-5">
+        <p className="text-sm text-ink-muted">
+          No hereda de ninguna página. Las herencias se reparten desde la línea base: abre la revisión de la página que
+          ya está revisada y elige allí cuáles heredan de ella.
         </p>
-        {usable.length > 0 ? (
-          <BaselineForm auditId={auditId} pageId={pageId} path={path} reviewer={reviewer} candidates={usable} />
-        ) : (
-          <p className="text-sm text-ink-muted">
-            No hay ninguna página de la misma pantalla, en esta auditoría o en su sitio, con hallazgos ya decididos.
-          </p>
-        )}
       </Card>
     );
   }
@@ -111,12 +95,123 @@ export function BaselinePanel({
 
       <p className="text-xs text-ink-muted">
         Lo heredado sigue al original: si se corrige o se rechaza allí, cambia aquí también. Si la línea base tiene hallazgos
-        nuevos, recalcula para traerlos.
+        nuevos, recalcula para traerlos (aquí, o para todas sus herederas desde la línea base).
       </p>
       <div className="flex flex-wrap items-start gap-6">
-        <BaselineForm auditId={auditId} pageId={pageId} path={path} reviewer={reviewer} candidates={[]} current={report.baseline.pageId} />
+        <BaselineForm auditId={auditId} pageId={pageId} path={path} reviewer={reviewer} current={report.baseline.pageId} />
         <UnlinkBaselineForm auditId={auditId} pageId={pageId} path={path} />
       </div>
+    </Card>
+  );
+}
+
+const pageLabel = (page: AuditPage) =>
+  `${displayUrl(page.url)}${page.include ? ` · ${page.include}` : ''} · ${screenLabel(page)}`;
+
+/**
+ * Herederas: las páginas que heredan de esta, elegidas desde aquí. Una heredera no puede ser línea base
+ * (sin cadenas: lo heredado viene siempre de una página revisada a mano).
+ */
+export function HeirsPanel({
+  overview,
+  auditId,
+  pageId,
+  path,
+  reviewer,
+}: {
+  overview: HeirsOverview;
+  auditId: string;
+  pageId: string;
+  path: string;
+  reviewer: string;
+}) {
+  const heirs = overview.candidates.filter((candidate) => candidate.status === 'heir');
+  const others = overview.candidates.filter((candidate) => candidate.status !== 'heir');
+
+  return (
+    <Card className="space-y-4 p-5">
+      {overview.chain ? (
+        <p role="alert" className="rounded-md border border-moderate/30 bg-moderate-soft px-3 py-2 text-sm text-moderate">
+          Esta página hereda y a la vez tiene herederas, una cadena de antes de que se prohibieran. Quítale su herencia o
+          quita la de sus herederas: mientras tanto no se pueden recalcular.
+        </p>
+      ) : null}
+
+      {heirs.length > 0 ? (
+        <section aria-labelledby="h-herederas" className="space-y-3">
+          <h3 id="h-herederas" className="text-sm font-semibold">
+            Heredan de esta: {heirs.length}
+          </h3>
+          <ul className="space-y-2">
+            {heirs.map(({ page, inherited, notInherited }) => (
+              <li key={page.id} className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <span>
+                  <Link
+                    href={`/auditorias/${page.auditId}/paginas/${page.id}/revision`}
+                    className="text-accent underline underline-offset-2"
+                  >
+                    {pageLabel(page)}
+                  </Link>
+                  <span className="block text-xs text-ink-muted">
+                    {inherited ?? 0} heredado(s) · {notInherited ?? 0} sin heredar, a revisar en la página
+                  </span>
+                </span>
+                <UnlinkBaselineForm auditId={page.auditId} pageId={page.id} path={path} label="Quitar herencia" />
+              </li>
+            ))}
+          </ul>
+          {!overview.inheritsFrom ? (
+            <RecalculateHeirsForm
+              auditId={auditId}
+              pageId={pageId}
+              path={path}
+              reviewer={reviewer}
+              heirIds={heirs.map(({ page }) => page.id)}
+            />
+          ) : null}
+        </section>
+      ) : null}
+
+      {overview.inheritsFrom ? (
+        <p className="text-sm text-ink-muted">
+          Esta página hereda de {displayUrl(overview.inheritsFrom.url)}, así que no puede ser línea base de otras. Para
+          repartir desde aquí, quítale antes su herencia.
+        </p>
+      ) : overview.decidedFindings === 0 ? (
+        <p className="text-sm text-ink-muted">
+          Aún no tiene hallazgos propios decididos: valida o corrige alguno para poder repartirlo.
+        </p>
+      ) : others.length === 0 ? (
+        <p className="text-sm text-ink-muted">
+          {heirs.length > 0
+            ? 'Todas las páginas comparables heredan ya de esta.'
+            : 'No hay más páginas de la misma pantalla en esta auditoría o en su sitio.'}
+        </p>
+      ) : (
+        <>
+          <p className="text-sm">
+            Elige las páginas que comparten plantilla con esta: heredan, ya validados, sus {overview.decidedFindings}{' '}
+            hallazgo(s) decididos cuyos elementos y región (cabecera, navegación, pie…) sean estructuralmente iguales. Lo que
+            cambie se queda para revisar en cada una. Cada página tarda unos segundos.
+          </p>
+          <HeirsForm
+            auditId={auditId}
+            pageId={pageId}
+            path={path}
+            reviewer={reviewer}
+            options={others.map((candidate) => ({
+              id: candidate.page.id,
+              label: pageLabel(candidate.page),
+              disabledReason:
+                candidate.status === 'other-baseline'
+                  ? `Ya hereda de ${displayUrl(candidate.baselineUrl ?? '')}: quítale esa herencia para moverla aquí.`
+                  : candidate.status === 'has-heirs'
+                    ? 'Es línea base de otras páginas: no puede heredar.'
+                    : undefined,
+            }))}
+          />
+        </>
+      )}
     </Card>
   );
 }

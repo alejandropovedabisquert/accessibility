@@ -1,5 +1,6 @@
 import type {
   BaselineReport,
+  HeirsOverview,
   SignOff,
   SignOffDetail,
   SignOffPreview,
@@ -117,5 +118,6 @@ export const getBaseline = async (auditId: string, pageId: string): Promise<Base
   }
 };
 
-export const getBaselineCandidates = (auditId: string, pageId: string) =>
-  apiFetch<Array<{ page: AuditPage; decidedFindings: number }>>(`/audits/${auditId}/pages/${pageId}/baseline-candidates`);
+/** Qué páginas pueden heredar de esta, y en qué situación está cada una. */
+export const getHeirs = (auditId: string, pageId: string) =>
+  apiFetch<HeirsOverview>(`/audits/${auditId}/pages/${pageId}/heirs`);

@@ -534,6 +534,43 @@ export interface BaselineReport {
   notInherited: Array<{ fromFindingId: string; checkId: string; criterion: string; reason: NotInheritedReason }>;
 }
 
+/**
+ * Una candidata a heredar de una linea base. `heir`: ya hereda de ella; `other-baseline`: hereda de otra
+ * (se salta, para no pisar una herencia revisada); `has-heirs`: es linea base de otras y no puede heredar.
+ */
+export type HeirStatus = 'heir' | 'available' | 'other-baseline' | 'has-heirs';
+
+export interface HeirCandidate {
+  page: AuditPage;
+  status: HeirStatus;
+  /** Con `other-baseline`: de que pagina hereda ya. */
+  baselineUrl?: string;
+  /** Con `heir`: lo que heredo la ultima vez que se enlazo. */
+  inherited?: number;
+  notInherited?: number;
+}
+
+/** Lo que una pagina puede repartir como linea base, y a quien. */
+export interface HeirsOverview {
+  /** Si hereda de otra, no puede ser linea base hasta que se le quite la herencia. */
+  inheritsFrom: BaselineReport['baseline'] | null;
+  /** Hallazgos propios decididos: lo que se puede heredar. */
+  decidedFindings: number;
+  /** Cadena de antes de la regla: hereda y a la vez tiene herederas. Hay que deshacer una de las dos. */
+  chain: boolean;
+  candidates: HeirCandidate[];
+}
+
+/** Resultado de enlazar una heredera. Una que falla no para las demas. */
+export interface HeirResult {
+  pageId: string;
+  url: string;
+  linked: boolean;
+  error?: string;
+  inherited?: number;
+  notInherited?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Evidencia para la revision manual. Se guarda en disco junto al JSON de axe
 // (`scan-results/<auditId>/evidence/<pageId>/`), nunca en SQLite. Las capturas

@@ -148,6 +148,14 @@ export const baselineSchema = z
   })
   .strict();
 
+/** Elegir herederas desde la linea base. Mismo limite que una auditoria: cada una compara DOMs en un navegador. */
+export const heirsSchema = z
+  .object({
+    pageIds: z.array(z.string().trim().min(1)).min(1, 'Elige al menos una página').max(50),
+    by: nameSchema,
+  })
+  .strict();
+
 export const bulkValidateSchema = z
   .object({
     by: nameSchema,

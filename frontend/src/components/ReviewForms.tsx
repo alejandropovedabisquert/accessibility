@@ -7,13 +7,15 @@ import {
   createSiteAction,
   falsePositiveAction,
   linkBaselineAction,
+  linkHeirsAction,
   unlinkBaselineAction,
   validateInapplicableAction,
   reviewFindingAction,
   signOffAction,
   type FormState,
+  type HeirsState,
 } from '@/app/actions';
-import { OUTCOME_LABEL } from '@/lib/format';
+import { OUTCOME_LABEL, displayUrl } from '@/lib/format';
 import { useKeepValuesOnError } from '@/lib/useKeepValuesOnError';
 import type { FindingOutcome, ManualFinding } from '@/lib/types';
 import { FIELD, HINT, LABEL, buttonStyles } from '@/components/ui';
@@ -384,22 +386,19 @@ export function SignOffForm({
   );
 }
 
-/** Enlazar la línea base, o recalcularla si ya hay una (mismo formulario con la página fijada). */
+/** Recalcular la herencia desde la heredera: trae lo que se haya decidido en la línea base después. */
 export function BaselineForm({
   auditId,
   pageId,
   path,
   reviewer,
-  candidates,
   current,
 }: {
   auditId: string;
   pageId: string;
   path: string;
   reviewer: string;
-  candidates: Array<{ id: string; label: string }>;
-  /** Línea base actual: el formulario pasa a ser "Recalcular". */
-  current?: string;
+  current: string;
 }) {
   const [state, action] = useActionState(linkBaselineAction, INITIAL);
   const keep = useKeepValuesOnError(state);
@@ -409,35 +408,28 @@ export function BaselineForm({
       <input type="hidden" name="auditId" value={auditId} />
       <input type="hidden" name="pageId" value={pageId} />
       <input type="hidden" name="path" value={path} />
+      <input type="hidden" name="baselinePageId" value={current} />
       <FormError state={state} />
-      <div className="grid gap-3 sm:grid-cols-2">
-        {current ? (
-          <input type="hidden" name="baselinePageId" value={current} />
-        ) : (
-          <div>
-            <label htmlFor={`${id}-baseline`} className={LABEL}>
-              Página de línea base
-            </label>
-            <select id={`${id}-baseline`} name="baselinePageId" required className={FIELD}>
-              {candidates.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        <ReviewerField id={`${id}-by`} reviewer={reviewer} />
-      </div>
-      <Submit variant={current ? 'secondary' : 'primary'}>
-        {current ? <RefreshIcon /> : <LinkIcon />}
-        {current ? 'Recalcular la herencia' : 'Enlazar y heredar'}
+      <ReviewerField id={`${id}-by`} reviewer={reviewer} />
+      <Submit>
+        <RefreshIcon />
+        Recalcular la herencia
       </Submit>
     </form>
   );
 }
 
-export function UnlinkBaselineForm({ auditId, pageId, path }: { auditId: string; pageId: string; path: string }) {
+export function UnlinkBaselineForm({
+  auditId,
+  pageId,
+  path,
+  label = 'Quitar la línea base',
+}: {
+  auditId: string;
+  pageId: string;
+  path: string;
+  label?: string;
+}) {
   const [state, action] = useActionState(unlinkBaselineAction, INITIAL);
   const keep = useKeepValuesOnError(state);
   return (
@@ -448,7 +440,128 @@ export function UnlinkBaselineForm({ auditId, pageId, path }: { auditId: string;
       <FormError state={state} />
       <Submit variant="danger">
         <UnlinkIcon />
-        Quitar la línea base
+        {label}
+      </Submit>
+    </form>
+  );
+}
+
+export interface HeirOption {
+  id: string;
+  label: string;
+  /** Si no se puede elegir, por qué. */
+  disabledReason?: string;
+}
+
+function HeirResults({ state }: { state: HeirsState }) {
+  if (!state.results?.length) return null;
+  const linked = state.results.filter((result) => result.linked).length;
+  return (
+    <div role="status" className="rounded-md border border-line bg-surface-muted px-3 py-2 text-sm">
+      <p className="font-medium">
+        Enlazadas {linked} de {state.results.length}.
+      </p>
+      <ul className="mt-1 space-y-0.5">
+        {state.results.map((result) => (
+          <li key={result.pageId} className={result.linked ? undefined : 'text-critical'}>
+            {result.url ? displayUrl(result.url) : result.pageId}:{' '}
+            {result.linked ? `${result.inherited ?? 0} heredado(s), ${result.notInherited ?? 0} sin heredar` : result.error}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Elegir desde la línea base qué páginas heredan de ella. Las que no se pueden elegir (heredan de otra,
+ * o tienen herederas) salen deshabilitadas con el motivo, para que se vea por qué.
+ */
+export function HeirsForm({
+  auditId,
+  pageId,
+  path,
+  reviewer,
+  options,
+}: {
+  auditId: string;
+  pageId: string;
+  path: string;
+  reviewer: string;
+  options: HeirOption[];
+}) {
+  const [state, action] = useActionState(linkHeirsAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
+  const id = useId();
+  return (
+    <form {...keep} action={action} className="space-y-3">
+      <input type="hidden" name="auditId" value={auditId} />
+      <input type="hidden" name="pageId" value={pageId} />
+      <input type="hidden" name="path" value={path} />
+      <FormError state={state} />
+      <HeirResults state={state} />
+      <fieldset>
+        <legend className={LABEL}>Elige cuáles heredan de esta</legend>
+        <ul className="space-y-1.5">
+          {options.map((option) => (
+            <li key={option.id}>
+              <label className={`flex items-start gap-2 text-sm ${option.disabledReason ? 'text-ink-muted' : ''}`}>
+                <input
+                  type="checkbox"
+                  name="heirs"
+                  value={option.id}
+                  disabled={Boolean(option.disabledReason)}
+                  className="mt-0.5 size-4"
+                />
+                <span>
+                  {option.label}
+                  {option.disabledReason ? <span className="block text-xs">{option.disabledReason}</span> : null}
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </fieldset>
+      <ReviewerField id={`${id}-by`} reviewer={reviewer} />
+      <Submit variant="primary">
+        <LinkIcon />
+        Heredar a las elegidas
+      </Submit>
+    </form>
+  );
+}
+
+/** Volver a enlazar todas las herederas: trae lo decidido en la línea base desde la última vez. */
+export function RecalculateHeirsForm({
+  auditId,
+  pageId,
+  path,
+  reviewer,
+  heirIds,
+}: {
+  auditId: string;
+  pageId: string;
+  path: string;
+  reviewer: string;
+  heirIds: string[];
+}) {
+  const [state, action] = useActionState(linkHeirsAction, INITIAL);
+  const keep = useKeepValuesOnError(state);
+  const id = useId();
+  return (
+    <form {...keep} action={action} className="space-y-3">
+      <input type="hidden" name="auditId" value={auditId} />
+      <input type="hidden" name="pageId" value={pageId} />
+      <input type="hidden" name="path" value={path} />
+      {heirIds.map((heirId) => (
+        <input key={heirId} type="hidden" name="heirs" value={heirId} />
+      ))}
+      <FormError state={state} />
+      <HeirResults state={state} />
+      <ReviewerField id={`${id}-by`} reviewer={reviewer} />
+      <Submit>
+        <RefreshIcon />
+        Recalcular herederas ({heirIds.length})
       </Submit>
     </form>
   );

@@ -322,6 +322,24 @@ class ReviewRepository {
     getDb().prepare('DELETE FROM page_baselines WHERE page_id = @pageId').run({ pageId });
   }
 
+  /** Paginas que heredan de esta linea base. */
+  findHeirIds(baselinePageId: string): string[] {
+    const rows = getDb()
+      .prepare('SELECT page_id AS pageId FROM page_baselines WHERE baseline_page_id = @baselinePageId')
+      .all({ baselinePageId }) as Array<{ pageId: string }>;
+    return rows.map((row) => row.pageId);
+  }
+
+  /** Enlaces en los que participan estas paginas, como herederas o como lineas base. */
+  findBaselineLinks(pageIds: string[]): Array<{ pageId: string; baselinePageId: string }> {
+    return getDb()
+      .prepare(`
+        SELECT page_id AS pageId, baseline_page_id AS baselinePageId FROM page_baselines
+        WHERE page_id IN (SELECT value FROM json_each(@ids)) OR baseline_page_id IN (SELECT value FROM json_each(@ids))
+      `)
+      .all({ ids: JSON.stringify(pageIds) }) as Array<{ pageId: string; baselinePageId: string }>;
+  }
+
   /** Copia heredada de un hallazgo decidido: nace con la revision de quien enlazo la linea base. */
   insertInherited(
     finding: NewFinding,
