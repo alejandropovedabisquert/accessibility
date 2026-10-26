@@ -11,8 +11,10 @@ const STATUSES: AuditStatus[] = ['queued', 'running', 'completed', 'failed'];
 export function AuditFilters() {
   const router = useRouter();
   const params = useSearchParams();
-  const [search, setSearch] = useState(params.get('search') ?? '');
-  const isFirstRender = useRef(true);
+  const urlSearch = params.get('search') ?? '';
+  const [search, setSearch] = useState(urlSearch);
+  // Lo ultimo que ha mandado el propio buscador, para distinguirlo de un cambio de fuera.
+  const pushed = useRef(urlSearch);
 
   const apply = (next: Record<string, string>) => {
     const query = new URLSearchParams(params.toString());
@@ -21,15 +23,22 @@ export function AuditFilters() {
       else query.delete(key);
     }
     query.delete('page'); // cualquier filtro nuevo vuelve a la primera pagina
+    if ('search' in next) pushed.current = next.search ?? '';
     router.push(`/?${query.toString()}`);
   };
 
+  // «Quitar filtros» o volver atras cambian la URL sin volver a montar esto: el campo la sigue.
+  // Lo que viene de nuestro propio debounce no, que pisaria lo tecleado mientras navegaba.
+  useEffect(() => {
+    if (urlSearch !== pushed.current) {
+      pushed.current = urlSearch;
+      setSearch(urlSearch);
+    }
+  }, [urlSearch]);
+
   // Debounce del buscador para no lanzar una peticion por tecla.
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
+    if (search === pushed.current) return;
     const id = setTimeout(() => apply({ search }), 350);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -57,7 +66,7 @@ export function AuditFilters() {
         </label>
         <select
           id="filtro-estado"
-          defaultValue={params.get('status') ?? ''}
+          value={params.get('status') ?? ''}
           onChange={(event) => apply({ status: event.target.value })}
           className={`${FIELD} w-auto!`}
         >

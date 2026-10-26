@@ -11,9 +11,14 @@ export const errorHandler = (
   err: unknown,
   _req: Request,
   res: Response,
-  _next: NextFunction
+  next: NextFunction
 ) => {
-  if (res.headersSent) return;
+  // Un fallo a mitad de una descarga (res.download/sendFile): Express cierra la conexion.
+  if (res.headersSent) {
+    console.error(err);
+    next(err);
+    return;
+  }
 
   if (err instanceof ZodError) {
     res.status(400).json({

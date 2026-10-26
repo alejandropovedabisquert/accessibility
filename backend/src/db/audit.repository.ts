@@ -377,10 +377,18 @@ class AuditRepository {
       .all() as Array<{ id: string; auditId: string }>;
   }
 
-  /** Auditorias cerradas sin desglose agregado (antiguas o cerradas por `recoverInterrupted`). */
+  /**
+   * Auditorias cerradas sin desglose agregado (antiguas o cerradas por `recoverInterrupted`) que ya
+   * pueden tenerlo. Sin alguna pagina con desglose el agregado sigue siendo null, y la auditoria
+   * volveria a salir en cada arranque.
+   */
   findAuditIdsWithoutCompliance(): string[] {
     const rows = getDb()
-      .prepare(`SELECT id FROM audits WHERE compliance IS NULL AND status IN ('completed', 'failed')`)
+      .prepare(
+        `SELECT a.id FROM audits a
+         WHERE a.compliance IS NULL AND a.status IN ('completed', 'failed')
+           AND EXISTS (SELECT 1 FROM audit_pages p WHERE p.audit_id = a.id AND p.compliance IS NOT NULL)`,
+      )
       .all() as Array<{ id: string }>;
     return rows.map((row) => row.id);
   }

@@ -140,7 +140,12 @@ class AuditService {
     screen?: ScanScreen,
     limit = 30,
   ): HistoryPoint[] {
-    return repository.history(normalizeUrl(url), include, screen, Math.min(Math.max(limit, 1), 200));
+    // Las paginas de dispositivo se guardan con su viewport: sin el, `device` solo no casaria nada.
+    const resolved =
+      screen?.device && !screen.viewport
+        ? { ...screen, viewport: devices[screen.device]?.viewport ?? null }
+        : screen;
+    return repository.history(normalizeUrl(url), include, resolved, Math.min(Math.max(limit, 1), 200));
   }
 
   public scannedUrls() {

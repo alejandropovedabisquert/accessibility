@@ -562,6 +562,13 @@ describe('varios viewports por URL', () => {
     expect(audit.pages[0].device).toBe('iPhone 15');
     expect(audit.pages[0].viewport).not.toBeNull();
 
+    // Pedir la serie solo por dispositivo tiene que encontrarla aunque no se pase su viewport.
+    const history = await request(app)
+      .get('/api/history')
+      .query({ url: fixture.url('/correcta'), device: 'iPhone 15' })
+      .expect(200);
+    expect(history.body.points.map((p: { auditId: string }) => p.auditId)).toContain(audit.id);
+
     const single = await request(app)
       .post('/api/audits')
       .send({ urls: [fixture.url('/correcta')], viewport: { width: 800, height: 600 } })

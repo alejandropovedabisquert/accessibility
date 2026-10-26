@@ -5,22 +5,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { CUSTOM_SECTION } from '@/lib/format';
 import { REVIEWER_COOKIE } from '@/lib/reviewer';
-import type { Audit, SignOffBlocker, Site, SignOff } from '@/lib/types';
-
-const API_URL = process.env.API_URL ?? 'http://localhost:3000';
-
-interface ApiErrorBody {
-  error?: string;
-  details?: Array<{ field: string; message: string }>;
-}
-
-const readError = async (res: Response): Promise<string> => {
-  const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
-  if (body?.details?.length) {
-    return body.details.map((d) => `${d.field}: ${d.message}`).join(' · ');
-  }
-  return body?.error ?? `La API devolvió ${res.status}`;
-};
+import { callApi } from '@/lib/apiClient';
+import type { Audit, Site, SignOff } from '@/lib/types';
 
 export interface FormState {
   error: string | null;
@@ -55,8 +41,9 @@ const parseViewports = (presets: string[], custom: string) => {
   return { viewports, invalid };
 };
 
-// Un despiste habitual: pegar "avantio.com" sin protocolo.
-const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+// Un despiste habitual: pegar "avantio.com" sin protocolo. Si trae otro (ftp://), se deja tal cual
+// para que la API lo rechace; antes salía `https://ftp//…` y se escaneaba un dominio inexistente.
+const withProtocol = (url: string) => (/^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`);
 
 /**
  * Convierte el textarea en objetivos de escaneo.
@@ -130,48 +117,39 @@ export async function createAuditAction(_prev: FormState, formData: FormData): P
     payload.viewports = viewports;
   }
 
-  let audit: Audit;
-  try {
-    const res = await fetch(`${API_URL}/api/audits`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-      cache: 'no-store',
-    });
-    if (!res.ok) return { error: await readError(res) };
-    audit = (await res.json()) as Audit;
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const created = await callApi<Audit>('/audits', { method: 'POST', body: payload });
+  if (!created.ok) return { error: created.error };
 
   revalidatePath('/');
-  redirect(`/auditorias/${audit.id}`);
+  redirect(`/auditorias/${created.data.id}`);
+}
+
+/**
+ * Botones sin formulario de error (borrar, relanzar): un fallo lanza y lo recoge `error.tsx`, ahora con
+ * el mensaje de la API en vez de un «fetch failed».
+ */
+async function mustCall<T = undefined>(path: string, method: string): Promise<T> {
+  const result = await callApi<T>(path, { method });
+  if (!result.ok) throw new Error(result.error);
+  return result.data;
 }
 
 export async function deleteAuditAction(formData: FormData): Promise<void> {
-  const id = String(formData.get('id'));
-  const res = await fetch(`${API_URL}/api/audits/${id}`, { method: 'DELETE', cache: 'no-store' });
-  if (!res.ok) throw new Error(await readError(res));
+  await mustCall(`/audits/${encodeURIComponent(String(formData.get('id')))}`, 'DELETE');
 
   revalidatePath('/');
   redirect('/');
 }
 
 export async function deleteAuditGroupAction(formData: FormData): Promise<void> {
-  const id = String(formData.get('id'));
-  const res = await fetch(`${API_URL}/api/audit-groups/${id}`, { method: 'DELETE', cache: 'no-store' });
-  if (!res.ok) throw new Error(await readError(res));
+  await mustCall(`/audit-groups/${encodeURIComponent(String(formData.get('id')))}`, 'DELETE');
 
   revalidatePath('/');
   redirect('/');
 }
 
 export async function rerunAuditAction(formData: FormData): Promise<void> {
-  const id = String(formData.get('id'));
-  const res = await fetch(`${API_URL}/api/audits/${id}/rerun`, { method: 'POST', cache: 'no-store' });
-  if (!res.ok) throw new Error(await readError(res));
-
-  const audit = (await res.json()) as Audit;
+  const audit = await mustCall<Audit>(`/audits/${encodeURIComponent(String(formData.get('id')))}/rerun`, 'POST');
   revalidatePath('/');
   redirect(`/auditorias/${audit.id}`);
 }
@@ -191,13 +169,11 @@ const rememberReviewer = async (name: string) => {
   (await cookies()).set(REVIEWER_COOKIE, name, { path: '/', maxAge: 60 * 60 * 24 * 180, sameSite: 'lax' });
 };
 
-const send = async (path: string, method: string, body: unknown): Promise<Response> =>
-  fetch(`${API_URL}/api${path}`, {
-    method,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    cache: 'no-store',
-  });
+/** Formularios: el error de la API (o de conexión) vuelve al formulario en vez de reventar la página. */
+const send = async (path: string, method: string, body?: unknown): Promise<FormState> => {
+  const result = await callApi(path, { method, body });
+  return { error: result.ok ? null : result.error };
+};
 
 /**
  * Validar, rechazar o corregir un hallazgo. El estado viene del botón pulsado;
@@ -217,12 +193,8 @@ export async function reviewFindingAction(_prev: FormState, formData: FormData):
     body.description = text(formData, 'description');
   }
 
-  try {
-    const res = await send(`/findings/${encodeURIComponent(findingId)}/review`, 'PATCH', body);
-    if (!res.ok) return { error: await readError(res) };
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const sent = await send(`/findings/${encodeURIComponent(findingId)}/review`, 'PATCH', body);
+  if (sent.error) return sent;
 
   await rememberReviewer(by);
   revalidatePath(internalPath(formData));
@@ -237,16 +209,12 @@ export async function falsePositiveAction(_prev: FormState, formData: FormData):
   if (!by) return { error: 'Indica quién revisa.' };
   if (!note) return { error: 'Explica por qué es un falso positivo.' };
 
-  try {
-    const res = await send(
-      `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/false-positives`,
-      'POST',
-      { checkId: text(formData, 'checkId'), ruleId: text(formData, 'ruleId'), by, note },
-    );
-    if (!res.ok) return { error: await readError(res) };
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const sent = await send(
+    `/audits/${encodeURIComponent(auditId)}/pages/${encodeURIComponent(pageId)}/false-positives`,
+    'POST',
+    { checkId: text(formData, 'checkId'), ruleId: text(formData, 'ruleId'), by, note },
+  );
+  if (sent.error) return sent;
 
   await rememberReviewer(by);
   revalidatePath(internalPath(formData));
@@ -262,33 +230,23 @@ export async function createSiteAction(_prev: FormState, formData: FormData): Pr
   if (!name) return { error: 'Ponle un nombre al sitio.' };
   if (hosts.length === 0) return { error: 'Indica al menos un host o una URL del sitio.' };
 
-  let site: Site;
-  try {
-    const res = await send('/sites', 'POST', { name, hosts });
-    if (!res.ok) return { error: await readError(res) };
-    site = (await res.json()) as Site;
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const site = await callApi<Site>('/sites', { method: 'POST', body: { name, hosts } });
+  if (!site.ok) return { error: site.error };
 
   revalidatePath('/sitios');
-  redirect(`/sitios/${site.id}`);
+  redirect(`/sitios/${site.data.id}`);
 }
 
 export async function deleteSiteAction(formData: FormData): Promise<void> {
-  const id = text(formData, 'id');
-  const res = await fetch(`${API_URL}/api/sites/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' });
-  if (!res.ok) throw new Error(await readError(res));
+  await mustCall(`/sites/${encodeURIComponent(text(formData, 'id'))}`, 'DELETE');
 
   revalidatePath('/sitios');
   redirect('/sitios');
 }
 
 export async function deleteSignOffAction(formData: FormData): Promise<void> {
-  const id = text(formData, 'id');
   const siteId = text(formData, 'siteId');
-  const res = await fetch(`${API_URL}/api/sign-offs/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' });
-  if (!res.ok) throw new Error(await readError(res));
+  await mustCall(`/sign-offs/${encodeURIComponent(text(formData, 'id'))}`, 'DELETE');
 
   revalidatePath(`/sitios/${siteId}`);
   redirect(`/sitios/${siteId}`);
@@ -311,18 +269,14 @@ export async function createFindingAction(_prev: FormState, formData: FormData):
   const assistiveTech = text(formData, 'assistiveTech');
   const recommendation = text(formData, 'recommendation');
 
-  try {
-    const res = await send(target, 'POST', {
-      checkId: text(formData, 'checkId'),
-      outcome: text(formData, 'outcome'),
-      description,
-      recommendation: recommendation || null,
-      assertedBy: { type: 'human', name: by, assistiveTech: assistiveTech || null },
-    });
-    if (!res.ok) return { error: await readError(res) };
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const sent = await send(target, 'POST', {
+    checkId: text(formData, 'checkId'),
+    outcome: text(formData, 'outcome'),
+    description,
+    recommendation: recommendation || null,
+    assertedBy: { type: 'human', name: by, assistiveTech: assistiveTech || null },
+  });
+  if (sent.error) return sent;
 
   await rememberReviewer(by);
   revalidatePath(internalPath(formData));
@@ -343,28 +297,16 @@ export async function signOffAction(_prev: FormState, formData: FormData): Promi
   if (!signer) return { error: 'Indica quién firma.' };
   if (!statement) return { error: 'Escribe la declaración que firmas.' };
 
-  let signOff: SignOff;
-  try {
-    const res = await send(`/sites/${encodeURIComponent(siteId)}/sign-offs`, 'POST', {
-      pageIds,
-      signer,
-      credential: credential || null,
-      statement,
-    });
-    if (res.status === 409) {
-      const body = (await res.json().catch(() => null)) as { error?: string; details?: SignOffBlocker[] } | null;
-      const first = body?.details?.slice(0, 3).map((blocker) => blocker.message).join(' · ');
-      return { error: `${body?.error ?? 'No se puede firmar todavía'}${first ? `: ${first}` : ''}` };
-    }
-    if (!res.ok) return { error: await readError(res) };
-    signOff = (await res.json()) as SignOff;
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  // Un 409 trae los bloqueos en `details`: `callApi` añade los tres primeros al mensaje.
+  const signOff = await callApi<SignOff>(`/sites/${encodeURIComponent(siteId)}/sign-offs`, {
+    method: 'POST',
+    body: { pageIds, signer, credential: credential || null, statement },
+  });
+  if (!signOff.ok) return { error: signOff.error };
 
   await rememberReviewer(signer);
   revalidatePath(`/sitios/${siteId}`);
-  redirect(`/firmas/${signOff.id}`);
+  redirect(`/firmas/${signOff.data.id}`);
 }
 
 /** Enlazar (o recalcular) la línea base de una página: hereda hallazgos validados a nombre de quien enlaza. */
@@ -374,16 +316,12 @@ export async function linkBaselineAction(_prev: FormState, formData: FormData): 
   if (!by) return { error: 'Indica quién enlaza la línea base.' };
   if (!baselinePageId) return { error: 'Elige la página de línea base.' };
 
-  try {
-    const res = await send(
-      `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/baseline`,
-      'PUT',
-      { baselinePageId, by },
-    );
-    if (!res.ok) return { error: await readError(res) };
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const sent = await send(
+    `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/baseline`,
+    'PUT',
+    { baselinePageId, by },
+  );
+  if (sent.error) return sent;
 
   await rememberReviewer(by);
   revalidatePath(internalPath(formData));
@@ -391,15 +329,11 @@ export async function linkBaselineAction(_prev: FormState, formData: FormData): 
 }
 
 export async function unlinkBaselineAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  try {
-    const res = await fetch(
-      `${API_URL}/api/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/baseline`,
-      { method: 'DELETE', cache: 'no-store' },
-    );
-    if (!res.ok) return { error: await readError(res) };
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const sent = await send(
+    `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/baseline`,
+    'DELETE',
+  );
+  if (sent.error) return sent;
   revalidatePath(internalPath(formData));
   return { error: null };
 }
@@ -409,16 +343,12 @@ export async function validateInapplicableAction(_prev: FormState, formData: For
   const by = text(formData, 'by');
   if (!by) return { error: 'Indica quién revisa.' };
 
-  try {
-    const res = await send(
-      `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/findings/validate-inapplicable`,
-      'POST',
-      { by },
-    );
-    if (!res.ok) return { error: await readError(res) };
-  } catch {
-    return { error: `No se pudo conectar con la API en ${API_URL}.` };
-  }
+  const sent = await send(
+    `/audits/${encodeURIComponent(text(formData, 'auditId'))}/pages/${encodeURIComponent(text(formData, 'pageId'))}/findings/validate-inapplicable`,
+    'POST',
+    { by },
+  );
+  if (sent.error) return sent;
 
   await rememberReviewer(by);
   revalidatePath(internalPath(formData));

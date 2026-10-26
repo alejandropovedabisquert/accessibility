@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useState, type MouseEvent } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createAuditAction, type FormState } from '@/app/actions';
 import { CUSTOM_SECTION } from '@/lib/format';
@@ -18,6 +18,11 @@ function SubmitButton() {
       {pending ? 'Lanzando…' : 'Lanzar auditoría'}
     </button>
   );
+}
+
+function setAllTags(event: MouseEvent<HTMLButtonElement>, checked: boolean) {
+  const tags = event.currentTarget.form?.querySelectorAll<HTMLInputElement>('input[name="tags"]') ?? [];
+  for (const tag of tags) tag.checked = checked;
 }
 
 export function NewAuditForm({ meta }: { meta: Meta }) {
@@ -164,21 +169,7 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => {
-                const form = document.forms[0];
-                meta.tags.forEach((tag) => {
-                  const input = form.elements.namedItem(
-                    "tags",
-                  ) as RadioNodeList;
-                  if (input) {
-                    const checkbox = Array.from(input).find(
-                      (el) =>
-                        el instanceof HTMLInputElement && el.value === tag.id,
-                    ) as HTMLInputElement | undefined;
-                    if (checkbox) checkbox.checked = true;
-                  }
-                });
-              }}
+              onClick={(event) => setAllTags(event, true)}
               className={buttonStyles.secondary}
             >
               <SquareCheckIcon />
@@ -186,21 +177,7 @@ export function NewAuditForm({ meta }: { meta: Meta }) {
             </button>
             <button
               type="button"
-              onClick={() => {
-                const form = document.forms[0];
-                meta.tags.forEach((tag) => {
-                  const input = form.elements.namedItem(
-                    "tags",
-                  ) as RadioNodeList;
-                  if (input) {
-                    const checkbox = Array.from(input).find(
-                      (el) =>
-                        el instanceof HTMLInputElement && el.value === tag.id,
-                    ) as HTMLInputElement | undefined;
-                    if (checkbox) checkbox.checked = false;
-                  }
-                });
-              }}
+              onClick={(event) => setAllTags(event, false)}
               className={buttonStyles.secondary}
             >
               <SquareIcon />
